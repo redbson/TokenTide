@@ -21,13 +21,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var contentHeight: CGFloat = 520
     var lastHidden = Date.distantPast
     var outsideClickMonitor: Any?
+    var quotaLow = false
     let updater = Updater()
+
+    // MARK: Language
+
+    /// "zh" or "en", as chosen in the panel's settings (sent with `setLanguage`); before the
+    /// page has said, Chinese when the primary system language is Chinese, English otherwise.
+    var language: String {
+        if let chosen = UserDefaults.standard.string(forKey: "language"), ["zh", "en"].contains(chosen) { return chosen }
+        return Locale.preferredLanguages.first?.lowercased().hasPrefix("zh") == true ? "zh" : "en"
+    }
+
+    func tr(_ chinese: String, _ english: String) -> String { language == "zh" ? chinese : english }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         setUpStatusItem()
         setUpPanel()
-        showLoading("正在启动本机额度服务…")
+        showLoading(tr("正在启动本机额度服务…", "Starting the local quota service…"))
         probe(startIfNeeded: true)
 
         updater.onChange = { [weak self] in self?.sendUpdateStatus() }
@@ -89,17 +101,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         image.isTemplate = true
         button.image = image
         button.imagePosition = .imageOnly
-        button.toolTip = low ? "TokenTide · 有额度偏低" : "TokenTide"
+        quotaLow = low
+        updateTooltip()
+    }
+
+    func updateTooltip() {
+        statusItem.button?.toolTip = quotaLow ? tr("TokenTide · 有额度偏低", "TokenTide · quota running low") : "TokenTide"
     }
 
     @objc func statusItemClicked(_ sender: NSStatusBarButton) {
         if NSApp.currentEvent?.type == .rightMouseUp {
             hidePanel()
             let menu = NSMenu()
-            menu.addItem(withTitle: "显示额度", action: #selector(showPanel), keyEquivalent: "").target = self
-            menu.addItem(withTitle: "立即刷新", action: #selector(refreshNow), keyEquivalent: "r").target = self
+            menu.addItem(withTitle: tr("显示额度", "Show Quota"), action: #selector(showPanel), keyEquivalent: "").target = self
+            menu.addItem(withTitle: tr("立即刷新", "Refresh Now"), action: #selector(refreshNow), keyEquivalent: "r").target = self
             menu.addItem(.separator())
-            menu.addItem(withTitle: "退出", action: #selector(quit), keyEquivalent: "q").target = self
+            menu.addItem(withTitle: tr("退出", "Quit"), action: #selector(quit), keyEquivalent: "q").target = self
             statusItem.menu = menu
             sender.performClick(nil)
             statusItem.menu = nil
@@ -136,6 +153,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(self, name: "usageMonitor")
+        // WebKit's navigator.language follows the app's own localizations, not the Mac's,
+        // so the page gets the system languages from here (see src/i18n.js).
+        if let data = try? JSONSerialization.data(withJSONObject: Locale.preferredLanguages),
+           let languages = String(data: data, encoding: .utf8) {
+            configuration.userContentController.addUserScript(WKUserScript(
+                source: "window.__TOKENTIDE__ = { systemLanguages: \(languages) };",
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true
+            ))
+        }
         webView = WKWebView(frame: container.bounds, configuration: configuration)
         webView.autoresizingMask = [.width, .height]
         webView.navigationDelegate = self
@@ -210,6 +237,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             if lines.isEmpty { showStatusGlyph() } else { updateStatusItem(lines: lines, low: body["low"] as? Bool ?? false) }
         case "hide":
             hidePanel()
+        case "setLanguage":
+            guard let chosen = body["language"] as? String, ["zh", "en"].contains(chosen) else { return }
+            UserDefaults.standard.set(chosen, forKey: "language")
+            updateTooltip()
         case "getLoginItem":
             sendLoginItemStatus()
         case "setLoginItem":
@@ -239,7 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         if (error as NSError).code == NSURLErrorCancelled { return }
         // The local service went away (for example after a restart); bring it back.
         attempts = 0
-        showLoading("正在重新连接本机额度服务…")
+        showLoading(tr("正在重新连接本机额度服务…", "Reconnecting to the local quota service…"))
         probe(startIfNeeded: true)
     }
 
@@ -321,8 +352,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.probe(startIfNeeded: false) }
                 } else {
                     self.showLoading(
-                        "无法启动本机额度服务",
-                        detail: "请确认已安装 Node.js 20 或更新版本（终端里能运行 node）。<br>日志：~/Library/Logs/TokenTide.log"
+                        self.tr("无法启动本机额度服务", "Couldn't start the local quota service"),
+                        detail: self.tr(
+                            "请确认已安装 Node.js 20 或更新版本（终端里能运行 node）。<br>日志：~/Library/Logs/TokenTide.log",
+                            "Make sure Node.js 20 or later is installed (node runs in Terminal).<br>Log: ~/Library/Logs/TokenTide.log"
+                        )
                     )
                 }
             }

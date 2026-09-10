@@ -20,10 +20,14 @@ final class Updater {
         let page: URL
     }
 
-    struct UpdateError: LocalizedError {
-        let message: String
-        init(_ message: String) { self.message = message }
-        var errorDescription: String? { message }
+    /// Failure codes are translated by the page (`updateError.<code>` in src/i18n.js).
+    struct UpdateError: Error {
+        let code: String
+        let params: [String: String]
+        init(_ code: String, _ params: [String: String] = [:]) {
+            self.code = code
+            self.params = params
+        }
     }
 
     static let repository = "redbson/TokenTide"
@@ -34,7 +38,7 @@ final class Updater {
 
     private(set) var status: Status = .idle
     private(set) var latest: Release?
-    private(set) var lastError: String?
+    private(set) var lastError: UpdateError?
     private(set) var checkedAt: Date?
     private var pendingInstall = false
     private var timer: Timer?
@@ -55,7 +59,7 @@ final class Updater {
         }
     }
 
-    /// State for the 设置 tab (`usage-monitor:update` event).
+    /// State for the Settings tab (`usage-monitor:update` event).
     var snapshot: [String: Any] {
         var detail: [String: Any] = [
             "status": status.rawValue,
@@ -63,7 +67,10 @@ final class Updater {
             "autoUpdate": autoUpdate,
         ]
         if let latest { detail["latestVersion"] = latest.version }
-        if let lastError { detail["error"] = lastError }
+        if let lastError {
+            detail["error"] = lastError.code
+            detail["errorParams"] = lastError.params
+        }
         if let checkedAt { detail["checkedAt"] = checkedAt.timeIntervalSince1970 * 1000 }
         return detail
     }
@@ -92,7 +99,7 @@ final class Updater {
     private func handleLatest(data: Data?, response: URLResponse?, error: Error?) {
         checkedAt = Date()
         guard error == nil, let http = response as? HTTPURLResponse else {
-            fail("无法连接 GitHub")
+            fail(UpdateError("network"))
             return
         }
         // 404: the repository has no published release yet.
@@ -102,7 +109,7 @@ final class Updater {
             return
         }
         guard http.statusCode == 200, let data, let release = Self.parseRelease(data) else {
-            fail("读取版本信息失败（HTTP \(http.statusCode)）")
+            fail(UpdateError("response", ["status": String(http.statusCode)]))
             return
         }
         // A release whose build has not finished uploading has no zip yet; check again later.
@@ -168,20 +175,20 @@ final class Updater {
             let text = data.flatMap { String(data: $0, encoding: .utf8) }
             let expected = text?.split(whereSeparator: \.isWhitespace).first.map { $0.lowercased() }
             guard (response as? HTTPURLResponse)?.statusCode == 200, let expected, expected.count == 64 else {
-                DispatchQueue.main.async { self?.fail("校验文件无效") }
+                DispatchQueue.main.async { self?.fail(UpdateError("checksumFile")) }
                 return
             }
             URLSession.shared.downloadTask(with: release.zip) { location, response, error in
                 let result = Result { () throws -> URL in
                     guard let location, error == nil, (response as? HTTPURLResponse)?.statusCode == 200 else {
-                        throw UpdateError("下载失败")
+                        throw UpdateError("download")
                     }
                     return try Self.prepare(download: location, expectedSHA256: expected, version: release.version)
                 }
                 DispatchQueue.main.async {
                     switch result {
                     case .success(let app): self?.replaceAndRelaunch(with: app)
-                    case .failure(let error): self?.fail(error.localizedDescription)
+                    case .failure(let error): self?.fail(error as? UpdateError ?? UpdateError("unknown"))
                     }
                 }
             }.resume()
@@ -197,14 +204,14 @@ final class Updater {
         try files.moveItem(at: download, to: zip)
 
         let digest = SHA256.hash(data: try Data(contentsOf: zip)).map { String(format: "%02x", $0) }.joined()
-        guard digest == expectedSHA256 else { throw UpdateError("下载内容校验失败，已放弃这次更新") }
+        guard digest == expectedSHA256 else { throw UpdateError("checksum") }
 
         try run("/usr/bin/ditto", ["-x", "-k", zip.path, work.path])
         let app = work.appendingPathComponent("TokenTide.app")
         guard let info = NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist")),
               info["CFBundleIdentifier"] as? String == Bundle.main.bundleIdentifier,
               info["CFBundleShortVersionString"] as? String == version else {
-            throw UpdateError("下载的程序包与 TokenTide 不匹配")
+            throw UpdateError("package")
         }
         try run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app.path])
         return app
@@ -216,7 +223,7 @@ final class Updater {
         do {
             _ = try FileManager.default.replaceItemAt(current, withItemAt: app)
         } catch {
-            fail("没有权限替换 \(current.path)，请从 GitHub 手动下载新版本")
+            fail(UpdateError("permission", ["path": current.path]))
             return
         }
         // Updates fetched by the app itself carry no quarantine flag; clear any left over anyway.
@@ -238,7 +245,7 @@ final class Updater {
         try process.run()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
-            throw UpdateError("\((tool as NSString).lastPathComponent) 失败（\(process.terminationStatus)）")
+            throw UpdateError("tool", ["tool": (tool as NSString).lastPathComponent, "status": String(process.terminationStatus)])
         }
     }
 
@@ -250,8 +257,8 @@ final class Updater {
         onChange?()
     }
 
-    private func fail(_ message: String) {
-        lastError = message
+    private func fail(_ error: UpdateError) {
+        lastError = error
         status = .failed
         onChange?()
     }

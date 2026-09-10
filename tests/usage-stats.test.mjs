@@ -213,13 +213,13 @@ test("formats token counts, model names, and book comparisons", () => {
   assert.equal(compareToBook(1_000), null);
   // Only the largest few qualifying books are candidates.
   for (const seed of ["a", "b", "c", "d", "e", "f"]) {
-    assert.match(compareToBook(46_000_000, seed), /《(安娜·卡列尼娜|堂吉诃德|指环王|基督山伯爵|悲惨世界|战争与和平)》/);
+    assert.match(compareToBook(46_000_000, seed, "zh"), /《(安娜·卡列尼娜|堂吉诃德|指环王|基督山伯爵|悲惨世界|战争与和平)》/);
   }
   assert.equal(formatShare(0.004), "<1%");
   assert.equal(formatShare(0.42), "42%");
   assert.equal(formatShare(0), "0%");
-  assert.equal(compareToBook(30_000), "输入和输出大约相当于一本《小王子》。");
-  assert.match(compareToBook(46_000_000, "seed"), /^输入和输出约是《.+》全书的 \d+ 倍。$/);
+  assert.equal(compareToBook(30_000, "", "zh"), "输入和输出大约相当于一本《小王子》。");
+  assert.match(compareToBook(46_000_000, "seed", "zh"), /^输入和输出约是《.+》全书的 \d+ 倍。$/);
   assert.equal(compareToBook(46_000_000, "seed"), compareToBook(46_000_000, "seed"));
 });
 

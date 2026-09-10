@@ -110,7 +110,7 @@ button:focus-visible {
 }
 
 .tabs {
-  gap: 22px;
+  gap: 16px;
   align-self: stretch;
 }
 
@@ -143,7 +143,7 @@ button:focus-visible {
   background: var(--accent);
 }
 
-.header-actions { gap: 10px; }
+.header-actions { gap: 10px; margin-left: 12px; }
 
 .connection-summary {
   gap: 6px;
@@ -377,6 +377,8 @@ button:focus-visible {
 .settings-detail { color: var(--muted); font-size: 11.5px; }
 .settings-action { align-self: flex-start; margin-top: 2px; }
 .settings-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 2px; }
+.settings-segmented { align-self: flex-start; margin: 5px 0 0 -8px; }
+.segmented button[aria-checked="true"] { background: rgba(255, 255, 255, 0.1); color: var(--text); }
 
 .settings-about {
   margin: 14px 0 0;
@@ -478,6 +480,7 @@ button:focus-visible {
 }
 
 .segmented button:hover { color: var(--text-secondary); }
+.stats-toolbar .segmented button { padding: 0 6px; }
 .segmented button[aria-selected="true"] { background: rgba(255, 255, 255, 0.1); color: var(--text); }
 
 .stat-grid {
@@ -658,7 +661,7 @@ button:focus-visible {
 .brand-mark { width: 14px; height: 14px; }
 .brand-name { color: var(--text-secondary); font-weight: 600; }
 
-.footer-hint { color: var(--faint); }
+.footer-hint { color: var(--faint); white-space: nowrap; }
 
 .footer-button {
   gap: 5px;

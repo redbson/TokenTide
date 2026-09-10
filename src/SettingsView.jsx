@@ -1,4 +1,6 @@
-import { BellIcon, ClockIcon, DownloadIcon, LoginIcon } from "./icons.jsx";
+import { useI18n } from "./i18n-context.js";
+import { LANGUAGE_NAMES } from "./i18n.js";
+import { BellIcon, ClockIcon, DownloadIcon, GlobeIcon, LoginIcon } from "./icons.jsx";
 import { LOW_USAGE_THRESHOLD } from "./usage-format.js";
 
 function Toggle({ checked, onChange, label, disabled = false }) {
@@ -17,6 +19,7 @@ function Toggle({ checked, onChange, label, disabled = false }) {
   );
 }
 
+/** A settings row; rows without `onChange` have no switch (their control goes in `action`). */
 function SettingRow({ icon, title, detail, checked, onChange, disabled, action }) {
   return (
     <div className="settings-row">
@@ -26,66 +29,87 @@ function SettingRow({ icon, title, detail, checked, onChange, disabled, action }
         <span className="settings-detail">{detail}</span>
         {action}
       </div>
-      <Toggle checked={checked} onChange={onChange} label={title} disabled={disabled} />
+      {onChange ? <Toggle checked={checked} onChange={onChange} label={title} disabled={disabled} /> : null}
     </div>
   );
 }
 
 // Status names come from SMAppService.Status in macos/AppDelegate.swift.
-function loginItemDetail(loginItem) {
+function loginItemDetail(loginItem, t) {
   switch (loginItem.status) {
     case "enabled":
-      return "登录 Mac 后自动出现在菜单栏";
+      return t("login.enabled");
     case "requiresApproval":
-      return "已添加，需要在系统设置里允许";
+      return t("login.requiresApproval");
     case "checking":
-      return "正在读取系统设置…";
+      return t("login.checking");
     case "unavailable":
-      return "仅在 TokenTide app 中可用";
+      return t("login.unavailable");
     default:
-      return loginItem.error ? `设置失败：${loginItem.error}` : "登录 Mac 后自动启动 TokenTide";
+      return loginItem.error ? t("login.failed", { error: loginItem.error }) : t("login.off");
   }
 }
 
-// Status names come from Updater.Status in macos/Updater.swift.
-function updateDetail(update) {
-  const current = update.currentVersion ? `当前 ${update.currentVersion}` : "当前版本";
+// Status names and error codes come from Updater in macos/Updater.swift.
+function updateDetail(update, t) {
+  const version = update.currentVersion || "—";
   switch (update.status) {
     case "unavailable":
-      return "仅在 TokenTide app 中可用";
+      return t("update.unavailable");
     case "checking":
-      return "正在检查更新…";
+      return t("update.checking");
     case "upToDate":
-      return `${current}，已是最新版本`;
+      return t("update.upToDate", { version });
     case "available":
-      return `发现新版本 ${update.latestVersion}${update.autoUpdate ? "，关闭面板后自动安装" : ""}`;
+      return t(update.autoUpdate ? "update.availableAuto" : "update.available", { version: update.latestVersion });
     case "downloading":
-      return `正在下载 ${update.latestVersion}…`;
+      return t("update.downloading", { version: update.latestVersion });
     case "installing":
-      return "正在安装，TokenTide 马上会重启…";
+      return t("update.installing");
     case "failed":
-      return `更新失败：${update.error ?? "未知错误"}`;
+      return t("update.failed", {
+        error: t(`updateError.${update.error ?? "unknown"}`, update.errorParams ?? {}),
+      });
     default:
-      return `${current} · 每 6 小时检查一次 GitHub`;
+      return t("update.idle", { version });
   }
 }
 
 function UpdateActions({ update, onCheck, onInstall, onOpenRelease }) {
-  if (update.status === "unavailable" || update.status === "checking" || update.status === "downloading" || update.status === "installing") {
-    return null;
-  }
+  const { t } = useI18n();
+  if (["unavailable", "checking", "downloading", "installing"].includes(update.status)) return null;
   const installable = update.latestVersion && (update.status === "available" || update.status === "failed");
   return (
     <span className="settings-actions">
       {installable ? (
         <>
-          <button className="link-button" type="button" onClick={onInstall}>立即更新到 {update.latestVersion}</button>
-          <button className="link-button" type="button" onClick={onOpenRelease}>查看更新内容</button>
+          <button className="link-button" type="button" onClick={onInstall}>
+            {t("update.installNow", { version: update.latestVersion })}
+          </button>
+          <button className="link-button" type="button" onClick={onOpenRelease}>{t("update.notes")}</button>
         </>
       ) : (
-        <button className="link-button" type="button" onClick={onCheck}>检查更新</button>
+        <button className="link-button" type="button" onClick={onCheck}>{t("update.check")}</button>
       )}
     </span>
+  );
+}
+
+function LanguagePicker({ value, onChange }) {
+  const { t } = useI18n();
+  const options = [
+    ["system", t("settings.languageSystem")],
+    ["zh", LANGUAGE_NAMES.zh],
+    ["en", LANGUAGE_NAMES.en],
+  ];
+  return (
+    <div className="segmented settings-segmented" role="radiogroup" aria-label={t("settings.language")}>
+      {options.map(([id, label]) => (
+        <button key={id} type="button" role="radio" aria-checked={value === id} onClick={() => onChange(id)}>
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -99,23 +123,30 @@ export function SettingsView({
   onUpdateAction,
   version,
 }) {
+  const { t } = useI18n();
   const loginEnabled = loginItem.status === "enabled" || loginItem.status === "requiresApproval";
   return (
     <div className="settings">
       <section className="settings-group" aria-labelledby="settings-general">
-        <h3 id="settings-general">通用</h3>
+        <h3 id="settings-general">{t("settings.general")}</h3>
         <div className="settings-list">
           <SettingRow
+            icon={<GlobeIcon />}
+            title={t("settings.language")}
+            detail={t("settings.languageDetail")}
+            action={<LanguagePicker value={settings.language} onChange={(value) => onSettingChange("language", value)} />}
+          />
+          <SettingRow
             icon={<LoginIcon />}
-            title="开机时启动"
-            detail={loginItemDetail(loginItem)}
+            title={t("settings.launch")}
+            detail={loginItemDetail(loginItem, t)}
             checked={loginEnabled}
             onChange={onLoginItemChange}
             disabled={loginItem.status === "unavailable" || loginItem.status === "checking"}
             action={
               loginItem.status === "requiresApproval" ? (
                 <button className="link-button settings-action" type="button" onClick={onOpenLoginItems}>
-                  打开「登录项」设置
+                  {t("login.openSettings")}
                 </button>
               ) : null
             }
@@ -124,12 +155,12 @@ export function SettingsView({
       </section>
 
       <section className="settings-group" aria-labelledby="settings-update">
-        <h3 id="settings-update">更新</h3>
+        <h3 id="settings-update">{t("settings.update")}</h3>
         <div className="settings-list">
           <SettingRow
             icon={<DownloadIcon />}
-            title="自动更新"
-            detail={updateDetail(update)}
+            title={t("settings.autoUpdate")}
+            detail={updateDetail(update, t)}
             checked={update.status !== "unavailable" && update.autoUpdate !== false}
             onChange={(value) => onUpdateAction("setAutoUpdate", value)}
             disabled={update.status === "unavailable"}
@@ -146,26 +177,26 @@ export function SettingsView({
       </section>
 
       <section className="settings-group" aria-labelledby="settings-quota">
-        <h3 id="settings-quota">额度</h3>
+        <h3 id="settings-quota">{t("settings.quota")}</h3>
         <div className="settings-list">
           <SettingRow
             icon={<ClockIcon />}
-            title="自动刷新"
-            detail="每 5 分钟读取一次额度"
+            title={t("settings.autoRefresh")}
+            detail={t("settings.autoRefreshDetail")}
             checked={settings.autoRefresh}
             onChange={(value) => onSettingChange("autoRefresh", value)}
           />
           <SettingRow
             icon={<BellIcon />}
-            title="低额度提醒"
-            detail={`当前窗口剩余低于 ${LOW_USAGE_THRESHOLD}% 时提示`}
+            title={t("settings.lowAlert")}
+            detail={t("settings.lowAlertDetail", { percent: LOW_USAGE_THRESHOLD })}
             checked={settings.lowUsageAlert}
             onChange={(value) => onSettingChange("lowUsageAlert", value)}
           />
         </div>
       </section>
 
-      <p className="settings-about">TokenTide {version} · 所有数据只在本机读取和保存</p>
+      <p className="settings-about">{t("settings.about", { version })}</p>
     </div>
   );
 }

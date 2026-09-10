@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useI18n } from "./i18n-context.js";
 import { PROVIDER_META, formatPercent } from "./usage-format.js";
 import {
   FULL_WEEK_PERCENT,
@@ -43,6 +44,7 @@ function StatCard({ label, value, detail, compact }) {
 }
 
 function Heatmap({ days, start, today }) {
+  const { t } = useI18n();
   const { columns } = useMemo(() => buildHeatmap(days, today, HEATMAP_WEEKS), [days, today]);
   return (
     <div className="heatmap-block">
@@ -50,26 +52,26 @@ function Heatmap({ days, start, today }) {
         className="heatmap"
         style={{ gridTemplateColumns: `repeat(${HEATMAP_WEEKS}, minmax(0, 1fr))` }}
         role="img"
-        aria-label={`最近 ${HEATMAP_WEEKS} 周每日 token 用量`}
+        aria-label={t("heatmap.label", { weeks: HEATMAP_WEEKS })}
       >
         {columns.map((cells) =>
           cells.map((cell) => (
             <span
               key={cell.date}
               className={`heat-cell level-${cell.level} ${cell.future ? "is-future" : ""} ${cell.date < start ? "is-outside" : ""}`}
-              title={cell.future ? undefined : `${cell.date} · ${formatTokens(cell.tokens)} tokens · ${cell.sessions} 次会话`}
+              title={cell.future ? undefined : t("heatmap.cell", { date: cell.date, tokens: formatTokens(cell.tokens), count: cell.sessions })}
             />
           )),
         )}
       </div>
       <div className="heatmap-legend">
-        <span>最近 {HEATMAP_WEEKS} 周</span>
+        <span>{t("heatmap.caption", { weeks: HEATMAP_WEEKS })}</span>
         <span className="legend-scale" aria-hidden="true">
-          少
+          {t("heatmap.less")}
           {[0, 1, 2, 3, 4].map((level) => (
             <span key={level} className={`heat-cell level-${level}`} />
           ))}
-          多
+          {t("heatmap.more")}
         </span>
       </div>
     </div>
@@ -77,7 +79,8 @@ function Heatmap({ days, start, today }) {
 }
 
 function ModelList({ models }) {
-  if (models.length === 0) return <p className="stats-empty">这段时间没有模型用量。</p>;
+  const { t } = useI18n();
+  if (models.length === 0) return <p className="stats-empty">{t("stats.noModels")}</p>;
   return (
     <ul className="model-list">
       {models.slice(0, 6).map(({ model, tokens, share }) => (
@@ -98,21 +101,25 @@ function ModelList({ models }) {
 }
 
 function QuotaBars({ weeks, current, average }) {
+  const { t } = useI18n();
   const bars = current ? [...weeks, { ...current, isCurrent: true }] : weeks;
   const period = (window) => `${formatMonthDay(weekStart(window))}–${formatMonthDay(window.resetsAt)}`;
   return (
     <div className="quota-chart">
-      <div className={`quota-bars ${bars.length > 30 ? "is-dense" : ""}`} role="img" aria-label="每周额度使用率">
+      <div className={`quota-bars ${bars.length > 30 ? "is-dense" : ""}`} role="img" aria-label={t("quota.chart")}>
         {average !== null ? (
           <div className="quota-average" style={{ bottom: `${average}%` }}>
-            <span>平均 {formatPercent(average)}</span>
+            <span>{t("quota.average", { percent: formatPercent(average) })}</span>
           </div>
         ) : null}
         {bars.map((window) => (
           <span
             key={window.resetsAt}
             className={`quota-bar ${window.isCurrent ? "is-current" : ""} ${window.estimated ? "is-estimated" : ""} ${window.usedPercent >= FULL_WEEK_PERCENT ? "is-full" : ""}`}
-            title={`${period(window)} · ${window.estimated ? "估算约 " : "已用 "}${formatPercent(window.usedPercent)}${window.isCurrent ? "（进行中）" : ""}`}
+            title={
+              t(window.estimated ? "quota.barEstimated" : "quota.barUsed", { period: period(window), percent: formatPercent(window.usedPercent) }) +
+              (window.isCurrent ? t("quota.barCurrent") : "")
+            }
           >
             <span style={{ height: `${Math.max(window.usedPercent, 1.5)}%` }} />
           </span>
@@ -120,40 +127,39 @@ function QuotaBars({ weeks, current, average }) {
       </div>
       <div className="quota-axis">
         <span>{bars.length ? formatMonthDay(weekStart(bars[0])) : ""}</span>
-        <span>{current ? "本周" : bars.length ? formatMonthDay(bars.at(-1).resetsAt) : ""}</span>
+        <span>{current ? t("quota.thisWeek") : bars.length ? formatMonthDay(bars.at(-1).resetsAt) : ""}</span>
       </div>
     </div>
   );
 }
 
 function QuotaUsage({ windows, estimate, provider, range }) {
+  const { t, language } = useI18n();
+  // Chinese sentences run together; English ones need a space.
+  const gap = language === "zh" ? "" : " ";
   const summary = useMemo(() => summarizeQuotaWeeks(windows, range), [windows, range]);
   if (windows.length === 0) {
-    return <p className="stats-empty">还没有记录到每周额度，TokenTide 每次刷新都会记一次。</p>;
+    return <p className="stats-empty">{t("quota.empty")}</p>;
   }
 
-  let source = `来自 Codex 会话记录，最早从 ${formatMonthDay(summary.since)} 起。`;
+  let source = t("quota.sourceCodex", { date: formatMonthDay(summary.since) });
   if (provider === "claude") {
-    source = `Claude Code 不在本机保存历史额度，TokenTide 从 ${formatMonthDay(summary.recordedSince)} 开始记录。`;
-    if (estimate) {
-      source +=
-        `更早的周（空心柱）按本机 Claude Code 的用量估算，用已记录的 ${estimate.calibrationWeeks} 周校准；` +
-        "claude.ai 网页、App 和其他电脑的用量不在本机，估算偏低。";
-    }
+    source = t("quota.sourceClaude", { date: formatMonthDay(summary.recordedSince) });
+    if (estimate) source += gap + t("quota.sourceEstimate", { count: estimate.calibrationWeeks });
   }
   // "≈" marks figures that include estimated weeks.
   const approx = (estimated, text) => (estimated && text !== "—" ? `≈${text}` : text);
   return (
     <>
       <div className="stat-grid">
-        <StatCard label="平均使用率" value={approx(summary.estimatedWeeks > 0, formatPercent(summary.average))} />
-        <StatCard label="最高一周" value={approx(summary.peakEstimated, formatPercent(summary.peak))} />
+        <StatCard label={t("quota.averageLabel")} value={approx(summary.estimatedWeeks > 0, formatPercent(summary.average))} />
+        <StatCard label={t("quota.peakLabel")} value={approx(summary.peakEstimated, formatPercent(summary.peak))} />
         <StatCard
-          label="用满"
+          label={t("quota.fullLabel")}
           value={approx(summary.fullWeeksEstimated, String(summary.fullWeeks))}
-          detail={`/${summary.weeks.length} 周`}
+          detail={t("quota.weeksDetail", { count: summary.weeks.length })}
         />
-        <StatCard label="本周已用" value={formatPercent(summary.current?.usedPercent)} />
+        <StatCard label={t("quota.currentLabel")} value={formatPercent(summary.current?.usedPercent)} />
       </div>
       {summary.weeks.length || summary.current ? (
         <QuotaBars weeks={summary.weeks} current={summary.current} average={summary.average} />
@@ -161,9 +167,10 @@ function QuotaUsage({ windows, estimate, provider, range }) {
       <p className="quota-note">
         {summary.weeks.length
           ? summary.estimatedWeeks
-            ? `已结束的 ${summary.weeks.length} 个周期，其中 ${summary.estimatedWeeks} 个为估算。`
-            : `已结束的 ${summary.weeks.length} 个周期，每个周期取重置前记录到的最高使用率。`
-          : "这段时间内还没有结束的周期。"}
+            ? t("quota.noteEstimated", { count: summary.weeks.length, estimated: summary.estimatedWeeks })
+            : t("quota.noteRecorded", { count: summary.weeks.length })
+          : t("quota.noteNone")}
+        {gap}
         {source}
       </p>
     </>
@@ -171,6 +178,7 @@ function QuotaUsage({ windows, estimate, provider, range }) {
 }
 
 export function UsageStats({ stats, error, provider, range, view, onChange }) {
+  const { t, language } = useI18n();
   const today = localDayKey();
   const providerStats = stats?.providers.find((item) => item.id === provider);
   const days = useMemo(() => providerStats?.days ?? [], [providerStats]);
@@ -181,26 +189,26 @@ export function UsageStats({ stats, error, provider, range, view, onChange }) {
   if (error && !stats) {
     body = <p className="stats-empty">{error}</p>;
   } else if (!stats) {
-    body = <p className="stats-empty">正在统计本机记录…</p>;
+    body = <p className="stats-empty">{t("stats.loading")}</p>;
   } else if (view === "quota") {
     body = <QuotaUsage windows={quotaWeeks} estimate={providerStats?.quotaEstimate} provider={provider} range={range} />;
   } else if (days.length === 0) {
-    body = <p className="stats-empty">本机还没有 {PROVIDER_META[provider].name} 的使用记录。</p>;
+    body = <p className="stats-empty">{t("stats.noRecords", { name: PROVIDER_META[provider].name })}</p>;
   } else if (view === "models") {
     body = <ModelList models={summary.models} />;
   } else {
-    const fact = compareToBook(summary.io, `${today}:${provider}:${range}`);
+    const fact = compareToBook(summary.io, `${today}:${provider}:${range}`, language);
     body = (
       <>
         <div className="stat-grid">
-          <StatCard label="会话" value={summary.sessions.toLocaleString()} />
-          <StatCard label="消息" value={summary.messages.toLocaleString()} />
-          <StatCard label="总 Tokens" value={formatTokens(summary.tokens)} />
-          <StatCard label="活跃天数" value={summary.activeDays} detail={`/${summary.totalDays}`} />
-          <StatCard label="当前连续" value={`${summary.currentStreak} 天`} />
-          <StatCard label="最长连续" value={`${summary.longestStreak} 天`} />
-          <StatCard label="高峰时段" value={formatHour(summary.peakHour)} />
-          <StatCard label="常用模型" value={formatModelName(summary.favoriteModel)} compact />
+          <StatCard label={t("stats.sessions")} value={summary.sessions.toLocaleString()} />
+          <StatCard label={t("stats.messages")} value={summary.messages.toLocaleString()} />
+          <StatCard label={t("stats.tokens")} value={formatTokens(summary.tokens)} />
+          <StatCard label={t("stats.activeDays")} value={summary.activeDays} detail={`/${summary.totalDays}`} />
+          <StatCard label={t("stats.currentStreak")} value={t("stats.days", { count: summary.currentStreak })} />
+          <StatCard label={t("stats.longestStreak")} value={t("stats.days", { count: summary.longestStreak })} />
+          <StatCard label={t("stats.peakHour")} value={formatHour(summary.peakHour)} />
+          <StatCard label={t("stats.favoriteModel")} value={formatModelName(summary.favoriteModel)} compact />
         </div>
         <Heatmap days={days} start={summary.start} today={today} />
         {fact ? <p className="stats-fact">{fact}</p> : null}
@@ -209,8 +217,8 @@ export function UsageStats({ stats, error, provider, range, view, onChange }) {
   }
 
   return (
-    <section className={`usage-stats stats-${provider}`} aria-label="使用记录">
-      <div className="stats-providers" role="tablist" aria-label="服务">
+    <section className={`usage-stats stats-${provider}`} aria-label={t("stats.label")}>
+      <div className="stats-providers" role="tablist" aria-label={t("stats.providers")}>
         {Object.entries(PROVIDER_META).map(([id, meta]) => (
           <button key={id} type="button" role="tab" aria-selected={provider === id} onClick={() => onChange("statsProvider", id)}>
             <img src={meta.icon} alt="" />
@@ -220,16 +228,12 @@ export function UsageStats({ stats, error, provider, range, view, onChange }) {
       </div>
       <div className="stats-toolbar">
         <Segmented
-          label="视图"
-          options={[
-            ["overview", "概览"],
-            ["models", "模型"],
-            ["quota", "使用率"],
-          ]}
+          label={t("stats.view")}
+          options={["overview", "models", "quota"].map((id) => [id, t(`stats.${id}`)])}
           value={view}
           onChange={(value) => onChange("statsView", value)}
         />
-        <Segmented label="时间范围" options={STAT_RANGES} value={range} onChange={(value) => onChange("statsRange", value)} />
+        <Segmented label={t("stats.range")} options={STAT_RANGES.map((id) => [id, t(`range.${id}`)])} value={range} onChange={(value) => onChange("statsRange", value)} />
       </div>
       {body}
     </section>

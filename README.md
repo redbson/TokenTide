@@ -2,30 +2,30 @@
 
 English | [简体中文](README.zh-CN.md)
 
-TokenTide is a macOS menu-bar widget that shows how much of your **Codex** and **Claude Code** quota is left, how much of each weekly quota you actually use, and your usage history. Everything is read locally from the command-line tools you are already signed in to: no account, no API key, and nothing leaves your Mac. The interface is in Chinese.
+TokenTide is a macOS menu-bar widget that shows how much of your **Codex** and **Claude Code** quota is left, how much of each weekly quota you actually use, and your usage history. Everything is read locally from the command-line tools you are already signed in to: no account, no API key, and nothing leaves your Mac. The interface is in English and Chinese; it follows your Mac's language and can be switched in Settings.
 
 **[⬇ Download the latest version (TokenTide.zip)](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [All releases](https://github.com/redbson/TokenTide/releases)
 
 <p>
-  <img src="docs/screenshot-quota.png" alt="Quota tab" width="330">
-  <img src="docs/screenshot-history.png" alt="History tab, weekly utilization" width="330">
+  <img src="docs/screenshot-quota-en.png" alt="Quota tab" width="330">
+  <img src="docs/screenshot-history-en.png" alt="History tab, weekly utilization" width="330">
 </p>
 
 ## Features
 
 - **Menu-bar readout**: two small lines, `CX` / `CC`, with the remaining percentage of the current Codex and Claude Code window.
-- **Quota tab (额度)**: current-window and weekly quota left for both tools, with reset countdowns; a notice when a window drops below 20%; refreshes every 5 minutes, and again when you open the panel if the data is more than a minute old.
-- **History · overview / models (概览 / 模型)**: sessions, messages, tokens, active days, streaks, peak hour, and favorite model, modeled on Claude Code's `/stats`, plus a 26-week heatmap.
-- **History · utilization (使用率)**: how much of each weekly quota you actually used — average, highest week, weeks that hit the limit, this week so far — with a bar per week, over the last 7, 30, or 90 days or all time.
-- **Quota trend (额度趋势)**: the current-window remaining quota across recent checks.
-- **Settings tab (设置)**: launch at login, automatic updates, auto-refresh, and the low-quota notice.
+- **Quota tab**: current-window and weekly quota left for both tools, with reset countdowns; a notice when a window drops below 20%; refreshes every 5 minutes, and again when you open the panel if the data is more than a minute old.
+- **History · Overview / Models**: sessions, messages, tokens, active days, streaks, peak hour, and top model, modeled on Claude Code's `/stats`, plus a 26-week heatmap.
+- **History · Utilization**: how much of each weekly quota you actually used — average, peak week, weeks that maxed out, this week so far — with a bar per week, over the last 7, 30, or 90 days or all time.
+- **Quota trend**: the current-window remaining quota across recent checks.
+- **Settings tab**: language (English / Chinese / follow the system), launch at login, automatic updates, auto-refresh, and the low-quota notice.
 - **Automatic updates**: when a new release is published, TokenTide downloads, verifies, and installs it by itself.
 
 ## Requirements
 
 - macOS 13 or later (developed and tested on macOS 26), Apple silicon or Intel
 - [Node.js](https://nodejs.org/) 20 or later (TokenTide's local service runs on Node)
-- [Codex CLI](https://github.com/openai/codex) (`codex`) and/or [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (`claude`), installed and signed in. Claude Code must be signed in with a claude.ai subscription (Pro / Max); API-key accounts have no plan quota to read. One of the two is enough; the other shows as unavailable (不可用).
+- [Codex CLI](https://github.com/openai/codex) (`codex`) and/or [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (`claude`), installed and signed in. Claude Code must be signed in with a claude.ai subscription (Pro / Max); API-key accounts have no plan quota to read. One of the two is enough; the other shows as Unavailable.
 
 ## Installation
 
@@ -40,7 +40,7 @@ TokenTide is a macOS menu-bar widget that shows how much of your **Codex** and *
 
 3. Later versions are downloaded and installed by TokenTide itself (see [Automatic updates](#automatic-updates)), so you won't see this prompt again.
 
-To start TokenTide when you log in, turn on 开机时启动 (launch at login) in the panel's 设置 tab. If macOS asks for approval, click 打开「登录项」设置 and allow TokenTide in System Settings.
+To start TokenTide when you log in, turn on **Launch at login** in the panel's Settings tab. If macOS asks for approval, click **Open Login Items settings** and allow TokenTide in System Settings.
 
 ### Build from source
 
@@ -61,25 +61,26 @@ The built app contains its own interface and local service, so you can move or d
 
 - TokenTide checks the latest GitHub release shortly after it starts and every 6 hours after that.
 - When there is a newer version, it downloads the zip and checks the SHA-256 checksum, bundle identifier, version, and code signature. Only if all of them match does it replace `TokenTide.app` and relaunch. It never installs while the panel is open; it waits until you close it.
-- In 设置 → 更新 you can turn automatic updates off (you'll still be told about new versions), check now (检查更新), or install right away (立即更新).
+- In Settings → Updates you can turn automatic updates off (you'll still be told about new versions), **Check for updates**, or install right away.
 - If TokenTide sits somewhere you can't write to, it can't replace itself and asks you to download the update manually.
 
 ## Usage
 
 - **Left-click** the menu-bar readout to open the panel; click anywhere else or press Esc to close it.
-- **Right-click** for 显示额度 (show quota), 立即刷新 (refresh now), and 退出 (quit). The panel footer also has 退出.
-- **额度 (Quota)**: quota left and reset times for both tools; the button at the top right refreshes immediately.
-- **历史 (History)**: switch between Codex and Claude Code at the top, then pick 概览 / 模型 / 使用率 (overview / models / utilization) and a range (全部 / 90 天 / 30 天 / 7 天).
-- **设置 (Settings)**:
-  - **开机时启动 (launch at login)**: shows TokenTide in the menu bar after you log in. It uses macOS Login Items, so you can also turn it off in System Settings → General → Login Items.
-  - **自动更新 (automatic updates)**: see [Automatic updates](#automatic-updates).
-  - **自动刷新 (auto-refresh)**: reads your quota every 5 minutes.
-  - **低额度提醒 (low-quota notice)**: shows a notice in the panel when the current window drops below 20%.
+- **Right-click** for Show Quota, Refresh Now, and Quit. The panel footer also has Quit.
+- **Quota**: quota left and reset times for both tools; the button at the top right refreshes immediately.
+- **History**: switch between Codex and Claude Code at the top, then pick Overview / Models / Utilization and a range (All / 90d / 30d / 7d).
+- **Settings**:
+  - **Language**: English, Chinese (中文), or follow the system — Chinese when your Mac's primary language is Chinese, English otherwise. The menu-bar menu follows it too.
+  - **Launch at login**: shows TokenTide in the menu bar after you log in. It uses macOS Login Items, so you can also turn it off in System Settings → General → Login Items.
+  - **Automatic updates**: see [Automatic updates](#automatic-updates).
+  - **Auto-refresh**: reads your quota every 5 minutes.
+  - **Low-quota notice**: shows a notice in the panel when the current window drops below 20%.
 
 ### How utilization is calculated
 
 - Each **weekly quota window** counts once: the highest usage recorded before that window reset.
-- The average, highest week, and weeks that hit the limit only include windows that have **ended**. The week in progress is shown separately as 本周已用 (used this week) and drawn with stripes at the right end of the chart.
+- The average, highest week, and weeks that hit the limit only include windows that have **ended**. The week in progress is shown separately as **This week** and drawn with stripes at the right end of the chart.
 - **Codex** history comes from the quota snapshots in your local Codex session files, back to your earliest session.
 - **Claude Code** keeps no quota history on your Mac, so TokenTide records it on every refresh. Weeks before that are **estimated** (hollow dashed bars, figures prefixed with "≈"):
   - Each reply's token usage in your local Claude Code transcripts is converted to its Anthropic API-price equivalent (pricier models and output weigh more; cache reads count at the much cheaper cache price).
@@ -110,11 +111,11 @@ Files TokenTide writes on your Mac:
 
 ## Troubleshooting
 
-- **The panel says 无法启动本机额度服务 (can't start the local service)**: make sure Node.js 20 or later is installed and `node` can be found in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, or your login shell's PATH. Details are in `~/Library/Logs/TokenTide.log`.
+- **The panel says it couldn't start the local quota service**: make sure Node.js 20 or later is installed and `node` can be found in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, or your login shell's PATH. Details are in `~/Library/Logs/TokenTide.log`.
 - **Port 4173 is taken**: TokenTide always uses port 4173. Quit whatever is using it first.
-- **An automatic update failed**: 设置 → 更新 shows the reason. You can always download the latest version from [Releases](https://github.com/redbson/TokenTide/releases/latest) and install it over the old one; your settings and records are kept.
-- **A tool shows 不可用 (unavailable)**: run `codex` or `claude` once in Terminal and make sure you're signed in.
-- **Claude Code shows /usage 备用读取 (/usage fallback)**: the `get_usage` request failed and TokenTide read the `/usage` screen instead. The numbers are still valid.
+- **An automatic update failed**: Settings → Updates shows the reason. You can always download the latest version from [Releases](https://github.com/redbson/TokenTide/releases/latest) and install it over the old one; your settings and records are kept.
+- **A tool shows Unavailable**: run `codex` or `claude` once in Terminal and make sure you're signed in.
+- **Claude Code shows /usage fallback**: the `get_usage` request failed and TokenTide read the `/usage` screen instead. The numbers are still valid.
 
 ## Development
 

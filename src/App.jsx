@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { SettingsView } from "./SettingsView.jsx";
+import { I18nContext, useI18n } from "./i18n-context.js";
+import { resolveLanguage, systemLanguages, translate } from "./i18n.js";
 import { UsageStats } from "./UsageStats.jsx";
 import { AlertIcon, CloseIcon, PowerIcon } from "./icons.jsx";
 import {
-  LIMIT_LABELS,
   LOW_USAGE_THRESHOLD,
   PROVIDER_META,
   describeLow,
@@ -14,6 +15,7 @@ import {
   getPrimaryLimit,
   getPrimaryRemaining,
   isLow,
+  limitLabel,
   makeSnapshot,
   timeAgo,
 } from "./usage-format.js";
@@ -33,6 +35,8 @@ const DEFAULT_SETTINGS = {
   statsProvider: "codex",
   statsRange: "all",
   statsView: "overview",
+  // "system", "zh", or "en"; see i18n.js.
+  language: "system",
 };
 
 // Present when the page runs inside the macOS menu-bar panel (macos/AppDelegate.swift).
@@ -64,6 +68,7 @@ function writeStoredJson(key, value) {
 }
 
 function ProviderBlock({ provider, loading, now }) {
+  const { t, language } = useI18n();
   const meta = PROVIDER_META[provider.id];
   const primary = getPrimaryLimit(provider);
   const remaining = getPrimaryRemaining(provider);
@@ -77,25 +82,25 @@ function ProviderBlock({ provider, loading, now }) {
           <h2 id={`${provider.id}-title`}>{meta.name}</h2>
           <div className="connection-line">
             <span className={`status-dot ${provider.connected ? "" : "is-offline"}`} />
-            <span>{provider.connected ? "已连接" : loading ? "检查中" : "不可用"}</span>
+            <span>{t(provider.connected ? "provider.connected" : loading ? "provider.checking" : "provider.unavailable")}</span>
             {provider.connected && provider.account ? (
               <>
                 <span className="separator" aria-hidden="true">·</span>
-                <span className="account-label">{formatAccount(provider.account)}</span>
+                <span className="account-label">{formatAccount(provider.account, language)}</span>
               </>
             ) : null}
           </div>
         </div>
         <div className={`primary-usage ${low ? "is-low" : ""} ${loading ? "is-loading" : ""}`}>
           <strong>{loading ? "—" : formatPercent(remaining)}</strong>
-          <span>剩余</span>
+          <span>{t("provider.left")}</span>
         </div>
       </div>
 
       <div
         className="progress-track"
         role="progressbar"
-        aria-label={`${meta.name} 当前窗口剩余额度`}
+        aria-label={t("provider.progress", { name: meta.name })}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={remaining ?? undefined}
@@ -109,12 +114,12 @@ function ProviderBlock({ provider, loading, now }) {
         <dl className="limit-list">
           {(provider.limits ?? []).map((limit) => (
             <div className="limit-row" key={limit.id}>
-              <dt>{LIMIT_LABELS[limit.id] ?? limit.label}</dt>
+              <dt>{limitLabel(limit, language)}</dt>
               <dd className="limit-value">{formatPercent(limit.remainingPercent)}</dd>
-              <dd className="limit-reset">{formatReset(limit, now)}</dd>
+              <dd className="limit-reset">{formatReset(limit, now, language)}</dd>
             </div>
           ))}
-          {!loading && primary == null ? <div className="limit-row is-empty">暂无额度数据</div> : null}
+          {!loading && primary == null ? <div className="limit-row is-empty">{t("provider.noData")}</div> : null}
         </dl>
       )}
     </section>
@@ -122,6 +127,7 @@ function ProviderBlock({ provider, loading, now }) {
 }
 
 function HistoryChart({ history }) {
+  const { t } = useI18n();
   const points = [...history].reverse();
   const width = 328;
   const height = 92;
@@ -157,7 +163,7 @@ function HistoryChart({ history }) {
     });
 
   return (
-    <svg className="history-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="当前窗口剩余额度趋势">
+    <svg className="history-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={t("trend.chart")}>
       <line className="grid-line" x1="0" x2={width} y1={y(50)} y2={y(50)} />
       <line className="grid-line" x1="0" x2={width} y1={y(LOW_USAGE_THRESHOLD)} y2={y(LOW_USAGE_THRESHOLD)} />
       {renderSeries("codex")}
@@ -167,14 +173,15 @@ function HistoryChart({ history }) {
 }
 
 function QuotaHistory({ history, onClear }) {
+  const { t } = useI18n();
   return (
     <section className="quota-history" aria-labelledby="quota-history-title">
       <div className="history-heading">
-        <h3 id="quota-history-title">额度趋势</h3>
-        {history.length ? <button className="link-button" type="button" onClick={onClear}>清空</button> : null}
+        <h3 id="quota-history-title">{t("trend.title")}</h3>
+        {history.length ? <button className="link-button" type="button" onClick={onClear}>{t("trend.clear")}</button> : null}
       </div>
       {history.length === 0 ? (
-        <p className="empty-history">刷新后会在这里记录当前窗口的剩余额度。</p>
+        <p className="empty-history">{t("trend.empty")}</p>
       ) : (
         <QuotaHistoryDetails history={history} />
       )}
@@ -183,6 +190,7 @@ function QuotaHistory({ history, onClear }) {
 }
 
 function QuotaHistoryDetails({ history }) {
+  const { t } = useI18n();
   return (
     <>
       <div className="legend">
@@ -190,7 +198,7 @@ function QuotaHistoryDetails({ history }) {
         <span className="legend-item legend-claude">Claude Code</span>
       </div>
       <HistoryChart history={history} />
-      <p className="history-caption">最近 {history.length} 次检查 · 当前窗口剩余</p>
+      <p className="history-caption">{t("trend.caption", { count: history.length })}</p>
     </>
   );
 }
@@ -228,6 +236,9 @@ export function App() {
 
   settingsRef.current = settings;
 
+  const language = resolveLanguage(settings.language, systemLanguages());
+  const i18n = useMemo(() => ({ language, t: (key, params) => translate(language, key, params) }), [language]);
+
   const applyPayload = useCallback((payload) => {
     const lowProviders = payload.providers.filter((provider) => isLow(provider));
     const newlyLow = findNewlyLow(previousProvidersRef.current, payload.providers);
@@ -239,7 +250,8 @@ export function App() {
     setNow(Date.now());
     setBanner((current) => {
       if (settingsRef.current.lowUsageAlert && newlyLow.length) {
-        return { tone: "warning", text: describeLow(lowProviders) };
+        // Rendered at display time, so a language switch applies immediately.
+        return { tone: "warning", lowProviders };
       }
       if (current?.tone === "error") return null;
       if (current?.tone === "warning" && lowProviders.length === 0) return null;
@@ -268,11 +280,17 @@ export function App() {
     const request = (async () => {
       try {
         const response = await fetch("/api/usage", { cache: "no-store" });
-        if (!response.ok) throw new Error("本机额度服务没有响应。");
+        if (!response.ok) {
+          setBanner({ tone: "error", key: "error.serviceNoResponse" });
+          return;
+        }
         applyPayload(await response.json());
       } catch (error) {
-        const message = error instanceof TypeError ? "无法连接本机额度服务。" : error.message;
-        setBanner({ tone: "error", text: message || "额度刷新失败。" });
+        setBanner(
+          error instanceof TypeError || !error?.message
+            ? { tone: "error", key: error instanceof TypeError ? "error.serviceUnreachable" : "error.refreshFailed" }
+            : { tone: "error", text: error.message },
+        );
       } finally {
         inFlightRef.current = null;
         setLoading(false);
@@ -292,7 +310,7 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [refresh, settings.autoRefresh]);
 
-  // Keep relative times ("3 分钟前更新", "2 小时后重置") current between refreshes.
+  // Keep relative times ("Updated 3 min ago", "Resets in 2 h") current between refreshes.
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), CLOCK_TICK_MS);
     return () => window.clearInterval(timer);
@@ -327,12 +345,15 @@ export function App() {
     statsRequestRef.current = (async () => {
       try {
         const response = await fetch("/api/stats", { cache: "no-store" });
-        if (!response.ok) throw new Error("本机使用记录读取失败。");
+        if (!response.ok) {
+          setStatsError({ key: "error.statsFailed" });
+          return;
+        }
         setStats(await response.json());
         setStatsError(null);
         statsLoadedAtRef.current = Date.now();
       } catch (error) {
-        setStatsError(error instanceof TypeError ? "无法连接本机额度服务。" : error.message);
+        setStatsError(error instanceof TypeError ? { key: "error.serviceUnreachable" } : { text: error.message });
       } finally {
         statsRequestRef.current = null;
       }
@@ -375,6 +396,12 @@ export function App() {
   };
 
   useEffect(() => writeStoredJson(SETTINGS_KEY, settings), [settings]);
+
+  // The native shell uses the same language for its menu, tooltips, and loading screens.
+  useEffect(() => {
+    document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
+    postNative({ type: "setLanguage", language });
+  }, [language]);
   useEffect(() => writeStoredJson(HISTORY_KEY, history), [history]);
 
   // The native panel sizes itself to the rendered content.
@@ -392,16 +419,21 @@ export function App() {
   const connectedCount = providers.filter((provider) => provider.connected).length;
   const initialLoading = loading && !updatedAt;
   const updateSetting = (key) => (value) => setSettings((current) => ({ ...current, [key]: value }));
+  const { t } = i18n;
+  const bannerText = !banner
+    ? null
+    : banner.lowProviders
+      ? describeLow(banner.lowProviders, language)
+      : banner.key
+        ? t(banner.key)
+        : banner.text;
 
   return (
+    <I18nContext.Provider value={i18n}>
     <main className="panel" ref={panelRef}>
       <header className="panel-header">
-        <div className="tabs" role="tablist" aria-label="视图">
-          {[
-            ["quota", "额度"],
-            ["history", "历史"],
-            ["settings", "设置"],
-          ].map(([id, label]) => (
+        <div className="tabs" role="tablist" aria-label={t("tabs.label")}>
+          {["quota", "history", "settings"].map((id) => (
             <button
               key={id}
               className="tab"
@@ -410,22 +442,22 @@ export function App() {
               aria-selected={tab === id}
               onClick={() => setTab(id)}
             >
-              {label}
+              {t(`tabs.${id}`)}
             </button>
           ))}
         </div>
         <div className="header-actions">
           <span className="connection-summary">
             <span className={`status-dot ${connectedCount === providers.length ? "" : "is-warning"}`} />
-            {initialLoading ? "检查中" : `${connectedCount}/${providers.length} 已连接`}
+            {initialLoading ? t("header.checking") : t("header.connected", { connected: connectedCount, total: providers.length })}
           </span>
           <button
             className={`icon-button ${loading ? "is-spinning" : ""}`}
             type="button"
             onClick={refresh}
             disabled={loading}
-            title="立即刷新"
-            aria-label="立即刷新"
+            title={t("header.refresh")}
+            aria-label={t("header.refresh")}
           >
             <img src="/assets/refresh.svg" alt="" />
           </button>
@@ -444,8 +476,8 @@ export function App() {
             {banner ? (
               <div className={`banner banner-${banner.tone}`} role="status">
                 <AlertIcon />
-                <span>{banner.text}</span>
-                <button className="banner-close" type="button" onClick={() => setBanner(null)} aria-label="关闭提示">
+                <span>{bannerText}</span>
+                <button className="banner-close" type="button" onClick={() => setBanner(null)} aria-label={t("banner.close")}>
                   <CloseIcon />
                 </button>
               </div>
@@ -455,7 +487,7 @@ export function App() {
           <div className="history">
             <UsageStats
               stats={stats}
-              error={statsError}
+              error={statsError ? (statsError.key ? t(statsError.key) : statsError.text) : null}
               provider={settings.statsProvider}
               range={settings.statsRange}
               view={settings.statsView}
@@ -482,17 +514,18 @@ export function App() {
           <img className="brand-mark" src="/assets/tokentide-mark.svg" alt="" />
           <span className="brand-name">TokenTide</span>
           <span className="separator" aria-hidden="true">·</span>
-          <span className="updated-label">{timeAgo(updatedAt, now)}</span>
+          <span className="updated-label">{timeAgo(updatedAt, now, language)}</span>
         </span>
         {nativeBridge ? (
           <button className="footer-button" type="button" onClick={() => postNative({ type: "quit" })}>
             <PowerIcon />
-            退出
+            {t("footer.quit")}
           </button>
         ) : (
-          <span className="footer-hint">仅读取本机账户</span>
+          <span className="footer-hint">{t("footer.hint")}</span>
         )}
       </footer>
     </main>
+    </I18nContext.Provider>
   );
 }

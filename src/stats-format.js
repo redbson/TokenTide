@@ -1,39 +1,37 @@
-export const STAT_RANGES = [
-  ["all", "全部"],
-  ["90d", "90 天"],
-  ["30d", "30 天"],
-  ["7d", "7 天"],
-];
+import { translate } from "./i18n.js";
+
+// Labels live in i18n.js as `range.<id>`.
+export const STAT_RANGES = ["all", "90d", "30d", "7d"];
 
 const RANGE_DAYS = { "90d": 90, "30d": 30, "7d": 7 };
 const DAY_MS = 86_400_000;
 
-// Token counts of well-known books, as used by Claude Code's /stats.
+// Token counts of well-known books, as used by Claude Code's /stats: [Chinese title, English title, tokens].
 const BOOKS = [
-  ["小王子", 22_000],
-  ["老人与海", 35_000],
-  ["圣诞颂歌", 37_000],
-  ["动物农场", 39_000],
-  ["华氏 451", 60_000],
-  ["了不起的盖茨比", 62_000],
-  ["五号屠场", 64_000],
-  ["美丽新世界", 83_000],
-  ["麦田里的守望者", 95_000],
-  ["哈利·波特与魔法石", 103_000],
-  ["霍比特人", 123_000],
-  ["1984", 123_000],
-  ["杀死一只知更鸟", 130_000],
-  ["傲慢与偏见", 156_000],
-  ["沙丘", 244_000],
-  ["白鲸", 268_000],
-  ["罪与罚", 274_000],
-  ["权力的游戏", 381_000],
-  ["安娜·卡列尼娜", 468_000],
-  ["堂吉诃德", 520_000],
-  ["指环王", 576_000],
-  ["基督山伯爵", 603_000],
-  ["悲惨世界", 689_000],
-  ["战争与和平", 730_000],
+  ["小王子", "The Little Prince", 22_000],
+  ["老人与海", "The Old Man and the Sea", 35_000],
+  ["圣诞颂歌", "A Christmas Carol", 37_000],
+  ["动物农场", "Animal Farm", 39_000],
+  ["华氏 451", "Fahrenheit 451", 60_000],
+  ["了不起的盖茨比", "The Great Gatsby", 62_000],
+  ["五号屠场", "Slaughterhouse-Five", 64_000],
+  ["美丽新世界", "Brave New World", 83_000],
+  ["麦田里的守望者", "The Catcher in the Rye", 95_000],
+  ["哈利·波特与魔法石", "Harry Potter and the Philosopher's Stone", 103_000],
+  ["霍比特人", "The Hobbit", 123_000],
+  ["1984", "1984", 123_000],
+  ["杀死一只知更鸟", "To Kill a Mockingbird", 130_000],
+  ["傲慢与偏见", "Pride and Prejudice", 156_000],
+  ["沙丘", "Dune", 244_000],
+  ["白鲸", "Moby-Dick", 268_000],
+  ["罪与罚", "Crime and Punishment", 274_000],
+  ["权力的游戏", "A Game of Thrones", 381_000],
+  ["安娜·卡列尼娜", "Anna Karenina", 468_000],
+  ["堂吉诃德", "Don Quixote", 520_000],
+  ["指环王", "The Lord of the Rings", 576_000],
+  ["基督山伯爵", "The Count of Monte Cristo", 603_000],
+  ["悲惨世界", "Les Misérables", 689_000],
+  ["战争与和平", "War and Peace", 730_000],
 ];
 
 const pad = (value) => String(value).padStart(2, "0");
@@ -247,14 +245,15 @@ export function formatHour(hour) {
  * A book comparison for input + output tokens. Picks among the largest books the total
  * exceeds, so ratios stay readable; `seed` keeps the pick stable within a day.
  */
-export function compareToBook(ioTokens, seed = "") {
-  const qualifying = BOOKS.filter(([, tokens]) => ioTokens >= tokens).slice(-5);
+export function compareToBook(ioTokens, seed = "", language = "en") {
+  const qualifying = BOOKS.filter(([, , tokens]) => ioTokens >= tokens).slice(-5);
   if (qualifying.length === 0) return null;
   let hash = 0;
   for (const character of seed) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-  const [name, tokens] = qualifying[hash % qualifying.length];
+  const [chineseTitle, englishTitle, tokens] = qualifying[hash % qualifying.length];
+  const book = language === "zh" ? chineseTitle : englishTitle;
   const ratio = ioTokens / tokens;
   return ratio >= 2
-    ? `输入和输出约是《${name}》全书的 ${Math.floor(ratio)} 倍。`
-    : `输入和输出大约相当于一本《${name}》。`;
+    ? translate(language, "book.multiple", { book, ratio: Math.floor(ratio) })
+    : translate(language, "book.single", { book });
 }
