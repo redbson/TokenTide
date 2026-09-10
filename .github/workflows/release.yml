@@ -1,8 +1,9 @@
 name: Release
 
 # Publishing a GitHub release tagged vX.Y.Z builds a universal TokenTide.app and attaches
-# TokenTide-X.Y.Z.zip plus TokenTide-X.Y.Z.zip.sha256. The in-app updater
-# (macos/Updater.swift) looks for exactly these asset names on the latest release.
+# TokenTide-X.Y.Z.zip plus TokenTide-X.Y.Z.zip.sha256, which the in-app updater
+# (macos/Updater.swift) looks for by exact name, and an unversioned TokenTide.zip for the
+# README's releases/latest/download/TokenTide.zip link.
 on:
   release:
     types: [published]
@@ -54,9 +55,14 @@ jobs:
         run: |
           ditto -c -k --keepParent TokenTide.app "TokenTide-$VERSION.zip"
           shasum -a 256 "TokenTide-$VERSION.zip" > "TokenTide-$VERSION.zip.sha256"
+          cp "TokenTide-$VERSION.zip" TokenTide.zip
           cat "TokenTide-$VERSION.zip.sha256"
 
       - name: Attach to the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$TAG" "release/TokenTide-$VERSION.zip" "release/TokenTide-$VERSION.zip.sha256" --clobber
+        run: |
+          gh release upload "$TAG" --clobber \
+            "release/TokenTide-$VERSION.zip" \
+            "release/TokenTide-$VERSION.zip.sha256" \
+            release/TokenTide.zip

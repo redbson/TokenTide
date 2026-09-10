@@ -1,48 +1,50 @@
 # TokenTide
 
-A macOS menu-bar widget that shows how much of your **Codex** and **Claude Code** quota is left, how much of each weekly quota you actually use, and your usage history — all computed locally from the CLIs you are already signed in to. No accounts, no API keys, nothing leaves your Mac. The interface is in Chinese.
+English | [简体中文](README.zh-CN.md)
 
-TokenTide 是一个 macOS 菜单栏小工具：随时看 Codex 和 Claude Code 还剩多少额度、每周额度用了多少，以及历史使用记录。数据全部来自你本机已登录的命令行工具，不需要账号或 API Key，也不会上传任何数据。
+TokenTide is a macOS menu-bar widget that shows how much of your **Codex** and **Claude Code** quota is left, how much of each weekly quota you actually use, and your usage history. Everything is read locally from the command-line tools you are already signed in to: no account, no API key, and nothing leaves your Mac. The interface is in Chinese.
+
+**[⬇ Download the latest version (TokenTide.zip)](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [All releases](https://github.com/redbson/TokenTide/releases)
 
 <p>
-  <img src="docs/screenshot-quota.png" alt="额度页" width="330">
-  <img src="docs/screenshot-history.png" alt="历史 · 使用率" width="330">
+  <img src="docs/screenshot-quota.png" alt="Quota tab" width="330">
+  <img src="docs/screenshot-history.png" alt="History tab, weekly utilization" width="330">
 </p>
 
-## 功能
+## Features
 
-- **菜单栏读数**：两行小字 `CX` / `CC`，分别是 Codex 和 Claude Code 当前窗口的剩余百分比。
-- **额度页**：两个服务的当前窗口和每周剩余额度、重置倒计时；额度低于 20% 时提示；每 5 分钟自动刷新，打开面板时数据超过 1 分钟也会刷新。
-- **历史 · 概览 / 模型**：参照 Claude Code 的 `/stats`，统计会话、消息、Token、活跃天数、连续天数、高峰时段、常用模型，附 26 周热力图。
-- **历史 · 使用率**：每周额度实际用了多少——平均使用率、最高一周、用满次数、本周已用，以及每周柱状图。可以看过去 7 天、30 天、90 天和全部。
-- **额度趋势**：最近几次检查的当前窗口剩余曲线。
-- **设置页**：开机时启动、自动更新、自动刷新、低额度提醒。
-- **自动更新**：发布新 Release 后，TokenTide 会自己下载、校验并安装。
+- **Menu-bar readout**: two small lines, `CX` / `CC`, with the remaining percentage of the current Codex and Claude Code window.
+- **Quota tab (额度)**: current-window and weekly quota left for both tools, with reset countdowns; a notice when a window drops below 20%; refreshes every 5 minutes, and again when you open the panel if the data is more than a minute old.
+- **History · overview / models (概览 / 模型)**: sessions, messages, tokens, active days, streaks, peak hour, and favorite model, modeled on Claude Code's `/stats`, plus a 26-week heatmap.
+- **History · utilization (使用率)**: how much of each weekly quota you actually used — average, highest week, weeks that hit the limit, this week so far — with a bar per week, over the last 7, 30, or 90 days or all time.
+- **Quota trend (额度趋势)**: the current-window remaining quota across recent checks.
+- **Settings tab (设置)**: launch at login, automatic updates, auto-refresh, and the low-quota notice.
+- **Automatic updates**: when a new release is published, TokenTide downloads, verifies, and installs it by itself.
 
-## 系统要求
+## Requirements
 
-- macOS 13 或更新（在 macOS 26 上开发和测试），Apple 芯片或 Intel 都可以
-- [Node.js](https://nodejs.org/) 20 或更新（TokenTide 的本机服务用 Node 运行）
-- 已安装并登录的 [Codex CLI](https://github.com/openai/codex)（`codex`）和/或 [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（`claude`）。Claude Code 需要用 claude.ai 订阅账号（Pro / Max）登录，API Key 账号没有套餐额度可读。只装了其中一个也能用，另一个会显示「不可用」。
+- macOS 13 or later (developed and tested on macOS 26), Apple silicon or Intel
+- [Node.js](https://nodejs.org/) 20 or later (TokenTide's local service runs on Node)
+- [Codex CLI](https://github.com/openai/codex) (`codex`) and/or [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (`claude`), installed and signed in. Claude Code must be signed in with a claude.ai subscription (Pro / Max); API-key accounts have no plan quota to read. One of the two is enough; the other shows as unavailable (不可用).
 
-## 安装
+## Installation
 
-### 下载安装（推荐）
+### Download (recommended)
 
-1. 到 [Releases](https://github.com/redbson/TokenTide/releases/latest) 下载 `TokenTide-x.y.z.zip`，解压后把 `TokenTide.app` 拖进「应用程序」。
-2. 第一次打开：TokenTide 没有经过 Apple 公证，macOS 会提示无法验证开发者。打开 系统设置 → 隐私与安全性，在下方点「仍要打开」；或者在终端运行：
+1. Download [TokenTide.zip](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip) (or pick a version on [Releases](https://github.com/redbson/TokenTide/releases)), unzip it, and drag `TokenTide.app` into Applications.
+2. First launch: TokenTide is not notarized by Apple, so macOS says it cannot verify the developer. Open System Settings → Privacy & Security and click **Open Anyway** near the bottom, or run:
 
    ```bash
    xattr -dr com.apple.quarantine /Applications/TokenTide.app
    ```
 
-3. 之后的新版本由 TokenTide 自己下载安装（见下面的「自动更新」），不会再出现这个提示。
+3. Later versions are downloaded and installed by TokenTide itself (see [Automatic updates](#automatic-updates)), so you won't see this prompt again.
 
-想开机自动启动：在面板的「设置」里打开「开机时启动」。如果提示需要允许，点「打开『登录项』设置」，在系统设置里放行 TokenTide。
+To start TokenTide when you log in, turn on 开机时启动 (launch at login) in the panel's 设置 tab. If macOS asks for approval, click 打开「登录项」设置 and allow TokenTide in System Settings.
 
-### 从源码构建
+### Build from source
 
-需要 Xcode 命令行工具（`xcode-select --install`）。
+Requires the Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
 git clone https://github.com/redbson/TokenTide.git
@@ -53,109 +55,105 @@ ditto release/TokenTide.app /Applications/TokenTide.app
 open /Applications/TokenTide.app
 ```
 
-打包好的 app 自带界面和本机服务，装好之后可以随意移动或删除项目目录。
+The built app contains its own interface and local service, so you can move or delete the project folder afterwards.
 
-## 自动更新
+## Automatic updates
 
-- TokenTide 启动后和之后每 6 小时，会查询一次 GitHub 上的最新 Release。
-- 发现新版本后：下载 zip，核对 SHA-256 校验值、程序包标识、版本号和代码签名，全部通过才替换 `TokenTide.app` 并自动重启。面板打开时不会安装，关闭面板后才进行。
-- 在「设置 → 更新」里可以关闭自动更新（关闭后只提示，不自动安装），也可以手动「检查更新」「立即更新」。
-- TokenTide 放在你没有写入权限的位置时无法自动替换，会提示你手动下载。
+- TokenTide checks the latest GitHub release shortly after it starts and every 6 hours after that.
+- When there is a newer version, it downloads the zip and checks the SHA-256 checksum, bundle identifier, version, and code signature. Only if all of them match does it replace `TokenTide.app` and relaunch. It never installs while the panel is open; it waits until you close it.
+- In 设置 → 更新 you can turn automatic updates off (you'll still be told about new versions), check now (检查更新), or install right away (立即更新).
+- If TokenTide sits somewhere you can't write to, it can't replace itself and asks you to download the update manually.
 
-## 使用
+## Usage
 
-- **左键**点菜单栏读数打开面板，点别处或按 Esc 关闭。
-- **右键**：显示额度 / 立即刷新 / 退出。面板底部也有「退出」。
-- **额度**标签：看两个服务的剩余额度和重置时间；右上角按钮立即刷新。
-- **历史**标签：顶部切换 Codex / Claude Code，再选「概览 / 模型 / 使用率」和时间范围（全部 / 90 天 / 30 天 / 7 天）。
-- **设置**标签：
-  - **开机时启动**：登录 Mac 后自动出现在菜单栏，用的是 macOS 的「登录项」，也可以在 系统设置 → 通用 → 登录项 里关闭。
-  - **自动更新**：见上面的「自动更新」。
-  - **自动刷新**：每 5 分钟读取一次额度。
-  - **低额度提醒**：当前窗口剩余低于 20% 时在面板里提示。
+- **Left-click** the menu-bar readout to open the panel; click anywhere else or press Esc to close it.
+- **Right-click** for 显示额度 (show quota), 立即刷新 (refresh now), and 退出 (quit). The panel footer also has 退出.
+- **额度 (Quota)**: quota left and reset times for both tools; the button at the top right refreshes immediately.
+- **历史 (History)**: switch between Codex and Claude Code at the top, then pick 概览 / 模型 / 使用率 (overview / models / utilization) and a range (全部 / 90 天 / 30 天 / 7 天).
+- **设置 (Settings)**:
+  - **开机时启动 (launch at login)**: shows TokenTide in the menu bar after you log in. It uses macOS Login Items, so you can also turn it off in System Settings → General → Login Items.
+  - **自动更新 (automatic updates)**: see [Automatic updates](#automatic-updates).
+  - **自动刷新 (auto-refresh)**: reads your quota every 5 minutes.
+  - **低额度提醒 (low-quota notice)**: shows a notice in the panel when the current window drops below 20%.
 
-### 「使用率」怎么算
+### How utilization is calculated
 
-- 每个**每周额度周期**算一个数：该周期重置前记录到的最高使用率。
-- 平均使用率、最高一周、用满次数只统计**已经结束**的周期；进行中的这一周单独显示为「本周已用」，在柱状图最右边用斜纹表示。
-- **Codex** 的历史来自本机 Codex 会话记录里的额度快照，可以回溯到你最早的会话。
-- **Claude Code** 本机不保存历史额度，只能由 TokenTide 每次刷新时记录下来。在那之前的周会**估算**（图中空心虚线柱，数字前带「≈」）：
-  - 把本机 Claude Code 转录里每次回复的 token 用量，按 Anthropic API 价格折算成等价金额（模型越贵、输出越多，占用越多；缓存读取按 API 的缓存价格计，比普通输入便宜得多）。
-  - 用 TokenTide 已记录的周算出「每 1 美元约占周额度的百分之几」，再套用到之前每一周；周期按记录到的重置时间每 7 天往前推。
-  - 估算只能看到本机 Claude Code 的用量，claude.ai 网页、Claude App 和其他电脑的用量同样占用周额度，所以估算**偏低**；记录的周越多，校准越准。Claude Code 默认只保留约 30 天的转录，更早的周没法估算。
-- 切换过账号时，不同账号的周期会各算一条。
+- Each **weekly quota window** counts once: the highest usage recorded before that window reset.
+- The average, highest week, and weeks that hit the limit only include windows that have **ended**. The week in progress is shown separately as 本周已用 (used this week) and drawn with stripes at the right end of the chart.
+- **Codex** history comes from the quota snapshots in your local Codex session files, back to your earliest session.
+- **Claude Code** keeps no quota history on your Mac, so TokenTide records it on every refresh. Weeks before that are **estimated** (hollow dashed bars, figures prefixed with "≈"):
+  - Each reply's token usage in your local Claude Code transcripts is converted to its Anthropic API-price equivalent (pricier models and output weigh more; cache reads count at the much cheaper cache price).
+  - The weeks TokenTide has recorded give a "percent of the weekly quota per dollar" factor, which is applied to earlier weeks, stepping back 7 days at a time from the recorded reset time.
+  - The estimate only sees Claude Code usage on this Mac. Usage in claude.ai, the Claude app, or on other computers counts against the same weekly quota, so estimates **run low**; they get more accurate as more weeks are recorded. Claude Code keeps transcripts for about 30 days by default, so older weeks can't be estimated.
+- If you switched accounts, each account's windows are counted separately.
 
-## 数据来源与隐私
+## Data sources and privacy
 
-| 内容 | 来源 |
+| Data | Source |
 |---|---|
-| Codex 额度 | `codex app-server` 的 `account/rateLimits/read` |
-| Claude Code 额度 | 短暂启动 `claude -p`，发送结构化的 `get_usage` 请求（和 `/usage` 同源）。不发送任何提示词，不消耗额度。该接口上游标注为实验性，失败时会退回读取 `/usage` 界面 |
-| 使用记录 | 本机转录文件：`~/.claude/projects/**/*.jsonl`、`~/.codex/sessions`、`~/.codex/archived_sessions` |
-| 每周使用率 | Codex 会话记录里的额度快照 + TokenTide 自己的记录；Claude Code 更早的周按本机转录估算 |
+| Codex quota | `account/rateLimits/read` from `codex app-server` |
+| Claude Code quota | A short-lived `claude -p` process sends the structured `get_usage` request (the same source as `/usage`). No prompt is sent, so it uses no quota. The request is marked experimental upstream; if it fails, TokenTide falls back to reading the `/usage` screen |
+| Usage history | Local transcripts: `~/.claude/projects/**/*.jsonl`, `~/.codex/sessions`, `~/.codex/archived_sessions` |
+| Weekly utilization | Quota snapshots in Codex session files plus TokenTide's own records; earlier Claude Code weeks are estimated from local transcripts |
 
-- 转录文件只统计次数、Token 数、模型名和时间，**不读取、不返回对话内容**。
-- 本机服务只监听 `127.0.0.1`，拒绝跨域请求；不读取、不记录任何令牌或账号标识。
-- Claude Code 在服务端获取失败时，可能会沿用上一次的数值。
+- From transcripts, TokenTide only counts messages, tokens, model names, and times. **It never reads or returns conversation content.**
+- The local service listens on `127.0.0.1` only and rejects cross-origin requests. It never reads or records tokens, credentials, or account identifiers.
+- When Claude Code fails to fetch fresh numbers from its server, it may report the last values it had.
 
-TokenTide 在本机写入的文件：
+Files TokenTide writes on your Mac:
 
-| 文件 | 用途 |
+| File | Purpose |
 |---|---|
-| `~/Library/Logs/TokenTide.log` | 本机服务日志 |
-| `~/Library/Caches/TokenTide/usage-stats-v3.json` | 使用记录的统计缓存（只重新读取变化过的转录文件） |
-| `~/Library/Application Support/TokenTide/quota-weeks.json` | 每周额度记录（Claude Code 的使用率历史全靠它） |
+| `~/Library/Logs/TokenTide.log` | Local service log |
+| `~/Library/Caches/TokenTide/usage-stats-v3.json` | Usage-history cache (only changed transcripts are re-read) |
+| `~/Library/Application Support/TokenTide/quota-weeks.json` | Weekly quota records (the only source of Claude Code utilization history) |
 
-## 常见问题
+## Troubleshooting
 
-- **面板显示「无法启动本机额度服务」**：确认装了 Node.js 20 或更新版本，并且 `node` 能在 `~/.local/bin`、`/opt/homebrew/bin`、`/usr/local/bin` 或登录 shell 的 PATH 里找到。详细原因看 `~/Library/Logs/TokenTide.log`。
-- **端口 4173 被占用**：TokenTide 固定使用 4173 端口，请先关掉占用该端口的程序。
-- **自动更新失败**：「设置 → 更新」会显示原因；也可以随时到 [Releases](https://github.com/redbson/TokenTide/releases/latest) 手动下载，覆盖安装即可，设置和记录都会保留。
-- **某个服务显示「不可用」**：在终端运行一次 `codex` 或 `claude`，确认已经登录。
-- **Claude Code 显示「/usage 备用读取」**：说明 `get_usage` 请求失败，已退回读取 `/usage` 界面，数值仍然有效。
+- **The panel says 无法启动本机额度服务 (can't start the local service)**: make sure Node.js 20 or later is installed and `node` can be found in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, or your login shell's PATH. Details are in `~/Library/Logs/TokenTide.log`.
+- **Port 4173 is taken**: TokenTide always uses port 4173. Quit whatever is using it first.
+- **An automatic update failed**: 设置 → 更新 shows the reason. You can always download the latest version from [Releases](https://github.com/redbson/TokenTide/releases/latest) and install it over the old one; your settings and records are kept.
+- **A tool shows 不可用 (unavailable)**: run `codex` or `claude` once in Terminal and make sure you're signed in.
+- **Claude Code shows /usage 备用读取 (/usage fallback)**: the `get_usage` request failed and TokenTide read the `/usage` screen instead. The numbers are still valid.
 
-## 开发
+## Development
 
 ```bash
-npm run dev                          # 浏览器打开 http://127.0.0.1:5173/（带实时数据）
-npm test                             # 单元测试
-npm run build                        # 构建界面到 dist/client
-npm run build:mac                    # 打包 release/TokenTide.app（本机架构）
-npm run build:mac -- --universal     # 打包 Apple 芯片 + Intel 通用版
+npm run dev                          # open http://127.0.0.1:5173/ (with live data)
+npm test                             # unit tests
+npm run build                        # build the panel into dist/client
+npm run build:mac                    # build release/TokenTide.app for this Mac's architecture
+npm run build:mac -- --universal     # build a universal (Apple silicon + Intel) app
 ```
 
-开发时 Vite 用 5173 端口，和装好的 TokenTide（4173）互不影响。在浏览器里面板会居中显示在深色背景上；在 app 里则铺满下拉面板。
+The Vite dev server uses port 5173, so it doesn't collide with an installed TokenTide (port 4173). In a normal browser the panel is centered on a dark backdrop; in the app it fills the dropdown.
 
-### 发布新版本
+### Publishing a release
 
-1. 把 `package.json` 里的 `version` 改成新版本号并提交推送（可选，发布时会以标签为准）。
-2. 在 GitHub 上发布一个标签为 `vX.Y.Z` 的 Release，或者运行：
+1. Set `version` in `package.json` to the new version, then commit and push (optional; the release tag wins).
+2. Publish a GitHub release tagged `vX.Y.Z`, or run:
 
    ```bash
    gh release create v0.3.1 --generate-notes
    ```
 
-3. [Release 工作流](.github/workflows/release.yml) 会自动跑测试、打包通用版 app，并把 `TokenTide-X.Y.Z.zip` 和 `.sha256` 校验文件附加到这个 Release 上。已安装的 TokenTide 会在下次检查时自动更新。
-4. 需要重新打包某个已发布的版本时，在 Actions 里手动运行 Release 工作流并填入标签。
+3. The [release workflow](.github/workflows/release.yml) runs the tests, builds the universal app, and attaches `TokenTide-X.Y.Z.zip`, its `.sha256` checksum, and an unversioned `TokenTide.zip` (used by the "download the latest version" link). Installed copies update themselves at their next check.
+4. To rebuild an existing release, run the Release workflow manually from the Actions tab and enter its tag.
 
-| 目录 | 内容 |
+| Directory | Contents |
 |---|---|
-| `src/` | 面板界面（React） |
-| `server/` | 本机服务：额度读取、转录统计、每周额度记录；`main.mjs` 是打包进 app 的服务入口 |
-| `macos/` | 菜单栏外壳（Swift / AppKit + WKWebView）和自动更新（`Updater.swift`） |
-| `.github/workflows/` | 发布 Release 时自动打包 |
-| `branding/`、`public/assets/` | 图标和 logo |
-| `scripts/` | 打包 app（`build-macos.mjs`）、生成图标 |
-| `tests/` | `node --test` 测试 |
+| `src/` | Panel UI (React) |
+| `server/` | Local service: quota readers, transcript statistics, weekly quota records; `main.mjs` is the entry point bundled into the app |
+| `macos/` | Menu-bar shell (Swift / AppKit + WKWebView) and automatic updates (`Updater.swift`) |
+| `.github/workflows/` | Release packaging |
+| `branding/`, `public/assets/` | Icons |
+| `scripts/` | App packaging (`build-macos.mjs`) and icon generation |
+| `tests/` | `node --test` tests |
 
-## Logo
+## Disclaimer
 
-一个用两条额度条拼成的「T」：蓝色横条是 Codex，橙色竖条是 Claude Code，填满的部分是剩余额度。原始文件在 `branding/tokentide-icon.svg`，`npm run build:mac` 时自动生成 app 图标。
+TokenTide is an independent project and is not affiliated with OpenAI or Anthropic. Codex, OpenAI, Claude, Claude Code, and related marks are trademarks of their respective owners and are used only to identify the services being monitored.
 
-## 免责声明
-
-TokenTide 是独立项目，与 OpenAI、Anthropic 没有关联。Codex、OpenAI、Claude、Claude Code 及相关标志是各自所有者的商标，仅用于标识所监控的服务。
-
-## 许可证
+## License
 
 [Apache License 2.0](LICENSE)
