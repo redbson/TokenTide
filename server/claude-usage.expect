@@ -1,0 +1,68 @@
+#!/usr/bin/expect -f
+
+set timeout 20
+set session_id [lindex $argv 0]
+log_user 1
+
+spawn claude --ax-screen-reader --no-chrome --safe-mode --permission-mode plan --name tokentide --session-id $session_id
+
+expect {
+  -re {plan mode on} {}
+  -re {Context.*%} {}
+  timeout { puts "@@ERROR:startup-timeout@@"; exit 1 }
+  eof { puts "@@ERROR:startup-closed@@"; exit 1 }
+}
+
+puts "@@READY@@"
+flush stdout
+set timeout -1
+
+while {1} {
+  expect_user {
+    -re {USAGE\r?\n} {
+      puts "@@BEGIN_USAGE@@"
+      flush stdout
+      send -- "/usage\r"
+      set timeout 20
+
+      expect {
+        -re {Current session} {}
+        timeout { puts "@@ERROR:current-timeout@@"; flush stdout; send -- "\033"; set timeout -1; continue }
+        eof { puts "@@ERROR:session-closed@@"; exit 1 }
+      }
+      expect {
+        -re {Resets[^\r\n]*} {}
+        timeout { puts "@@ERROR:current-reset-timeout@@"; flush stdout; send -- "\033"; set timeout -1; continue }
+        eof { puts "@@ERROR:session-closed@@"; exit 1 }
+      }
+      expect {
+        -re {Current week \(all models\)} {}
+        timeout { puts "@@ERROR:weekly-timeout@@"; flush stdout; send -- "\033"; set timeout -1; continue }
+        eof { puts "@@ERROR:session-closed@@"; exit 1 }
+      }
+      expect {
+        -re {Resets[^\r\n]*} {}
+        timeout { puts "@@ERROR:weekly-reset-timeout@@"; flush stdout; send -- "\033"; set timeout -1; continue }
+        eof { puts "@@ERROR:session-closed@@"; exit 1 }
+      }
+
+      after 250
+      puts "@@END_USAGE@@"
+      flush stdout
+      send -- "\033"
+      set timeout -1
+    }
+    -re {EXIT\r?\n} {
+      send -- "\033"
+      send -- "/exit\r"
+      expect eof
+      exit 0
+    }
+    eof {
+      send -- "\033"
+      send -- "/exit\r"
+      expect eof
+      exit 0
+    }
+  }
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="20 21 60 60">
+  <title>TokenTide</title>
+  <rect x="22" y="22" width="56" height="15" rx="7.5" fill="#3a3c42"/>
+  <rect x="22" y="22" width="40" height="15" rx="7.5" fill="#4a95f7"/>
+  <rect x="42.5" y="43" width="15" height="37" rx="7.5" fill="#3a3c42"/>
+  <rect x="42.5" y="56" width="15" height="24" rx="7.5" fill="#f08a5d"/>
+</svg>

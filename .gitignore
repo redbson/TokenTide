@@ -1,0 +1,11 @@
+node_modules/
+dist/
+release/
+.DS_Store
+*.log
+
+# Local artifacts from earlier design iterations (not part of the published project).
+/design-*.png
+/implementation*.png
+/design-qa.md
+/verification-macos.md
