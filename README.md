@@ -62,7 +62,10 @@ ditto release/TokenTide.app /Applications/TokenTide.app
 - 每个**每周额度周期**算一个数：该周期重置前记录到的最高使用率。
 - 平均使用率、最高一周、用满次数只统计**已经结束**的周期；进行中的这一周单独显示为「本周已用」，在柱状图最右边用斜纹表示。
 - **Codex** 的历史来自本机 Codex 会话记录里的额度快照，可以回溯到你最早的会话。
-- **Claude Code** 本机不保存历史额度，只能由 TokenTide 每次刷新时记录下来，所以从你开始使用 TokenTide 的那周起才有数据。
+- **Claude Code** 本机不保存历史额度，只能由 TokenTide 每次刷新时记录下来。在那之前的周会**估算**（图中空心虚线柱，数字前带「≈」）：
+  - 把本机 Claude Code 转录里每次回复的 token 用量，按 Anthropic API 价格折算成等价金额（模型越贵、输出越多，占用越多；缓存读取按 API 的缓存价格计，比普通输入便宜得多）。
+  - 用 TokenTide 已记录的周算出「每 1 美元约占周额度的百分之几」，再套用到之前每一周；周期按记录到的重置时间每 7 天往前推。
+  - 估算只能看到本机 Claude Code 的用量，claude.ai 网页、Claude App 和其他电脑的用量同样占用周额度，所以估算**偏低**；记录的周越多，校准越准。Claude Code 默认只保留约 30 天的转录，更早的周没法估算。
 - 切换过账号时，不同账号的周期会各算一条。
 
 ## 数据来源与隐私
@@ -72,7 +75,7 @@ ditto release/TokenTide.app /Applications/TokenTide.app
 | Codex 额度 | `codex app-server` 的 `account/rateLimits/read` |
 | Claude Code 额度 | 短暂启动 `claude -p`，发送结构化的 `get_usage` 请求（和 `/usage` 同源）。不发送任何提示词，不消耗额度。该接口上游标注为实验性，失败时会退回读取 `/usage` 界面 |
 | 使用记录 | 本机转录文件：`~/.claude/projects/**/*.jsonl`、`~/.codex/sessions`、`~/.codex/archived_sessions` |
-| 每周使用率 | Codex 会话记录里的额度快照 + TokenTide 自己的记录 |
+| 每周使用率 | Codex 会话记录里的额度快照 + TokenTide 自己的记录；Claude Code 更早的周按本机转录估算 |
 
 - 转录文件只统计次数、Token 数、模型名和时间，**不读取、不返回对话内容**。
 - 本机服务只监听 `127.0.0.1`，拒绝跨域请求；不读取、不记录任何令牌或账号标识。
@@ -83,7 +86,7 @@ TokenTide 在本机写入的文件：
 | 文件 | 用途 |
 |---|---|
 | `~/Library/Logs/TokenTide.log` | 本机服务日志 |
-| `~/Library/Caches/TokenTide/usage-stats-v2.json` | 使用记录的统计缓存（只重新读取变化过的转录文件） |
+| `~/Library/Caches/TokenTide/usage-stats-v3.json` | 使用记录的统计缓存（只重新读取变化过的转录文件） |
 | `~/Library/Application Support/TokenTide/quota-weeks.json` | 每周额度记录（Claude Code 的使用率历史全靠它） |
 
 ## 常见问题

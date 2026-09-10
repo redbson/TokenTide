@@ -1,13 +1,19 @@
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { buildWeeklyWindows, compactReadings, extractCodexWeeklyReading } from "./quota-weeks.mjs";
+import {
+  buildWeeklyWindows,
+  claudeUsageCost,
+  compactReadings,
+  estimateWeeklyWindows,
+  extractCodexWeeklyReading,
+} from "./quota-weeks.mjs";
 
 // Aggregates local Codex and Claude Code transcripts into per-day activity for the history view.
 // Only counts, token totals, model names, and hours leave this module; never transcript content.
 
-// Version 2 adds the weekly quota readings found in Codex rollouts.
-const CACHE_VERSION = 2;
+// Version 2 added Codex weekly quota readings; version 3 adds Claude Code cost per hour.
+const CACHE_VERSION = 3;
 const STALE_MS = 30_000;
 
 export function dayKey(timestamp) {
@@ -52,7 +58,8 @@ function addSession(aggregate, timestamp) {
  * Mirrors Claude Code's /stats: a main transcript is one session that starts at its first
  * message; messages are counted in main transcripts only; tokens include subagents and are
  * input + output + cache read + cache write. Unlike /stats, an API response that is split
- * across several transcript entries is counted once.
+ * across several transcript entries is counted once. `costByHour` (API-price equivalent per
+ * epoch hour) feeds the weekly utilization estimate.
  */
 export function aggregateClaudeTranscript(text, { subagent = false } = {}) {
   const aggregate = createAggregate();
@@ -82,15 +89,22 @@ export function aggregateClaudeTranscript(text, { subagent = false } = {}) {
     if (entry.type === "assistant" && message?.usage && model !== "<synthetic>") {
       // Later entries of the same response carry the final usage.
       const key = message.id ? `${message.id}:${entry.requestId ?? ""}` : `entry:${responses.size}`;
-      responses.set(key, { day, model, usage: message.usage });
+      responses.set(key, { day, model, usage: message.usage, at: Date.parse(entry.timestamp) });
     }
   }
 
-  for (const { day, model, usage } of responses.values()) {
+  aggregate.costByHour = {};
+  for (const { day, model, usage, at } of responses.values()) {
     const input = count(usage.input_tokens);
     const output = count(usage.output_tokens);
-    const total = input + output + count(usage.cache_read_input_tokens) + count(usage.cache_creation_input_tokens);
-    addTokens(aggregate, day, model, total, input + output);
+    const cacheRead = count(usage.cache_read_input_tokens);
+    const cacheWrite = count(usage.cache_creation_input_tokens);
+    addTokens(aggregate, day, model, input + output + cacheRead + cacheWrite, input + output);
+    if (Number.isFinite(at)) {
+      const hour = Math.floor(at / 3_600_000);
+      aggregate.costByHour[hour] =
+        (aggregate.costByHour[hour] ?? 0) + claudeUsageCost(model, { input, output, cacheRead, cacheWrite });
+    }
   }
   if (firstTimestamp) addSession(aggregate, firstTimestamp);
   return aggregate;
@@ -204,6 +218,18 @@ export function summarizeAggregates(aggregates) {
   return [...days.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
+function claudeProvider(aggregates, logged) {
+  const costByHour = {};
+  for (const aggregate of aggregates) {
+    for (const [hour, cost] of Object.entries(aggregate.costByHour ?? {})) {
+      costByHour[hour] = (costByHour[hour] ?? 0) + cost;
+    }
+  }
+  // Claude Code keeps no quota history, so weeks before TokenTide's log are estimated.
+  const { windows, estimate } = estimateWeeklyWindows(buildWeeklyWindows(logged), costByHour);
+  return { id: "claude", days: summarizeAggregates(aggregates), quotaWeeks: windows, quotaEstimate: estimate };
+}
+
 async function listFiles(directory, accept) {
   try {
     const entries = await readdir(directory, { recursive: true });
@@ -314,7 +340,7 @@ export function createStatsService({
           days: summarizeAggregates(codexAggregates),
           quotaWeeks: buildWeeklyWindows([...codexAggregates.flatMap((aggregate) => aggregate.quota ?? []), ...codexLogged]),
         },
-        { id: "claude", days: summarizeAggregates(byKind("claude")), quotaWeeks: buildWeeklyWindows(claudeLogged) },
+        claudeProvider(byKind("claude"), claudeLogged),
       ],
     };
   }

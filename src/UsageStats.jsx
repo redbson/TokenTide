@@ -111,8 +111,8 @@ function QuotaBars({ weeks, current, average }) {
         {bars.map((window) => (
           <span
             key={window.resetsAt}
-            className={`quota-bar ${window.isCurrent ? "is-current" : ""} ${window.usedPercent >= FULL_WEEK_PERCENT ? "is-full" : ""}`}
-            title={`${period(window)} · 已用 ${formatPercent(window.usedPercent)}${window.isCurrent ? "（进行中）" : ""}`}
+            className={`quota-bar ${window.isCurrent ? "is-current" : ""} ${window.estimated ? "is-estimated" : ""} ${window.usedPercent >= FULL_WEEK_PERCENT ? "is-full" : ""}`}
+            title={`${period(window)} · ${window.estimated ? "估算约 " : "已用 "}${formatPercent(window.usedPercent)}${window.isCurrent ? "（进行中）" : ""}`}
           >
             <span style={{ height: `${Math.max(window.usedPercent, 1.5)}%` }} />
           </span>
@@ -126,22 +126,33 @@ function QuotaBars({ weeks, current, average }) {
   );
 }
 
-function QuotaUsage({ windows, provider, range }) {
+function QuotaUsage({ windows, estimate, provider, range }) {
   const summary = useMemo(() => summarizeQuotaWeeks(windows, range), [windows, range]);
   if (windows.length === 0) {
     return <p className="stats-empty">还没有记录到每周额度，TokenTide 每次刷新都会记一次。</p>;
   }
 
-  const source =
-    provider === "claude"
-      ? `Claude Code 不在本机保存历史额度，TokenTide 从 ${formatMonthDay(summary.recordedSince)} 开始记录。`
-      : `来自 Codex 会话记录，最早从 ${formatMonthDay(summary.since)} 起。`;
+  let source = `来自 Codex 会话记录，最早从 ${formatMonthDay(summary.since)} 起。`;
+  if (provider === "claude") {
+    source = `Claude Code 不在本机保存历史额度，TokenTide 从 ${formatMonthDay(summary.recordedSince)} 开始记录。`;
+    if (estimate) {
+      source +=
+        `更早的周（空心柱）按本机 Claude Code 的用量估算，用已记录的 ${estimate.calibrationWeeks} 周校准；` +
+        "claude.ai 网页、App 和其他电脑的用量不在本机，估算偏低。";
+    }
+  }
+  // "≈" marks figures that include estimated weeks.
+  const approx = (estimated, text) => (estimated && text !== "—" ? `≈${text}` : text);
   return (
     <>
       <div className="stat-grid">
-        <StatCard label="平均使用率" value={formatPercent(summary.average)} />
-        <StatCard label="最高一周" value={formatPercent(summary.peak)} />
-        <StatCard label="用满" value={summary.fullWeeks} detail={`/${summary.weeks.length} 周`} />
+        <StatCard label="平均使用率" value={approx(summary.estimatedWeeks > 0, formatPercent(summary.average))} />
+        <StatCard label="最高一周" value={approx(summary.peakEstimated, formatPercent(summary.peak))} />
+        <StatCard
+          label="用满"
+          value={approx(summary.fullWeeksEstimated, String(summary.fullWeeks))}
+          detail={`/${summary.weeks.length} 周`}
+        />
         <StatCard label="本周已用" value={formatPercent(summary.current?.usedPercent)} />
       </div>
       {summary.weeks.length || summary.current ? (
@@ -149,7 +160,9 @@ function QuotaUsage({ windows, provider, range }) {
       ) : null}
       <p className="quota-note">
         {summary.weeks.length
-          ? `已结束的 ${summary.weeks.length} 个周期，每个周期取重置前记录到的最高使用率。`
+          ? summary.estimatedWeeks
+            ? `已结束的 ${summary.weeks.length} 个周期，其中 ${summary.estimatedWeeks} 个为估算。`
+            : `已结束的 ${summary.weeks.length} 个周期，每个周期取重置前记录到的最高使用率。`
           : "这段时间内还没有结束的周期。"}
         {source}
       </p>
@@ -170,7 +183,7 @@ export function UsageStats({ stats, error, provider, range, view, onChange }) {
   } else if (!stats) {
     body = <p className="stats-empty">正在统计本机记录…</p>;
   } else if (view === "quota") {
-    body = <QuotaUsage windows={quotaWeeks} provider={provider} range={range} />;
+    body = <QuotaUsage windows={quotaWeeks} estimate={providerStats?.quotaEstimate} provider={provider} range={range} />;
   } else if (days.length === 0) {
     body = <p className="stats-empty">本机还没有 {PROVIDER_META[provider].name} 的使用记录。</p>;
   } else if (view === "models") {

@@ -6,11 +6,13 @@ import test from "node:test";
 
 import {
   buildWeeklyWindows,
+  claudeUsageCost,
   createQuotaLog,
+  estimateWeeklyWindows,
   extractCodexWeeklyReading,
   weeklyReadingFromProvider,
 } from "../server/quota-weeks.mjs";
-import { aggregateCodexRollout } from "../server/usage-stats.mjs";
+import { aggregateClaudeTranscript, aggregateCodexRollout } from "../server/usage-stats.mjs";
 import { createUsageService } from "../server/usage-service.mjs";
 import { FULL_WEEK_PERCENT, formatMonthDay, summarizeQuotaWeeks } from "../src/stats-format.js";
 
@@ -154,4 +156,78 @@ test("the usage service records weekly readings and the log survives a restart",
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("weights Claude usage by model and token type", () => {
+  const million = 1_000_000;
+  assert.equal(claudeUsageCost("claude-opus-5", { input: million }), 5);
+  assert.equal(claudeUsageCost("claude-opus-4-8[1m]", { output: million }), 25);
+  assert.equal(claudeUsageCost("claude-fable-5-1", { cacheRead: million, cacheWrite: million }), 12.75);
+  assert.equal(claudeUsageCost("claude-fable-5", { cacheRead: million }), 1);
+  assert.equal(claudeUsageCost("claude-sonnet-5", { input: million }), 2);
+  assert.equal(claudeUsageCost("claude-haiku-4-5-20251001", { output: million }), 5);
+  assert.equal(claudeUsageCost("unknown", { input: million }), 5);
+});
+
+test("Claude transcripts record API-price cost per hour, once per response", () => {
+  const at = new Date(END * 1000).toISOString();
+  const message = { id: "m1", model: "claude-opus-5", usage: { input_tokens: 1_000_000, output_tokens: 0 } };
+  const text = [
+    { type: "assistant", timestamp: at, requestId: "r1", message },
+    { type: "assistant", timestamp: at, requestId: "r1", message },
+  ]
+    .map((entry) => JSON.stringify(entry))
+    .join("\n");
+  assert.deepEqual(aggregateClaudeTranscript(text).costByHour, { [Math.floor(END / 3600)]: 5 });
+});
+
+test("estimates earlier weeks from local usage, calibrated on recorded weeks", () => {
+  const hour = (seconds) => Math.floor(seconds / 3600);
+  // $10 of usage per day for 14 days before END, and $5 on one day three weeks earlier.
+  const costByHour = {};
+  for (let day = 1; day <= 14; day += 1) costByHour[hour(END - day * DAY + 3600)] = 10;
+  costByHour[hour(END - 20 * DAY)] = 5;
+  // Recorded: the week ending at END reached 35% with $70 of local usage -> 0.5% per dollar.
+  const recorded = [{ resetsAt: END, usedPercent: 35, firstAt: (END - 2 * DAY) * 1000, lastAt: END * 1000 }];
+
+  const { windows, estimate } = estimateWeeklyWindows(recorded, costByHour, (END + DAY) * 1000);
+  assert.equal(estimate.calibrationWeeks, 1);
+  assert.equal(estimate.percentPerDollar, 0.5);
+  assert.deepEqual(
+    windows.map((window) => [window.resetsAt, window.usedPercent, Boolean(window.estimated)]),
+    [
+      [END - 14 * DAY, 2.5, true],
+      [END - 7 * DAY, 35, true],
+      [END, 35, false],
+    ],
+  );
+
+  // Estimates are capped at 100% and skip weeks that overlap a recorded one.
+  const heavy = { ...costByHour, [hour(END - 10 * DAY)]: 1000 };
+  const other = { resetsAt: END - 7 * DAY + 3 * 3600, usedPercent: 50, firstAt: 0, lastAt: (END - 7 * DAY) * 1000 };
+  assert.equal(estimateWeeklyWindows(recorded, heavy, END * 1000).windows.find((w) => w.resetsAt === END - 7 * DAY).usedPercent, 100);
+  assert.equal(estimateWeeklyWindows([other, ...recorded], costByHour, END * 1000).windows.filter((w) => w.estimated).length, 1);
+
+  // Without a usable recorded week there is nothing to calibrate against.
+  assert.deepEqual(estimateWeeklyWindows([], costByHour), { windows: [], estimate: null });
+  const quiet = [{ ...recorded[0], usedPercent: 2 }];
+  assert.equal(estimateWeeklyWindows(quiet, costByHour).estimate, null);
+});
+
+test("flags figures that include estimated weeks", () => {
+  const now = (END + DAY) * 1000;
+  const windows = [
+    { resetsAt: END - 14 * DAY, usedPercent: 100, firstAt: (END - 21 * DAY) * 1000, lastAt: 1, estimated: true },
+    { resetsAt: END - 7 * DAY, usedPercent: 40, firstAt: (END - 14 * DAY) * 1000, lastAt: 1, estimated: true },
+    { resetsAt: END, usedPercent: 60, firstAt: (END - 2 * DAY) * 1000, lastAt: 2 },
+  ];
+  const summary = summarizeQuotaWeeks(windows, "all", now);
+  assert.equal(summary.estimatedWeeks, 2);
+  assert.equal(summary.peakEstimated, true);
+  assert.equal(summary.fullWeeksEstimated, true);
+  assert.equal(summary.recordedSince, END - 2 * DAY);
+
+  const recentOnly = summarizeQuotaWeeks(windows, "7d", now);
+  assert.equal(recentOnly.estimatedWeeks, 0);
+  assert.equal(recentOnly.peakEstimated, false);
 });

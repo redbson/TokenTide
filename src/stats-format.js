@@ -130,8 +130,9 @@ const WEEK_SECONDS = 7 * 86_400;
 
 /**
  * Weekly quota utilization for one provider. `windows` come from the stats service (oldest
- * first); each is one weekly window with the highest usage seen before it reset. Averages
- * use windows that ended inside the range; the open window is reported as `current`.
+ * first); each is one weekly window with the highest usage seen before it reset, or an
+ * estimate (`estimated: true`). Averages use windows that ended inside the range; the open
+ * window is reported as `current`.
  */
 export function summarizeQuotaWeeks(windows = [], range = "all", now = Date.now()) {
   const nowSeconds = now / 1000;
@@ -141,15 +142,23 @@ export function summarizeQuotaWeeks(windows = [], range = "all", now = Date.now(
   const current =
     windows.filter((window) => window.resetsAt > nowSeconds).sort((a, b) => b.lastAt - a.lastAt)[0] ?? null;
   const values = weeks.map((window) => window.usedPercent);
+  const peak = values.length ? Math.max(...values) : null;
+  const fullWeeks = weeks.filter((window) => window.usedPercent >= FULL_WEEK_PERCENT);
 
   return {
     weeks,
     current,
     average: values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null,
-    peak: values.length ? Math.max(...values) : null,
-    fullWeeks: values.filter((value) => value >= FULL_WEEK_PERCENT).length,
+    peak,
+    fullWeeks: fullWeeks.length,
+    estimatedWeeks: weeks.filter((window) => window.estimated).length,
+    peakEstimated: peak !== null && !weeks.some((window) => !window.estimated && window.usedPercent === peak),
+    fullWeeksEstimated: fullWeeks.some((window) => window.estimated),
     since: windows.length ? windows[0].resetsAt - WEEK_SECONDS : null,
-    recordedSince: windows.length ? Math.min(...windows.map((window) => window.firstAt)) / 1000 : null,
+    // When recording started; estimated weeks are not recordings.
+    recordedSince: windows.some((window) => !window.estimated)
+      ? Math.min(...windows.filter((window) => !window.estimated).map((window) => window.firstAt)) / 1000
+      : null,
   };
 }
 
