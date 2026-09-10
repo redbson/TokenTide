@@ -1,55 +1,25 @@
 import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { createUsageService } from "./server/usage-service.mjs";
-import { createStatsService } from "./server/usage-stats.mjs";
-import { createQuotaLog } from "./server/quota-weeks.mjs";
+import { createLocalApi } from "./server/api.mjs";
 
-function jsonEndpoint(read, errorMessage) {
-  return async (request, response) => {
-    const origin = request.headers.origin;
-    if (origin && origin !== `http://${request.headers.host}`) {
-      response.statusCode = 403;
-      response.end();
-      return;
-    }
-    if (request.method !== "GET") {
-      response.statusCode = 405;
-      response.setHeader("Allow", "GET");
-      response.end();
-      return;
-    }
-
-    response.setHeader("Cache-Control", "no-store");
-    response.setHeader("Content-Type", "application/json; charset=utf-8");
-    try {
-      const payload = await read();
-      response.statusCode = 200;
-      response.end(JSON.stringify(payload));
-    } catch {
-      response.statusCode = 500;
-      response.end(JSON.stringify({ error: errorMessage }));
-    }
-  };
-}
-
+// Development only: serves the local API next to the Vite dev server. The packaged app runs
+// the same API from server/main.mjs.
 function localUsageApi() {
-  const quotaLog = createQuotaLog();
-  const usageService = createUsageService({}, { quotaLog });
-  const statsService = createStatsService({ quotaLog });
-
   return {
     name: "local-usage-api",
     configureServer(server) {
+      const api = createLocalApi();
       const shutdown = () => {
-        usageService.close();
+        api.close();
         setTimeout(() => process.exit(0), 800);
       };
       process.once("SIGTERM", shutdown);
       process.once("SIGINT", shutdown);
-      server.middlewares.use("/api/usage", jsonEndpoint(() => usageService.read(), "Local usage could not be read."));
-      server.middlewares.use("/api/stats", jsonEndpoint(() => statsService.read(), "Local history could not be read."));
-      server.httpServer?.once("close", () => usageService.close());
+      server.middlewares.use((request, response, next) => {
+        api.handle(request, response).then((handled) => handled || next(), next);
+      });
+      server.httpServer?.once("close", () => api.close());
     },
   };
 }

@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS = {
   statsView: "overview",
 };
 
-// Present when the page runs inside the macOS menu-bar panel (macos/UsageMonitor.swift).
+// Present when the page runs inside the macOS menu-bar panel (macos/AppDelegate.swift).
 const nativeBridge = typeof window === "undefined" ? null : window.webkit?.messageHandlers?.usageMonitor;
 
 function postNative(message) {
@@ -210,6 +210,11 @@ export function App() {
   }));
   const [banner, setBanner] = useState(null);
   const [loginItem, setLoginItem] = useState({ status: nativeBridge ? "checking" : "unavailable", error: null });
+  const [update, setUpdate] = useState({
+    status: nativeBridge ? "idle" : "unavailable",
+    currentVersion: APP_VERSION,
+    autoUpdate: true,
+  });
   const [stats, setStats] = useState(null);
   const [statsError, setStatsError] = useState(null);
   const statsRequestRef = useRef(null);
@@ -341,14 +346,28 @@ export function App() {
   // Launch at login is owned by macOS (SMAppService); the native shell reports its status.
   useEffect(() => {
     const onLoginItem = (event) => setLoginItem({ status: event.detail?.status ?? "notRegistered", error: event.detail?.error ?? null });
+    // Updates are checked and installed by the native shell (macos/Updater.swift).
+    const onUpdate = (event) => setUpdate((current) => ({ ...current, ...event.detail }));
     window.addEventListener("usage-monitor:login-item", onLoginItem);
-    return () => window.removeEventListener("usage-monitor:login-item", onLoginItem);
+    window.addEventListener("usage-monitor:update", onUpdate);
+    return () => {
+      window.removeEventListener("usage-monitor:login-item", onLoginItem);
+      window.removeEventListener("usage-monitor:update", onUpdate);
+    };
   }, []);
 
   useEffect(() => {
     // Re-read on every visit: the user can change it in System Settings at any time.
-    if (tab === "settings" && nativeBridge) postNative({ type: "getLoginItem" });
+    if (tab === "settings" && nativeBridge) {
+      postNative({ type: "getLoginItem" });
+      postNative({ type: "getUpdate" });
+    }
   }, [tab]);
+
+  const updateAction = (type, enabled) => {
+    if (type === "setAutoUpdate") setUpdate((current) => ({ ...current, autoUpdate: enabled }));
+    postNative(enabled === undefined ? { type } : { type, enabled });
+  };
 
   const changeLoginItem = (enabled) => {
     setLoginItem({ status: "checking", error: null });
@@ -451,6 +470,8 @@ export function App() {
             loginItem={loginItem}
             onLoginItemChange={changeLoginItem}
             onOpenLoginItems={() => postNative({ type: "openLoginItems" })}
+            update={update}
+            onUpdateAction={updateAction}
             version={APP_VERSION}
           />
         )}

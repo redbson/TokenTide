@@ -1,0 +1,62 @@
+name: Release
+
+# Publishing a GitHub release tagged vX.Y.Z builds a universal TokenTide.app and attaches
+# TokenTide-X.Y.Z.zip plus TokenTide-X.Y.Z.zip.sha256. The in-app updater
+# (macos/Updater.swift) looks for exactly these asset names on the latest release.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build again, e.g. v0.3.0
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: macos-15
+    env:
+      # Passed through env, never interpolated into scripts, so a tag name cannot inject shell.
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Read the version from the tag
+        run: |
+          VERSION="${TAG#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tags must look like v1.2.3 (got $TAG)"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+
+      - name: Stamp the version
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Build TokenTide.app (arm64 + x86_64)
+        run: node scripts/build-macos.mjs --universal
+
+      - name: Package
+        working-directory: release
+        run: |
+          ditto -c -k --keepParent TokenTide.app "TokenTide-$VERSION.zip"
+          shasum -a 256 "TokenTide-$VERSION.zip" > "TokenTide-$VERSION.zip.sha256"
+          cat "TokenTide-$VERSION.zip.sha256"
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "release/TokenTide-$VERSION.zip" "release/TokenTide-$VERSION.zip.sha256" --clobber

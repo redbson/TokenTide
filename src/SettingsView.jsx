@@ -1,4 +1,4 @@
-import { BellIcon, ClockIcon, LoginIcon } from "./icons.jsx";
+import { BellIcon, ClockIcon, DownloadIcon, LoginIcon } from "./icons.jsx";
 import { LOW_USAGE_THRESHOLD } from "./usage-format.js";
 
 function Toggle({ checked, onChange, label, disabled = false }) {
@@ -31,7 +31,7 @@ function SettingRow({ icon, title, detail, checked, onChange, disabled, action }
   );
 }
 
-// Status names come from SMAppService.Status in macos/UsageMonitor.swift.
+// Status names come from SMAppService.Status in macos/AppDelegate.swift.
 function loginItemDetail(loginItem) {
   switch (loginItem.status) {
     case "enabled":
@@ -47,7 +47,58 @@ function loginItemDetail(loginItem) {
   }
 }
 
-export function SettingsView({ settings, onSettingChange, loginItem, onLoginItemChange, onOpenLoginItems, version }) {
+// Status names come from Updater.Status in macos/Updater.swift.
+function updateDetail(update) {
+  const current = update.currentVersion ? `当前 ${update.currentVersion}` : "当前版本";
+  switch (update.status) {
+    case "unavailable":
+      return "仅在 TokenTide app 中可用";
+    case "checking":
+      return "正在检查更新…";
+    case "upToDate":
+      return `${current}，已是最新版本`;
+    case "available":
+      return `发现新版本 ${update.latestVersion}${update.autoUpdate ? "，关闭面板后自动安装" : ""}`;
+    case "downloading":
+      return `正在下载 ${update.latestVersion}…`;
+    case "installing":
+      return "正在安装，TokenTide 马上会重启…";
+    case "failed":
+      return `更新失败：${update.error ?? "未知错误"}`;
+    default:
+      return `${current} · 每 6 小时检查一次 GitHub`;
+  }
+}
+
+function UpdateActions({ update, onCheck, onInstall, onOpenRelease }) {
+  if (update.status === "unavailable" || update.status === "checking" || update.status === "downloading" || update.status === "installing") {
+    return null;
+  }
+  const installable = update.latestVersion && (update.status === "available" || update.status === "failed");
+  return (
+    <span className="settings-actions">
+      {installable ? (
+        <>
+          <button className="link-button" type="button" onClick={onInstall}>立即更新到 {update.latestVersion}</button>
+          <button className="link-button" type="button" onClick={onOpenRelease}>查看更新内容</button>
+        </>
+      ) : (
+        <button className="link-button" type="button" onClick={onCheck}>检查更新</button>
+      )}
+    </span>
+  );
+}
+
+export function SettingsView({
+  settings,
+  onSettingChange,
+  loginItem,
+  onLoginItemChange,
+  onOpenLoginItems,
+  update,
+  onUpdateAction,
+  version,
+}) {
   const loginEnabled = loginItem.status === "enabled" || loginItem.status === "requiresApproval";
   return (
     <div className="settings">
@@ -67,6 +118,28 @@ export function SettingsView({ settings, onSettingChange, loginItem, onLoginItem
                   打开「登录项」设置
                 </button>
               ) : null
+            }
+          />
+        </div>
+      </section>
+
+      <section className="settings-group" aria-labelledby="settings-update">
+        <h3 id="settings-update">更新</h3>
+        <div className="settings-list">
+          <SettingRow
+            icon={<DownloadIcon />}
+            title="自动更新"
+            detail={updateDetail(update)}
+            checked={update.status !== "unavailable" && update.autoUpdate !== false}
+            onChange={(value) => onUpdateAction("setAutoUpdate", value)}
+            disabled={update.status === "unavailable"}
+            action={
+              <UpdateActions
+                update={update}
+                onCheck={() => onUpdateAction("checkUpdate")}
+                onInstall={() => onUpdateAction("installUpdate")}
+                onOpenRelease={() => onUpdateAction("openRelease")}
+              />
             }
           />
         </div>

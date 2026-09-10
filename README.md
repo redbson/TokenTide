@@ -16,16 +16,33 @@ TokenTide 是一个 macOS 菜单栏小工具：随时看 Codex 和 Claude Code �
 - **历史 · 概览 / 模型**：参照 Claude Code 的 `/stats`，统计会话、消息、Token、活跃天数、连续天数、高峰时段、常用模型，附 26 周热力图。
 - **历史 · 使用率**：每周额度实际用了多少——平均使用率、最高一周、用满次数、本周已用，以及每周柱状图。可以看过去 7 天、30 天、90 天和全部。
 - **额度趋势**：最近几次检查的当前窗口剩余曲线。
-- **设置页**：开机时启动、自动刷新、低额度提醒。
+- **设置页**：开机时启动、自动更新、自动刷新、低额度提醒。
+- **自动更新**：发布新 Release 后，TokenTide 会自己下载、校验并安装。
 
 ## 系统要求
 
-- macOS（在 macOS 26 上开发和测试）
-- [Node.js](https://nodejs.org/) 20 或更新
-- Xcode 命令行工具（打包 app 时需要 `swiftc`），可用 `xcode-select --install` 安装
+- macOS 13 或更新（在 macOS 26 上开发和测试），Apple 芯片或 Intel 都可以
+- [Node.js](https://nodejs.org/) 20 或更新（TokenTide 的本机服务用 Node 运行）
 - 已安装并登录的 [Codex CLI](https://github.com/openai/codex)（`codex`）和/或 [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（`claude`）。Claude Code 需要用 claude.ai 订阅账号（Pro / Max）登录，API Key 账号没有套餐额度可读。只装了其中一个也能用，另一个会显示「不可用」。
 
 ## 安装
+
+### 下载安装（推荐）
+
+1. 到 [Releases](https://github.com/redbson/TokenTide/releases/latest) 下载 `TokenTide-x.y.z.zip`，解压后把 `TokenTide.app` 拖进「应用程序」。
+2. 第一次打开：TokenTide 没有经过 Apple 公证，macOS 会提示无法验证开发者。打开 系统设置 → 隐私与安全性，在下方点「仍要打开」；或者在终端运行：
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/TokenTide.app
+   ```
+
+3. 之后的新版本由 TokenTide 自己下载安装（见下面的「自动更新」），不会再出现这个提示。
+
+想开机自动启动：在面板的「设置」里打开「开机时启动」。如果提示需要允许，点「打开『登录项』设置」，在系统设置里放行 TokenTide。
+
+### 从源码构建
+
+需要 Xcode 命令行工具（`xcode-select --install`）。
 
 ```bash
 git clone https://github.com/redbson/TokenTide.git
@@ -36,20 +53,14 @@ ditto release/TokenTide.app /Applications/TokenTide.app
 open /Applications/TokenTide.app
 ```
 
-TokenTide.app 会从你克隆下来的这个目录启动本机服务（Vite，端口 4173），所以安装后**不要移动或删除项目目录**。移动之后重新运行 `npm run build:mac` 并再装一次即可。
+打包好的 app 自带界面和本机服务，装好之后可以随意移动或删除项目目录。
 
-想开机自动启动：在面板的「设置」里打开「开机时启动」。如果提示需要允许，点「打开『登录项』设置」，在系统设置里放行 TokenTide。
+## 自动更新
 
-更新到新版本：
-
-```bash
-git pull
-npm install
-npm run build:mac
-ditto release/TokenTide.app /Applications/TokenTide.app
-```
-
-然后在菜单栏右键 TokenTide → 退出，再重新打开。
+- TokenTide 启动后和之后每 6 小时，会查询一次 GitHub 上的最新 Release。
+- 发现新版本后：下载 zip，核对 SHA-256 校验值、程序包标识、版本号和代码签名，全部通过才替换 `TokenTide.app` 并自动重启。面板打开时不会安装，关闭面板后才进行。
+- 在「设置 → 更新」里可以关闭自动更新（关闭后只提示，不自动安装），也可以手动「检查更新」「立即更新」。
+- TokenTide 放在你没有写入权限的位置时无法自动替换，会提示你手动下载。
 
 ## 使用
 
@@ -59,6 +70,7 @@ ditto release/TokenTide.app /Applications/TokenTide.app
 - **历史**标签：顶部切换 Codex / Claude Code，再选「概览 / 模型 / 使用率」和时间范围（全部 / 90 天 / 30 天 / 7 天）。
 - **设置**标签：
   - **开机时启动**：登录 Mac 后自动出现在菜单栏，用的是 macOS 的「登录项」，也可以在 系统设置 → 通用 → 登录项 里关闭。
+  - **自动更新**：见上面的「自动更新」。
   - **自动刷新**：每 5 分钟读取一次额度。
   - **低额度提醒**：当前窗口剩余低于 20% 时在面板里提示。
 
@@ -96,29 +108,44 @@ TokenTide 在本机写入的文件：
 
 ## 常见问题
 
-- **面板显示「无法启动本机额度服务」**：确认 `node` 能在 `~/.local/bin`、`/opt/homebrew/bin`、`/usr/local/bin` 或登录 shell 的 PATH 里找到，并确认项目目录还在原处。详细原因看 `~/Library/Logs/TokenTide.log`。
+- **面板显示「无法启动本机额度服务」**：确认装了 Node.js 20 或更新版本，并且 `node` 能在 `~/.local/bin`、`/opt/homebrew/bin`、`/usr/local/bin` 或登录 shell 的 PATH 里找到。详细原因看 `~/Library/Logs/TokenTide.log`。
 - **端口 4173 被占用**：TokenTide 固定使用 4173 端口，请先关掉占用该端口的程序。
+- **自动更新失败**：「设置 → 更新」会显示原因；也可以随时到 [Releases](https://github.com/redbson/TokenTide/releases/latest) 手动下载，覆盖安装即可，设置和记录都会保留。
 - **某个服务显示「不可用」**：在终端运行一次 `codex` 或 `claude`，确认已经登录。
 - **Claude Code 显示「/usage 备用读取」**：说明 `get_usage` 请求失败，已退回读取 `/usage` 界面，数值仍然有效。
 
 ## 开发
 
 ```bash
-npm run dev -- --host 127.0.0.1 --port 4173 --strictPort   # 浏览器打开 http://127.0.0.1:4173/
-npm test                                                  # 单元测试
-npm run build                                             # 静态构建（没有实时数据）
-npm run build:mac                                         # 打包 release/TokenTide.app
+npm run dev                          # 浏览器打开 http://127.0.0.1:5173/（带实时数据）
+npm test                             # 单元测试
+npm run build                        # 构建界面到 dist/client
+npm run build:mac                    # 打包 release/TokenTide.app（本机架构）
+npm run build:mac -- --universal     # 打包 Apple 芯片 + Intel 通用版
 ```
 
-在浏览器里面板会居中显示在深色背景上；在 app 里则铺满下拉面板。
+开发时 Vite 用 5173 端口，和装好的 TokenTide（4173）互不影响。在浏览器里面板会居中显示在深色背景上；在 app 里则铺满下拉面板。
+
+### 发布新版本
+
+1. 把 `package.json` 里的 `version` 改成新版本号并提交推送（可选，发布时会以标签为准）。
+2. 在 GitHub 上发布一个标签为 `vX.Y.Z` 的 Release，或者运行：
+
+   ```bash
+   gh release create v0.3.1 --generate-notes
+   ```
+
+3. [Release 工作流](.github/workflows/release.yml) 会自动跑测试、打包通用版 app，并把 `TokenTide-X.Y.Z.zip` 和 `.sha256` 校验文件附加到这个 Release 上。已安装的 TokenTide 会在下次检查时自动更新。
+4. 需要重新打包某个已发布的版本时，在 Actions 里手动运行 Release 工作流并填入标签。
 
 | 目录 | 内容 |
 |---|---|
 | `src/` | 面板界面（React） |
-| `server/` | 本机数据桥：额度读取、转录统计、每周额度记录 |
-| `macos/` | 菜单栏外壳（Swift / AppKit + WKWebView） |
+| `server/` | 本机服务：额度读取、转录统计、每周额度记录；`main.mjs` 是打包进 app 的服务入口 |
+| `macos/` | 菜单栏外壳（Swift / AppKit + WKWebView）和自动更新（`Updater.swift`） |
+| `.github/workflows/` | 发布 Release 时自动打包 |
 | `branding/`、`public/assets/` | 图标和 logo |
-| `scripts/` | 打包 app、生成图标 |
+| `scripts/` | 打包 app（`build-macos.mjs`）、生成图标 |
 | `tests/` | `node --test` 测试 |
 
 ## Logo

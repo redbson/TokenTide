@@ -376,6 +376,7 @@ button:focus-visible {
 .settings-title { color: var(--text); font-size: 13px; }
 .settings-detail { color: var(--muted); font-size: 11.5px; }
 .settings-action { align-self: flex-start; margin-top: 2px; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 2px; }
 
 .settings-about {
   margin: 14px 0 0;

@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var contentHeight: CGFloat = 520
     var lastHidden = Date.distantPast
     var outsideClickMonitor: Any?
+    let updater = Updater()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -28,6 +29,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         setUpPanel()
         showLoading("正在启动本机额度服务…")
         probe(startIfNeeded: true)
+
+        updater.onChange = { [weak self] in self?.sendUpdateStatus() }
+        // Never swap the app out from under an open panel.
+        updater.canInstallNow = { [weak self] in !(self?.panel.isVisible ?? false) }
+        updater.start()
     }
 
     // MARK: Status item
@@ -167,6 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         guard panel.isVisible else { return }
         panel.orderOut(nil)
         lastHidden = Date()
+        updater.panelDidHide()
     }
 
     func positionPanel() {
@@ -210,6 +217,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         case "openLoginItems":
             hidePanel()
             SMAppService.openSystemSettingsLoginItems()
+        case "getUpdate":
+            sendUpdateStatus()
+        case "checkUpdate":
+            updater.check()
+        case "installUpdate":
+            updater.install()
+        case "setAutoUpdate":
+            updater.autoUpdate = body["enabled"] as? Bool ?? true
+        case "openRelease":
+            hidePanel()
+            NSWorkspace.shared.open(updater.latest?.page ?? Updater.releasesPage)
         case "quit":
             quit()
         default:
@@ -250,11 +268,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         case .notFound: status = "notFound"
         default: status = "notRegistered"
         }
-        var detail: [String: String] = ["status": status]
+        var detail: [String: Any] = ["status": status]
         if let error { detail["error"] = error }
+        dispatch("usage-monitor:login-item", detail)
+    }
+
+    func sendUpdateStatus() {
+        dispatch("usage-monitor:update", updater.snapshot)
+    }
+
+    /// Delivers a native state change to the page as a DOM event.
+    func dispatch(_ event: String, _ detail: [String: Any]) {
         guard let data = try? JSONSerialization.data(withJSONObject: detail),
               let json = String(data: data, encoding: .utf8) else { return }
-        webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('usage-monitor:login-item', { detail: \(json) }))")
+        webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('\(event)', { detail: \(json) }))")
     }
 
     @objc func refreshNow() {
@@ -295,21 +322,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 } else {
                     self.showLoading(
                         "无法启动本机额度服务",
-                        detail: "请确认项目仍位于原目录，且已安装 Node.js、Codex 和 Claude Code。<br>日志：~/Library/Logs/TokenTide.log"
+                        detail: "请确认已安装 Node.js 20 或更新版本（终端里能运行 node）。<br>日志：~/Library/Logs/TokenTide.log"
                     )
                 }
             }
         }.resume()
     }
 
+    /// Runs the bundled local service (`Resources/app/server/main.mjs`) with the user's Node.js.
     func startService() {
         if service?.isRunning == true { return }
-        guard let root = Bundle.main.object(forInfoDictionaryKey: "UsageProjectRoot") as? String else { return }
+        guard let app = Bundle.main.resourceURL?.appendingPathComponent("app") else { return }
+        let quote = { (path: String) in "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'" }
+        let entry = quote(app.appendingPathComponent("server/main.mjs").path)
+        let client = quote(app.appendingPathComponent("client").path)
         let process = Process()
+        // A login shell picks up Node from nvm, Homebrew, or other version managers.
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        let entry = (root + "/node_modules/vite/bin/vite.js").replacingOccurrences(of: "'", with: "'\\''")
-        process.arguments = ["-lc", "exec node '" + entry + "' --host 127.0.0.1 --port 4173 --strictPort"]
-        process.currentDirectoryURL = URL(fileURLWithPath: root)
+        process.arguments = ["-lc", "exec node \(entry) --port 4173 --client \(client)"]
+        process.currentDirectoryURL = app
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = NSHomeDirectory() + "/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
         process.environment = environment
@@ -338,8 +369,3 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         if service?.isRunning == true { service?.terminate() }
     }
 }
-
-let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.run()
