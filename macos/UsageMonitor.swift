@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import WebKit
 
 /// Borderless panel that drops down from the menu-bar item, like a system status menu.
@@ -202,6 +203,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             if lines.isEmpty { showStatusGlyph() } else { updateStatusItem(lines: lines, low: body["low"] as? Bool ?? false) }
         case "hide":
             hidePanel()
+        case "getLoginItem":
+            sendLoginItemStatus()
+        case "setLoginItem":
+            setLoginItem(enabled: body["enabled"] as? Bool ?? false)
+        case "openLoginItems":
+            hidePanel()
+            SMAppService.openSystemSettingsLoginItems()
         case "quit":
             quit()
         default:
@@ -215,6 +223,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         attempts = 0
         showLoading("正在重新连接本机额度服务…")
         probe(startIfNeeded: true)
+    }
+
+    // MARK: Launch at login
+
+    func setLoginItem(enabled: Bool) {
+        var failure: String?
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            failure = error.localizedDescription
+        }
+        sendLoginItemStatus(error: failure)
+    }
+
+    /// Reports SMAppService's status to the page as a `usage-monitor:login-item` event.
+    func sendLoginItemStatus(error: String? = nil) {
+        let status: String
+        switch SMAppService.mainApp.status {
+        case .enabled: status = "enabled"
+        case .requiresApproval: status = "requiresApproval"
+        case .notFound: status = "notFound"
+        default: status = "notRegistered"
+        }
+        var detail: [String: String] = ["status": status]
+        if let error { detail["error"] = error }
+        guard let data = try? JSONSerialization.data(withJSONObject: detail),
+              let json = String(data: data, encoding: .utf8) else { return }
+        webView.evaluateJavaScript("window.dispatchEvent(new CustomEvent('usage-monitor:login-item', { detail: \(json) }))")
     }
 
     @objc func refreshNow() {

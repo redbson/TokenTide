@@ -28,5 +28,5 @@ execFileSync(
   [path.join(root, "scripts/make-icon.swift"), path.join(root, "branding/tokentide-icon.svg"), path.join(bundle, "Resources/AppIcon.icns")],
   { stdio: "inherit" },
 );
-execFileSync("swiftc", [path.join(root, "macos/UsageMonitor.swift"), "-o", path.join(bundle, "MacOS/TokenTide"), "-framework", "AppKit", "-framework", "WebKit"], { stdio: "inherit" });
+execFileSync("swiftc", [path.join(root, "macos/UsageMonitor.swift"), "-o", path.join(bundle, "MacOS/TokenTide"), "-framework", "AppKit", "-framework", "WebKit", "-framework", "ServiceManagement"], { stdio: "inherit" });
 console.log(path.dirname(bundle));

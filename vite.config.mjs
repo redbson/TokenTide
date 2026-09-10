@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { createUsageService } from "./server/usage-service.mjs";
@@ -53,7 +54,12 @@ function localUsageApi() {
   };
 }
 
+const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+  },
   build: {
     outDir: "dist/client",
   },

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { SettingsView } from "./SettingsView.jsx";
 import { UsageStats } from "./UsageStats.jsx";
+import { AlertIcon, CloseIcon, PowerIcon } from "./icons.jsx";
 import {
   LIMIT_LABELS,
   LOW_USAGE_THRESHOLD,
@@ -23,6 +25,8 @@ const HISTORY_LIMIT = 72;
 const HISTORY_KEY = "usage-monitor-history-v1";
 const SETTINGS_KEY = "usage-monitor-settings-v1";
 const STATS_STALE_MS = 60 * 1000;
+// Injected by vite.config.mjs from package.json.
+const APP_VERSION = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "";
 const DEFAULT_SETTINGS = {
   autoRefresh: true,
   lowUsageAlert: true,
@@ -57,58 +61,6 @@ function writeStoredJson(key, value) {
   } catch {
     // Storage can be unavailable (private mode, quota); the in-memory state still works.
   }
-}
-
-const Icon = ({ children }) => (
-  <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    {children}
-  </svg>
-);
-
-const ClockIcon = () => (
-  <Icon><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></Icon>
-);
-const BellIcon = () => (
-  <Icon><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z" /><path d="M10 20.5a2 2 0 0 0 4 0" /></Icon>
-);
-const PowerIcon = () => (
-  <Icon><path d="M12 3.5v8" /><path d="M6.6 6.8a7.5 7.5 0 1 0 10.8 0" /></Icon>
-);
-const AlertIcon = () => (
-  <Icon><path d="M12 3.8 21 19.5H3z" /><path d="M12 10v4.2" /><path d="M12 17h.01" /></Icon>
-);
-const CloseIcon = () => (
-  <Icon><path d="M7 7l10 10M17 7 7 17" /></Icon>
-);
-
-function Toggle({ checked, onChange, label }) {
-  return (
-    <button
-      className={`switch ${checked ? "is-on" : ""}`}
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-    >
-      <span className="switch-knob" />
-    </button>
-  );
-}
-
-function SettingCard({ icon, title, detail, checked, onChange }) {
-  return (
-    <div className="setting-card">
-      <div className="setting-title">
-        {icon}
-        <span>{title}</span>
-      </div>
-      <div className="setting-row">
-        <span className={checked ? "setting-on" : "setting-off"}>{checked ? detail : "未开启"}</span>
-        <Toggle checked={checked} onChange={onChange} label={title} />
-      </div>
-    </div>
-  );
 }
 
 function ProviderBlock({ provider, loading, now }) {
@@ -257,6 +209,7 @@ export function App() {
     ...readStoredJson(SETTINGS_KEY, {}),
   }));
   const [banner, setBanner] = useState(null);
+  const [loginItem, setLoginItem] = useState({ status: nativeBridge ? "checking" : "unavailable", error: null });
   const [stats, setStats] = useState(null);
   const [statsError, setStatsError] = useState(null);
   const statsRequestRef = useRef(null);
@@ -385,6 +338,23 @@ export function App() {
     if (tab === "history") loadStats();
   }, [tab, loadStats, updatedAt]);
 
+  // Launch at login is owned by macOS (SMAppService); the native shell reports its status.
+  useEffect(() => {
+    const onLoginItem = (event) => setLoginItem({ status: event.detail?.status ?? "notRegistered", error: event.detail?.error ?? null });
+    window.addEventListener("usage-monitor:login-item", onLoginItem);
+    return () => window.removeEventListener("usage-monitor:login-item", onLoginItem);
+  }, []);
+
+  useEffect(() => {
+    // Re-read on every visit: the user can change it in System Settings at any time.
+    if (tab === "settings" && nativeBridge) postNative({ type: "getLoginItem" });
+  }, [tab]);
+
+  const changeLoginItem = (enabled) => {
+    setLoginItem({ status: "checking", error: null });
+    postNative({ type: "setLoginItem", enabled });
+  };
+
   useEffect(() => writeStoredJson(SETTINGS_KEY, settings), [settings]);
   useEffect(() => writeStoredJson(HISTORY_KEY, history), [history]);
 
@@ -411,6 +381,7 @@ export function App() {
           {[
             ["quota", "额度"],
             ["history", "历史"],
+            ["settings", "设置"],
           ].map(([id, label]) => (
             <button
               key={id}
@@ -460,25 +431,8 @@ export function App() {
                 </button>
               </div>
             ) : null}
-
-            <div className="settings-grid">
-              <SettingCard
-                icon={<ClockIcon />}
-                title="自动刷新"
-                detail="每 5 分钟"
-                checked={settings.autoRefresh}
-                onChange={updateSetting("autoRefresh")}
-              />
-              <SettingCard
-                icon={<BellIcon />}
-                title="低额度提醒"
-                detail={`低于 ${LOW_USAGE_THRESHOLD}%`}
-                checked={settings.lowUsageAlert}
-                onChange={updateSetting("lowUsageAlert")}
-              />
-            </div>
           </>
-        ) : (
+        ) : tab === "history" ? (
           <div className="history">
             <UsageStats
               stats={stats}
@@ -490,6 +444,15 @@ export function App() {
             />
             <QuotaHistory history={history} onClear={() => setHistory([])} />
           </div>
+        ) : (
+          <SettingsView
+            settings={settings}
+            onSettingChange={(key, value) => updateSetting(key)(value)}
+            loginItem={loginItem}
+            onLoginItemChange={changeLoginItem}
+            onOpenLoginItems={() => postNative({ type: "openLoginItems" })}
+            version={APP_VERSION}
+          />
         )}
       </div>
 
