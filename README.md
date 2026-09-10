@@ -2,6 +2,8 @@
 
 English | [简体中文](README.zh-CN.md)
 
+[![Latest release](https://img.shields.io/github/v/release/redbson/TokenTide?label=release)](https://github.com/redbson/TokenTide/releases/latest) [![License](https://img.shields.io/github/license/redbson/TokenTide)](LICENSE)
+
 TokenTide is a macOS menu-bar widget that shows how much of your **Codex** and **Claude Code** quota is left, how much of each weekly quota you actually use, and your usage history. Everything is read locally from the command-line tools you are already signed in to: no account, no API key, and nothing leaves your Mac. The interface is in English and Chinese; it follows your Mac's language and can be switched in Settings.
 
 **[⬇ Download the latest version (TokenTide.zip)](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [All releases](https://github.com/redbson/TokenTide/releases)
@@ -135,7 +137,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 2. Publish a GitHub release tagged `vX.Y.Z`, or run:
 
    ```bash
-   gh release create v0.3.1 --generate-notes
+   gh release create v0.4.1 --generate-notes
    ```
 
 3. The [release workflow](.github/workflows/release.yml) runs the tests, builds the universal app, and attaches `TokenTide-X.Y.Z.zip`, its `.sha256` checksum, and an unversioned `TokenTide.zip` (used by the "download the latest version" link). Installed copies update themselves at their next check.
@@ -150,6 +152,20 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 | `branding/`, `public/assets/` | Icons |
 | `scripts/` | App packaging (`build-macos.mjs`) and icon generation |
 | `tests/` | `node --test` tests |
+
+## Changelog
+
+### 0.4.0
+- English and Chinese interface. It follows your Mac's language by default (Chinese when the primary system language is Chinese, English otherwise) and can be switched in Settings → Language. The menu-bar menu follows it too.
+- English labels fit the 360-pixel panel.
+
+### 0.3.0
+- First downloadable release: a self-contained app for Apple silicon and Intel.
+- Automatic updates from GitHub Releases, verified before installing.
+- Settings tab: launch at login, automatic updates, auto-refresh, low-quota notice.
+- History: weekly quota utilization, with estimated Claude Code weeks before TokenTide started recording.
+
+See [Releases](https://github.com/redbson/TokenTide/releases) for every version.
 
 ## Disclaimer
 

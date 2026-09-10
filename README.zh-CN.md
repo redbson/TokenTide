@@ -2,6 +2,8 @@
 
 [English](README.md) | 简体中文
 
+[![Latest release](https://img.shields.io/github/v/release/redbson/TokenTide?label=%E6%9C%80%E6%96%B0%E7%89%88)](https://github.com/redbson/TokenTide/releases/latest) [![License](https://img.shields.io/github/license/redbson/TokenTide)](LICENSE)
+
 TokenTide 是一个 macOS 菜单栏小工具：随时看 Codex 和 Claude Code 还剩多少额度、每周额度用了多少，以及历史使用记录。数据全部来自你本机已登录的命令行工具，不需要账号或 API Key，也不会上传任何数据。界面支持中文和英文，默认跟随系统语言，也可以在设置里切换。
 
 **[⬇ 下载最新版（TokenTide.zip）](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [所有版本](https://github.com/redbson/TokenTide/releases)
@@ -135,7 +137,7 @@ npm run build:mac -- --universal     # 打包 Apple 芯片 + Intel 通用版
 2. 在 GitHub 上发布一个标签为 `vX.Y.Z` 的 Release，或者运行：
 
    ```bash
-   gh release create v0.3.1 --generate-notes
+   gh release create v0.4.1 --generate-notes
    ```
 
 3. [Release 工作流](.github/workflows/release.yml) 会自动跑测试、打包通用版 app，并把 `TokenTide-X.Y.Z.zip`、`.sha256` 校验文件和不带版本号的 `TokenTide.zip`（供「下载最新版」链接使用）附加到这个 Release 上。已安装的 TokenTide 会在下次检查时自动更新。
@@ -150,6 +152,20 @@ npm run build:mac -- --universal     # 打包 Apple 芯片 + Intel 通用版
 | `branding/`、`public/assets/` | 图标 |
 | `scripts/` | 打包 app（`build-macos.mjs`）、生成图标 |
 | `tests/` | `node --test` 测试 |
+
+## 更新日志
+
+### 0.4.0
+- 界面支持中文和英文。默认跟随系统语言（系统首选语言是中文时显示中文，否则显示英文），也可以在「设置 → 语言」里切换；菜单栏右键菜单同步切换。
+- 英文界面在 360 像素宽的面板里完整显示。
+
+### 0.3.0
+- 首个可下载版本：自带服务的通用版 app（Apple 芯片 + Intel）。
+- 从 GitHub Releases 自动更新，安装前先校验。
+- 设置页：开机时启动、自动更新、自动刷新、低额度提醒。
+- 历史：每周额度使用率；TokenTide 开始记录之前的 Claude Code 周为估算值。
+
+所有版本见 [Releases](https://github.com/redbson/TokenTide/releases)。
 
 ## 免责声明
 
