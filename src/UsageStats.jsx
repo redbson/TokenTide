@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useI18n } from "./i18n-context.js";
-import { PROVIDER_META, formatPercent } from "./usage-format.js";
+import { PROVIDER_META, STATS_PROVIDERS, formatPercent } from "./usage-format.js";
 import {
   FULL_WEEK_PERCENT,
   STAT_RANGES,
@@ -219,7 +219,7 @@ export function UsageStats({ stats, error, provider, range, view, onChange }) {
   return (
     <section className={`usage-stats stats-${provider}`} aria-label={t("stats.label")}>
       <div className="stats-providers" role="tablist" aria-label={t("stats.providers")}>
-        {Object.entries(PROVIDER_META).map(([id, meta]) => (
+        {STATS_PROVIDERS.map((id) => [id, PROVIDER_META[id]]).map(([id, meta]) => (
           <button key={id} type="button" role="tab" aria-selected={provider === id} onClick={() => onChange("statsProvider", id)}>
             <img src={meta.icon} alt="" />
             {meta.name}

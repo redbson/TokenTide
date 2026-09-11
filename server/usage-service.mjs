@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { weeklyReadingFromProvider } from "./quota-weeks.mjs";
+import { readQoderUsage } from "./qoder-usage.mjs";
 
 const CLAUDE_TIMEOUT_MS = 45_000;
 const CLAUDE_DIRECT_TIMEOUT_MS = 20_000;
@@ -163,7 +164,7 @@ export function parseClaudeUsage(rawOutput, now = Date.now()) {
  * message to `handle(message, send)`. The call resolves with the first value `handle`
  * returns (or rejects with what it throws); the child is terminated once it settles.
  */
-function exchangeJsonLines({ command, args, env = process.env, timeoutMs, start, handle }) {
+export function exchangeJsonLines({ command, args, env = process.env, timeoutMs, start, handle }) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: ["pipe", "pipe", "ignore"], env });
     let buffer = "";
@@ -517,6 +518,7 @@ function unavailableProvider(id, name, error) {
 export function createUsageService(readers = {}, { quotaLog = null } = {}) {
   let claudeSession = null;
   const readCodex = readers.codex ?? readCodexUsage;
+  const readQoder = readers.qoder ?? (() => readQoderUsage());
   const readClaudeDirect = readers.claudeDirect ?? (() => readClaudeUsageDirect());
   const readClaudeFallback =
     readers.claudeFallback ?? (() => (claudeSession ??= new ClaudeUsageSession()).request());
@@ -538,7 +540,7 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
   }
 
   async function readAll() {
-    const [codex, claude] = await Promise.allSettled([readCodex(), readClaude()]);
+    const [codex, claude, qoder] = await Promise.allSettled([readCodex(), readClaude(), readQoder()]);
     const result = {
       updatedAt: Date.now(),
       providers: [
@@ -548,6 +550,10 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
         claude.status === "fulfilled"
           ? claude.value
           : unavailableProvider("claude", "Claude Code", claude.reason),
+        // The Qoder CLI exists when its read fails, so keep Qoder visible with the error.
+        qoder.status === "fulfilled"
+          ? qoder.value
+          : { ...unavailableProvider("qoder", "Qoder", qoder.reason), installed: true },
       ],
     };
 

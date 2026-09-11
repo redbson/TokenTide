@@ -10,11 +10,12 @@ import {
   describeLow,
   findNewlyLow,
   formatAccount,
+  formatLimitDetail,
   formatPercent,
-  formatReset,
   getPrimaryLimit,
   getPrimaryRemaining,
   isLow,
+  isVisibleProvider,
   limitLabel,
   makeSnapshot,
   timeAgo,
@@ -108,7 +109,12 @@ function ProviderBlock({ provider, loading, now }) {
         <div className="progress-value" style={{ width: `${remaining ?? 0}%` }} />
       </div>
 
-      {provider.error ? (
+      {provider.errorCode === "qoderCliMissing" ? (
+        <p className="provider-error">
+          {t("providerError.qoderCliMissing")}
+          <code>curl -fsSL https://qoder.com/install | bash</code>
+        </p>
+      ) : provider.error ? (
         <p className="provider-error">{provider.error}</p>
       ) : (
         <dl className="limit-list">
@@ -116,7 +122,7 @@ function ProviderBlock({ provider, loading, now }) {
             <div className="limit-row" key={limit.id}>
               <dt>{limitLabel(limit, language)}</dt>
               <dd className="limit-value">{formatPercent(limit.remainingPercent)}</dd>
-              <dd className="limit-reset">{formatReset(limit, now, language)}</dd>
+              <dd className="limit-reset">{formatLimitDetail(limit, now, language)}</dd>
             </div>
           ))}
           {!loading && primary == null ? <div className="limit-row is-empty">{t("provider.noData")}</div> : null}
@@ -240,8 +246,9 @@ export function App() {
   const i18n = useMemo(() => ({ language, t: (key, params) => translate(language, key, params) }), [language]);
 
   const applyPayload = useCallback((payload) => {
-    const lowProviders = payload.providers.filter((provider) => isLow(provider));
-    const newlyLow = findNewlyLow(previousProvidersRef.current, payload.providers);
+    const visible = payload.providers.filter(isVisibleProvider);
+    const lowProviders = visible.filter((provider) => isLow(provider));
+    const newlyLow = findNewlyLow(previousProvidersRef.current, visible);
     previousProvidersRef.current = payload.providers;
     updatedAtRef.current = payload.updatedAt;
 
@@ -265,7 +272,7 @@ export function App() {
 
     postNative({
       type: "summary",
-      items: payload.providers.map((provider) => ({
+      items: visible.map((provider) => ({
         label: PROVIDER_META[provider.id]?.short ?? provider.id,
         remaining: getPrimaryRemaining(provider),
       })),
@@ -416,7 +423,8 @@ export function App() {
     return () => observer.disconnect();
   }, []);
 
-  const connectedCount = providers.filter((provider) => provider.connected).length;
+  const visibleProviders = providers.filter(isVisibleProvider);
+  const connectedCount = visibleProviders.filter((provider) => provider.connected).length;
   const initialLoading = loading && !updatedAt;
   const updateSetting = (key) => (value) => setSettings((current) => ({ ...current, [key]: value }));
   const { t } = i18n;
@@ -448,8 +456,8 @@ export function App() {
         </div>
         <div className="header-actions">
           <span className="connection-summary">
-            <span className={`status-dot ${connectedCount === providers.length ? "" : "is-warning"}`} />
-            {initialLoading ? t("header.checking") : t("header.connected", { connected: connectedCount, total: providers.length })}
+            <span className={`status-dot ${connectedCount === visibleProviders.length ? "" : "is-warning"}`} />
+            {initialLoading ? t("header.checking") : t("header.connected", { connected: connectedCount, total: visibleProviders.length })}
           </span>
           <button
             className={`icon-button ${loading ? "is-spinning" : ""}`}
@@ -468,7 +476,7 @@ export function App() {
         {tab === "quota" ? (
           <>
             <div className="providers">
-              {providers.map((provider) => (
+              {visibleProviders.map((provider) => (
                 <ProviderBlock key={provider.id} provider={provider} loading={initialLoading} now={now} />
               ))}
             </div>

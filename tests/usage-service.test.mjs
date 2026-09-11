@@ -200,12 +200,13 @@ test("falls back to the /usage view only when the structured request fails", asy
   };
   const codex = async () => ({ id: "codex", name: "Codex", connected: true, limits: [] });
 
-  const direct = createUsageService({ codex, claudeDirect: async () => parseClaudeDirectUsage(DIRECT_USAGE), claudeFallback: fallback });
+  const direct = createUsageService({ codex, qoder: async () => ({ id: "qoder", connected: false, installed: false, limits: [] }), claudeDirect: async () => parseClaudeDirectUsage(DIRECT_USAGE), claudeFallback: fallback });
   assert.equal((await direct.read()).providers[1].account, "max plan");
   assert.equal(fallbackCalls, 0);
 
   const broken = createUsageService({
     codex,
+    qoder: async () => ({ id: "qoder", connected: false, installed: false, limits: [] }),
     claudeDirect: async () => {
       throw new Error("get_usage is not supported");
     },
@@ -218,6 +219,7 @@ test("falls back to the /usage view only when the structured request fails", asy
 test("concurrent reads share one provider request", async () => {
   let codexCalls = 0;
   const service = createUsageService({
+    qoder: async () => ({ id: "qoder", connected: false, installed: false, limits: [] }),
     codex: async () => {
       codexCalls += 1;
       await new Promise((resolve) => setTimeout(resolve, 20));

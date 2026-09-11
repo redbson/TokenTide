@@ -135,6 +135,7 @@ test("the usage service records weekly readings and the log survives a restart",
     const service = createUsageService(
       {
         codex: async () => provider("codex", 41),
+        qoder: async () => ({ id: "qoder", connected: false, installed: false, limits: [] }),
         claudeDirect: async () => provider("claude", 42),
         claudeFallback: async () => {
           throw new Error("unused");

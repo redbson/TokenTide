@@ -5,7 +5,12 @@ export const LOW_USAGE_THRESHOLD = 20;
 export const PROVIDER_META = {
   codex: { name: "Codex", short: "CX", icon: "/assets/openai.svg", iconAlt: "OpenAI" },
   claude: { name: "Claude Code", short: "CC", icon: "/assets/claude.svg", iconAlt: "Claude" },
+  qoder: { name: "Qoder", short: "QD", icon: "/assets/qoder.png", iconAlt: "Qoder" },
 };
+
+// Codex and Claude Code have local transcripts for the History tab; Qoder only reports quota.
+export const STATS_PROVIDERS = ["codex", "claude"];
+const LIMIT_IDS = ["window", "weekly", "total", "plan", "org", "addon"];
 
 const pad = (value) => String(value).padStart(2, "0");
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -13,7 +18,20 @@ const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Se
 // All user-facing helpers take the interface language ("zh" or "en") last.
 
 export function limitLabel(limit, language = "en") {
-  return ["window", "weekly"].includes(limit?.id) ? translate(language, `limit.${limit.id}`) : limit?.label;
+  return LIMIT_IDS.includes(limit?.id) ? translate(language, `limit.${limit.id}`) : limit?.label;
+}
+
+const formatAmount = (value) => Number(value).toLocaleString("en-US", { maximumFractionDigits: 1 });
+
+/** A limit row's right-hand text: credits left for credit pools, otherwise the reset time. */
+export function formatLimitDetail(limit, now = Date.now(), language = "en") {
+  if (Number.isFinite(limit?.remainingAmount) && Number.isFinite(limit?.totalAmount) && limit.totalAmount > 0) {
+    return translate(language, "limit.amountLeft", {
+      remaining: formatAmount(limit.remainingAmount),
+      total: formatAmount(limit.totalAmount),
+    });
+  }
+  return formatReset(limit, now, language);
 }
 
 export function formatPercent(value) {
@@ -30,9 +48,14 @@ export function formatAccount(account, language = "en") {
   return account;
 }
 
+/** The limit behind the big percentage: the 5-hour window, or Qoder's overall credits. */
 export function getPrimaryLimit(provider) {
-  return provider?.limits?.find((limit) => limit.id === "window") ?? provider?.limits?.[0];
+  const limits = provider?.limits ?? [];
+  return limits.find((limit) => limit.id === "window") ?? limits.find((limit) => limit.id === "total") ?? limits[0];
 }
+
+/** Providers the panel shows: Qoder is hidden unless the Qoder app or CLI is installed. */
+export const isVisibleProvider = (provider) => provider?.installed !== false;
 
 export function getPrimaryRemaining(provider) {
   const remaining = getPrimaryLimit(provider)?.remainingPercent;

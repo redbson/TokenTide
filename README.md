@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md)
 
 [![Latest release](https://img.shields.io/github/v/release/redbson/TokenTide?label=release)](https://github.com/redbson/TokenTide/releases/latest) [![License](https://img.shields.io/github/license/redbson/TokenTide)](LICENSE)
 
-TokenTide is a macOS menu-bar widget that shows how much of your **Codex** and **Claude Code** quota is left, how much of each weekly quota you actually use, and your usage history. Everything is read locally from the command-line tools you are already signed in to: no account, no API key, and nothing leaves your Mac. The interface is in English and Chinese; it follows your Mac's language and can be switched in Settings.
+TokenTide is a macOS menu-bar widget that shows how much of your **Codex**, **Claude Code**, and **Qoder** quota is left, how much of each weekly quota you actually use, and your usage history. Everything is read locally from the command-line tools you are already signed in to: no account, no API key, and nothing leaves your Mac. The interface is in English and Chinese; it follows your Mac's language and can be switched in Settings.
 
 **[⬇ Download the latest version (TokenTide.zip)](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [All releases](https://github.com/redbson/TokenTide/releases)
 
@@ -15,9 +15,9 @@ TokenTide is a macOS menu-bar widget that shows how much of your **Codex** and *
 
 ## Features
 
-- **Menu-bar readout**: two small lines, `CX` / `CC`, with the remaining percentage of the current Codex and Claude Code window.
-- **Quota tab**: current-window and weekly quota left for both tools, with reset countdowns; a notice when a window drops below 20%; refreshes every 5 minutes, and again when you open the panel if the data is more than a minute old.
-- **History · Overview / Models**: sessions, messages, tokens, active days, streaks, peak hour, and top model, modeled on Claude Code's `/stats`, plus a 26-week heatmap.
+- **Menu-bar readout**: small lines — `CX` / `CC` for the remaining current Codex and Claude Code window, and `QD` beside them for Qoder's credits.
+- **Quota tab**: current-window and weekly quota left for Codex and Claude Code, with reset countdowns; Qoder's credits left overall, with rows for plan, org-package, and add-on credits; a notice when a window drops below 20%; refreshes every 5 minutes, and again when you open the panel if the data is more than a minute old.
+- **History · Overview / Models** (Codex and Claude Code): sessions, messages, tokens, active days, streaks, peak hour, and top model, modeled on Claude Code's `/stats`, plus a 26-week heatmap.
 - **History · Utilization**: how much of each weekly quota you actually used — average, peak week, weeks that maxed out, this week so far — with a bar per week, over the last 7, 30, or 90 days or all time.
 - **Quota trend**: the current-window remaining quota across recent checks.
 - **Settings tab**: language (English / Chinese / follow the system), launch at login, automatic updates, auto-refresh, and the low-quota notice.
@@ -28,6 +28,7 @@ TokenTide is a macOS menu-bar widget that shows how much of your **Codex** and *
 - macOS 13 or later (developed and tested on macOS 26), Apple silicon or Intel
 - [Node.js](https://nodejs.org/) 20 or later (TokenTide's local service runs on Node)
 - [Codex CLI](https://github.com/openai/codex) (`codex`) and/or [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (`claude`), installed and signed in. Claude Code must be signed in with a claude.ai subscription (Pro / Max); API-key accounts have no plan quota to read. One of the two is enough; the other shows as Unavailable.
+- Optional, for Qoder: the [Qoder CLI](https://docs.qoder.com/cli/installation) (`qodercli`), signed in. Qoder only appears when the Qoder app or CLI is installed; without the CLI it shows how to install it.
 
 ## Installation
 
@@ -96,6 +97,7 @@ The built app contains its own interface and local service, so you can move or d
 |---|---|
 | Codex quota | `account/rateLimits/read` from `codex app-server` |
 | Claude Code quota | A short-lived `claude -p` process sends the structured `get_usage` request (the same source as `/usage`). No prompt is sent, so it uses no quota. The request is marked experimental upstream; if it fails, TokenTide falls back to reading the `/usage` screen |
+| Qoder credits | A short-lived `qodercli --print` process receives the structured `get_usage_info` request over stream-json (the data behind Qoder CLI's `/usage`). No prompt is sent, so it uses no credits; the account's user id is dropped |
 | Usage history | Local transcripts: `~/.claude/projects/**/*.jsonl`, `~/.codex/sessions`, `~/.codex/archived_sessions` |
 | Weekly utilization | Quota snapshots in Codex session files plus TokenTide's own records; earlier Claude Code weeks are estimated from local transcripts |
 
@@ -116,7 +118,8 @@ Files TokenTide writes on your Mac:
 - **The panel says it couldn't start the local quota service**: make sure Node.js 20 or later is installed and `node` can be found in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, or your login shell's PATH. Details are in `~/Library/Logs/TokenTide.log`.
 - **Port 4173 is taken**: TokenTide always uses port 4173. Quit whatever is using it first.
 - **An automatic update failed**: Settings → Updates shows the reason. You can always download the latest version from [Releases](https://github.com/redbson/TokenTide/releases/latest) and install it over the old one; your settings and records are kept.
-- **A tool shows Unavailable**: run `codex` or `claude` once in Terminal and make sure you're signed in.
+- **A tool shows Unavailable**: run `codex`, `claude`, or `qodercli` once in Terminal and make sure you're signed in.
+- **Qoder asks you to install the Qoder CLI**: run `curl -fsSL https://qoder.com/install | bash` (or `npm install -g @qoder-ai/qodercli`), then run `qodercli` once to sign in with the same account as the Qoder app.
 - **Claude Code shows /usage fallback**: the `get_usage` request failed and TokenTide read the `/usage` screen instead. The numbers are still valid.
 
 ## Development
@@ -154,6 +157,9 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 | `tests/` | `node --test` tests |
 
 ## Changelog
+
+### Unreleased
+- Qoder credits, read through the Qoder CLI: overall credits left, plan / org-package / add-on rows, and `QD` in the menu bar.
 
 ### 0.4.0
 - English and Chinese interface. It follows your Mac's language by default (Chinese when the primary system language is Chinese, English otherwise) and can be switched in Settings → Language. The menu-bar menu follows it too.

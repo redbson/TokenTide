@@ -4,7 +4,7 @@
 
 [![Latest release](https://img.shields.io/github/v/release/redbson/TokenTide?label=%E6%9C%80%E6%96%B0%E7%89%88)](https://github.com/redbson/TokenTide/releases/latest) [![License](https://img.shields.io/github/license/redbson/TokenTide)](LICENSE)
 
-TokenTide 是一个 macOS 菜单栏小工具：随时看 Codex 和 Claude Code 还剩多少额度、每周额度用了多少，以及历史使用记录。数据全部来自你本机已登录的命令行工具，不需要账号或 API Key，也不会上传任何数据。界面支持中文和英文，默认跟随系统语言，也可以在设置里切换。
+TokenTide 是一个 macOS 菜单栏小工具：随时看 Codex、Claude Code 和 Qoder 还剩多少额度、每周额度用了多少，以及历史使用记录。数据全部来自你本机已登录的命令行工具，不需要账号或 API Key，也不会上传任何数据。界面支持中文和英文，默认跟随系统语言，也可以在设置里切换。
 
 **[⬇ 下载最新版（TokenTide.zip）](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [所有版本](https://github.com/redbson/TokenTide/releases)
 
@@ -15,9 +15,9 @@ TokenTide 是一个 macOS 菜单栏小工具：随时看 Codex 和 Claude Code �
 
 ## 功能
 
-- **菜单栏读数**：两行小字 `CX` / `CC`，分别是 Codex 和 Claude Code 当前窗口的剩余百分比。
-- **额度页**：两个服务的当前窗口和每周剩余额度、重置倒计时；额度低于 20% 时提示；每 5 分钟自动刷新，打开面板时数据超过 1 分钟也会刷新。
-- **历史 · 概览 / 模型**：参照 Claude Code 的 `/stats`，统计会话、消息、Token、活跃天数、连续天数、高峰时段、常用模型，附 26 周热力图。
+- **菜单栏读数**：几行小字——`CX` / `CC` 是 Codex 和 Claude Code 当前窗口的剩余百分比，旁边的 `QD` 是 Qoder 的剩余额度。
+- **额度页**：Codex 和 Claude Code 的当前窗口和每周剩余额度、重置倒计时；Qoder 的总剩余额度，以及套餐、团队资源包、加购额度各一行；额度低于 20% 时提示；每 5 分钟自动刷新，打开面板时数据超过 1 分钟也会刷新。
+- **历史 · 概览 / 模型**（Codex 和 Claude Code）：参照 Claude Code 的 `/stats`，统计会话、消息、Token、活跃天数、连续天数、高峰时段、常用模型，附 26 周热力图。
 - **历史 · 使用率**：每周额度实际用了多少——平均使用率、最高一周、用满次数、本周已用，以及每周柱状图。可以看过去 7 天、30 天、90 天和全部。
 - **额度趋势**：最近几次检查的当前窗口剩余曲线。
 - **设置页**：语言（中文 / English / 跟随系统）、开机时启动、自动更新、自动刷新、低额度提醒。
@@ -28,6 +28,7 @@ TokenTide 是一个 macOS 菜单栏小工具：随时看 Codex 和 Claude Code �
 - macOS 13 或更新（在 macOS 26 上开发和测试），Apple 芯片或 Intel 都可以
 - [Node.js](https://nodejs.org/) 20 或更新（TokenTide 的本机服务用 Node 运行）
 - 已安装并登录的 [Codex CLI](https://github.com/openai/codex)（`codex`）和/或 [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（`claude`）。Claude Code 需要用 claude.ai 订阅账号（Pro / Max）登录，API Key 账号没有套餐额度可读。只装了其中一个也能用，另一个会显示「不可用」。
+- 可选，查看 Qoder：已登录的 [Qoder CLI](https://docs.qoder.com/cli/installation)（`qodercli`）。装了 Qoder app 或 CLI 才会显示 Qoder；没装 CLI 时会提示安装方法。
 
 ## 安装
 
@@ -96,6 +97,7 @@ open /Applications/TokenTide.app
 |---|---|
 | Codex 额度 | `codex app-server` 的 `account/rateLimits/read` |
 | Claude Code 额度 | 短暂启动 `claude -p`，发送结构化的 `get_usage` 请求（和 `/usage` 同源）。不发送任何提示词，不消耗额度。该接口上游标注为实验性，失败时会退回读取 `/usage` 界面 |
+| Qoder 额度 | 短暂启动 `qodercli --print`，通过 stream-json 发送结构化的 `get_usage_info` 请求（和 Qoder CLI 的 `/usage` 同源）。不发送任何提示词，不消耗额度；账号的用户 ID 会被丢弃 |
 | 使用记录 | 本机转录文件：`~/.claude/projects/**/*.jsonl`、`~/.codex/sessions`、`~/.codex/archived_sessions` |
 | 每周使用率 | Codex 会话记录里的额度快照 + TokenTide 自己的记录；Claude Code 更早的周按本机转录估算 |
 
@@ -116,7 +118,8 @@ TokenTide 在本机写入的文件：
 - **面板显示「无法启动本机额度服务」**：确认装了 Node.js 20 或更新版本，并且 `node` 能在 `~/.local/bin`、`/opt/homebrew/bin`、`/usr/local/bin` 或登录 shell 的 PATH 里找到。详细原因看 `~/Library/Logs/TokenTide.log`。
 - **端口 4173 被占用**：TokenTide 固定使用 4173 端口，请先关掉占用该端口的程序。
 - **自动更新失败**：「设置 → 更新」会显示原因；也可以随时到 [Releases](https://github.com/redbson/TokenTide/releases/latest) 手动下载，覆盖安装即可，设置和记录都会保留。
-- **某个服务显示「不可用」**：在终端运行一次 `codex` 或 `claude`，确认已经登录。
+- **某个服务显示「不可用」**：在终端运行一次 `codex`、`claude` 或 `qodercli`，确认已经登录。
+- **Qoder 提示安装 Qoder CLI**：运行 `curl -fsSL https://qoder.com/install | bash`（或 `npm install -g @qoder-ai/qodercli`），然后运行一次 `qodercli`，用和 Qoder app 相同的账号登录。
 - **Claude Code 显示「/usage 备用读取」**：说明 `get_usage` 请求失败，已退回读取 `/usage` 界面，数值仍然有效。
 
 ## 开发
@@ -154,6 +157,9 @@ npm run build:mac -- --universal     # 打包 Apple 芯片 + Intel 通用版
 | `tests/` | `node --test` 测试 |
 
 ## 更新日志
+
+### 未发布
+- 通过 Qoder CLI 查看 Qoder 额度：总剩余额度，套餐 / 团队资源包 / 加购额度分行显示，菜单栏显示 `QD`。
 
 ### 0.4.0
 - 界面支持中文和英文。默认跟随系统语言（系统首选语言是中文时显示中文，否则显示英文），也可以在「设置 → 语言」里切换；菜单栏右键菜单同步切换。

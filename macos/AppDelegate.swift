@@ -82,19 +82,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         button.toolTip = "TokenTide"
     }
 
-    /// Draws two stacked lines of small text, like the network/memory readouts in the menu bar.
+    /// Draws the readout as small text, two lines per column (CX / CC, then QD beside them),
+    /// like the network and memory readouts in the menu bar.
     func updateStatusItem(lines: [String], low: Bool) {
         guard let button = statusItem.button else { return }
         let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
         let rendered = lines.map { NSAttributedString(string: $0, attributes: attributes) }
+        let columns = stride(from: 0, to: rendered.count, by: 2).map { Array(rendered[$0..<min($0 + 2, rendered.count)]) }
+        let columnWidths = columns.map { ceil($0.map { $0.size().width }.max() ?? 0) }
+        let columnGap: CGFloat = 6
         let lineHeight: CGFloat = 10
-        let width = ceil(rendered.map { $0.size().width }.max() ?? 20) + 2
+        let width = columnWidths.reduce(0, +) + columnGap * CGFloat(max(columns.count - 1, 0)) + 2
         let height: CGFloat = 22
-        let image = NSImage(size: NSSize(width: width, height: height), flipped: true) { _ in
-            let top = (height - lineHeight * CGFloat(rendered.count)) / 2
-            for (index, line) in rendered.enumerated() {
-                line.draw(at: NSPoint(x: 1, y: top + CGFloat(index) * lineHeight - 1))
+        let image = NSImage(size: NSSize(width: max(width, 4), height: height), flipped: true) { _ in
+            let top = (height - lineHeight * 2) / 2
+            var x: CGFloat = 1
+            for (column, lines) in columns.enumerated() {
+                for (row, line) in lines.enumerated() {
+                    line.draw(at: NSPoint(x: x, y: top + CGFloat(row) * lineHeight - 1))
+                }
+                x += columnWidths[column] + columnGap
             }
             return true
         }
