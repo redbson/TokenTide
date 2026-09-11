@@ -1,6 +1,6 @@
 {
   "name": "tokentide",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "macOS menu-bar and Windows tray widget for Codex, Claude Code, and Qoder quota, weekly utilization, and usage history",
   "license": "Apache-2.0",
   "repository": {
