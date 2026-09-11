@@ -141,7 +141,7 @@ npm run build:mac -- --universal     # 打包 Apple 芯片 + Intel 通用版
 2. 在 GitHub 上发布一个标签为 `vX.Y.Z` 的 Release，或者运行：
 
    ```bash
-   gh release create v0.4.1 --generate-notes
+   gh release create v0.5.1 --generate-notes
    ```
 
 3. [Release 工作流](.github/workflows/release.yml) 会自动跑测试、打包通用版 app，并把 `TokenTide-X.Y.Z.zip`、`.sha256` 校验文件和不带版本号的 `TokenTide.zip`（供「下载最新版」链接使用）附加到这个 Release 上。已安装的 TokenTide 会在下次检查时自动更新。
@@ -159,7 +159,7 @@ npm run build:mac -- --universal     # 打包 Apple 芯片 + Intel 通用版
 
 ## 更新日志
 
-### 未发布
+### 0.5.0
 - 通过 Qoder CLI 查看 Qoder 额度：套餐、团队资源包、加购额度合计的剩余比例，每类一行，菜单栏显示 `QD`。
 - 历史中加入 Qoder：会话、消息、消耗积分、热力图、模型和每周积分，数据来自 `~/.qoder/projects`；额度趋势里加入 Qoder 曲线。
 

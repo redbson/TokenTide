@@ -141,7 +141,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 2. Publish a GitHub release tagged `vX.Y.Z`, or run:
 
    ```bash
-   gh release create v0.4.1 --generate-notes
+   gh release create v0.5.1 --generate-notes
    ```
 
 3. The [release workflow](.github/workflows/release.yml) runs the tests, builds the universal app, and attaches `TokenTide-X.Y.Z.zip`, its `.sha256` checksum, and an unversioned `TokenTide.zip` (used by the "download the latest version" link). Installed copies update themselves at their next check.
@@ -159,7 +159,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 
 ## Changelog
 
-### Unreleased
+### 0.5.0
 - Qoder credits, read through the Qoder CLI: credits left across plan, org package, and add-on, with a row for each, and `QD` in the menu bar.
 - Qoder in History: sessions, messages, credits used, heatmap, models, and credits per week, from `~/.qoder/projects`; a Qoder line in the quota trend.
 
