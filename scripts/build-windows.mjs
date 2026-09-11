@@ -56,6 +56,9 @@ await writeFile(
         electronVersion,
         // Plain files: the service runs from disk in a utility process.
         asar: false,
+        // Chromium's own UI strings (context menus, error pages) only for the panel's languages;
+        // the other ~50 locales add about 45 MB unpacked. en-US is Chromium's fallback.
+        electronLanguages: ["en-US", "zh-CN", "zh-TW"],
         npmRebuild: false,
         directories: { output },
         files: ["**/*"],
