@@ -1,9 +1,11 @@
 name: Release
 
-# Publishing a GitHub release tagged vX.Y.Z builds a universal TokenTide.app and attaches
-# TokenTide-X.Y.Z.zip plus TokenTide-X.Y.Z.zip.sha256, which the in-app updater
-# (macos/Updater.swift) looks for by exact name, and an unversioned TokenTide.zip for the
-# README's releases/latest/download/TokenTide.zip link.
+# Publishing a GitHub release tagged vX.Y.Z builds both apps and attaches:
+# - macOS: TokenTide-X.Y.Z.zip plus TokenTide-X.Y.Z.zip.sha256, which the in-app updater
+#   (macos/Updater.swift) looks for by exact name, and an unversioned TokenTide.zip for the
+#   README's releases/latest/download/TokenTide.zip link.
+# - Windows: TokenTide-Setup-X.Y.Z.exe plus its .sha256 (windows/updater.mjs), and an
+#   unversioned TokenTide-Setup.exe for the README's download link.
 on:
   release:
     types: [published]
@@ -66,3 +68,57 @@ jobs:
             "release/TokenTide-$VERSION.zip" \
             "release/TokenTide-$VERSION.zip.sha256" \
             release/TokenTide.zip
+
+  package-windows:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Read the version from the tag
+        run: |
+          VERSION="${TAG#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tags must look like v1.2.3 (got $TAG)"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            windows/package-lock.json
+
+      - run: npm ci
+      - run: npm test
+      - run: npm --prefix windows ci
+
+      - name: Stamp the version
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Build TokenTide-Setup (x64)
+        run: node scripts/build-windows.mjs
+
+      - name: Package
+        working-directory: release/windows
+        run: |
+          cat "TokenTide-Setup-$VERSION.exe.sha256"
+          cp "TokenTide-Setup-$VERSION.exe" TokenTide-Setup.exe
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$TAG" --clobber \
+            "release/windows/TokenTide-Setup-$VERSION.exe" \
+            "release/windows/TokenTide-Setup-$VERSION.exe.sha256" \
+            release/windows/TokenTide-Setup.exe

@@ -163,7 +163,9 @@ function defaultLogPath() {
   const base =
     process.platform === "darwin"
       ? path.join(os.homedir(), "Library", "Application Support", "TokenTide")
-      : path.join(os.homedir(), ".local", "share", "tokentide");
+      : process.platform === "win32"
+        ? path.join(process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming"), "TokenTide")
+        : path.join(os.homedir(), ".local", "share", "tokentide");
   return path.join(base, "quota-weeks.json");
 }
 

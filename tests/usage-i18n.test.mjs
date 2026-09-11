@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { MESSAGES, detectLanguage, resolveLanguage, translate } from "../src/i18n.js";
+import { MESSAGES, PLATFORM_MESSAGES, detectLanguage, resolveLanguage, translate } from "../src/i18n.js";
 import { compareToBook } from "../src/stats-format.js";
 import { describeLow, formatAccount, formatReset, limitLabel, timeAgo } from "../src/usage-format.js";
 
@@ -85,4 +85,24 @@ test("formats quota text in English", () => {
   );
   assert.equal(compareToBook(30_000, "", "en"), "Your input and output are about as many tokens as The Little Prince.");
   assert.match(compareToBook(46_000_000, "seed", "en"), /^Your input and output are about \d+× the tokens in .+\.$/);
+});
+
+test("Windows wording overrides existing keys with the same placeholders", () => {
+  for (const [language, table] of Object.entries(PLATFORM_MESSAGES.windows)) {
+    for (const [key, text] of Object.entries(table)) {
+      assert.ok(key in MESSAGES[language], `${language} ${key}`);
+      assert.deepEqual(placeholders(text), placeholders(MESSAGES[language][key]), key);
+      assert.ok(!/\bMac\b|菜单栏|系统设置/.test(text), `${language} ${key} still mentions the Mac`);
+    }
+  }
+  assert.equal(translate("en", "settings.providerNotInstalled", {}, "windows"), "Not installed on this PC");
+  assert.equal(translate("en", "settings.providerNotInstalled", {}, "mac"), "Not installed on this Mac");
+  assert.equal(translate("zh", "login.off", {}, "windows"), "登录 Windows 后自动启动 TokenTide");
+  // Every English string that names the Mac has a Windows version.
+  for (const [key, text] of Object.entries(MESSAGES.en)) {
+    if (/\bMac\b|menu bar|System Settings|Login Items/.test(text)) assert.ok(key in PLATFORM_MESSAGES.windows.en, key);
+  }
+  for (const [key, text] of Object.entries(MESSAGES.zh)) {
+    if (/Mac|菜单栏|系统设置|登录项/.test(text)) assert.ok(key in PLATFORM_MESSAGES.windows.zh, key);
+  }
 });

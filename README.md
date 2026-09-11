@@ -4,9 +4,9 @@ English | [简体中文](README.zh-CN.md)
 
 [![Latest release](https://img.shields.io/github/v/release/redbson/TokenTide?label=release)](https://github.com/redbson/TokenTide/releases/latest) [![License](https://img.shields.io/github/license/redbson/TokenTide)](LICENSE)
 
-TokenTide is a macOS menu-bar widget that shows how much of your **Codex**, **Claude Code**, and **Qoder** quota is left, how much of each weekly quota you actually use, and your usage history. Everything is read locally from the command-line tools you are already signed in to: no account, no API key, and nothing leaves your Mac. The interface is in English and Chinese; it follows your Mac's language and can be switched in Settings.
+TokenTide is a macOS menu-bar widget (with a [Windows tray version](#windows-preview)) that shows how much of your **Codex**, **Claude Code**, and **Qoder** quota is left, how much of each weekly quota you actually use, and your usage history. Everything is read locally from the command-line tools you are already signed in to: no account, no API key, and nothing leaves your Mac. The interface is in English and Chinese; it follows your Mac's language and can be switched in Settings.
 
-**[⬇ Download the latest version (TokenTide.zip)](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [All releases](https://github.com/redbson/TokenTide/releases)
+**[⬇ Download for macOS (TokenTide.zip)](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [Windows (TokenTide-Setup.exe)](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe) · [All releases](https://github.com/redbson/TokenTide/releases)
 
 <p>
   <img src="docs/screenshot-quota-en.png" alt="Quota tab" width="330">
@@ -59,6 +59,20 @@ open /Applications/TokenTide.app
 ```
 
 The built app contains its own interface and local service, so you can move or delete the project folder afterwards.
+
+## Windows (preview)
+
+TokenTide also runs on Windows 10 and 11 (x64) as a tray app: the same panel, opened from an icon in the taskbar's notification area. It is new and has had less real-world use than the Mac app, so please [report problems](https://github.com/redbson/TokenTide/issues).
+
+**[⬇ Download TokenTide-Setup.exe](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe)**
+
+- **Install**: run `TokenTide-Setup.exe`. It installs for your user only (no administrator rights) into `%LOCALAPPDATA%\Programs\TokenTide` and adds TokenTide to the Start menu. The installer is not code-signed, so Windows SmartScreen may say it protected your PC: click **More info → Run anyway**.
+- **Requirements**: the same command-line tools as on the Mac, signed in: `codex` and/or `claude`, and optionally `qodercli` (`npm install -g @qoder-ai/qodercli`). npm installs and Claude Code's native installer (`%USERPROFILE%\.local\bin`) both work. Node.js is not required; TokenTide brings its own.
+- **Tray icon**: one bar per shown tool, filled to its remaining quota (amber below 20%); hover for the exact numbers. If Windows hides it behind the **^** arrow, drag it onto the taskbar, or turn it on in Settings → Personalization → Taskbar → Other system tray icons.
+- **Using it**: left-click the icon to open the panel, click elsewhere or press Esc to close it; right-click for Show Quota, Refresh Now, and Quit. **Launch at login** in Settings uses Windows' Startup apps.
+- **Updates**: like the Mac app, TokenTide checks GitHub Releases every 6 hours, verifies the installer's SHA-256 checksum, and installs it silently when the panel is closed.
+- **Files**: settings and quota records in `%APPDATA%\TokenTide` (`quota-weeks.json`, logs in `logs\service.log`), the history cache in `%LOCALAPPDATA%\TokenTide\Cache`. Claude Code's `/usage` screen fallback is not available on Windows.
+- **Uninstall**: Settings → Apps → Installed apps → TokenTide.
 
 ## Automatic updates
 
@@ -132,6 +146,10 @@ npm test                             # unit tests
 npm run build                        # build the panel into dist/client
 npm run build:mac                    # build release/TokenTide.app for this Mac's architecture
 npm run build:mac -- --universal     # build a universal (Apple silicon + Intel) app
+
+npm --prefix windows ci              # Windows app: Electron and electron-builder
+npm --prefix windows start           # run the Windows tray app from source (works on a Mac too)
+node scripts/build-windows.mjs       # build release/windows/TokenTide-Setup-X.Y.Z.exe
 ```
 
 The Vite dev server uses port 5173, so it doesn't collide with an installed TokenTide (port 4173). In a normal browser the panel is centered on a dark backdrop; in the app it fills the dropdown.
@@ -145,7 +163,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
    gh release create v0.5.1 --generate-notes
    ```
 
-3. The [release workflow](.github/workflows/release.yml) runs the tests, builds the universal app, and attaches `TokenTide-X.Y.Z.zip`, its `.sha256` checksum, and an unversioned `TokenTide.zip` (used by the "download the latest version" link). Installed copies update themselves at their next check.
+3. The [release workflow](.github/workflows/release.yml) runs the tests, builds the universal Mac app and the Windows installer, and attaches `TokenTide-X.Y.Z.zip` and `TokenTide-Setup-X.Y.Z.exe`, their `.sha256` checksums, and unversioned `TokenTide.zip` / `TokenTide-Setup.exe` copies (used by the download links). Installed copies update themselves at their next check.
 4. To rebuild an existing release, run the Release workflow manually from the Actions tab and enter its tag.
 
 | Directory | Contents |
@@ -153,14 +171,16 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 | `src/` | Panel UI (React) |
 | `server/` | Local service: quota readers, transcript statistics, weekly quota records; `main.mjs` is the entry point bundled into the app |
 | `macos/` | Menu-bar shell (Swift / AppKit + WKWebView) and automatic updates (`Updater.swift`) |
-| `.github/workflows/` | Release packaging |
+| `windows/` | Windows tray shell (Electron): tray icon, panel, updates (`updater.mjs`) |
+| `.github/workflows/` | Release packaging; a Windows check (tests, installer, smoke run) |
 | `branding/`, `public/assets/` | Icons |
-| `scripts/` | App packaging (`build-macos.mjs`) and icon generation |
+| `scripts/` | App packaging (`build-macos.mjs`, `build-windows.mjs`) and icon generation |
 | `tests/` | `node --test` tests |
 
 ## Changelog
 
 ### Unreleased
+- Windows version (preview): a tray app with the same panel, a per-user installer, and automatic updates.
 - Settings → Shown tools: choose which of Codex, Claude Code, and Qoder appear in the panel, the menu bar, low-quota notices, and History.
 - Qoder's headline counts only your own credits (plan and add-on). The org resource package keeps its own row but no longer raises the percentage, the menu-bar `QD`, or the low-quota notice.
 

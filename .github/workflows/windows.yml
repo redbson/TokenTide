@@ -1,0 +1,98 @@
+name: Windows
+
+# Checks the Windows app on a real Windows machine: the tests, the installer build, a silent
+# install, and a smoke run of the installed app against stand-in codex / claude / qodercli
+# tools installed as npm-style .cmd shims (in a folder with a space in its name). The panel
+# captures and the installer are kept as the run's artifacts.
+on:
+  push:
+    branches: [main, "windows*"]
+    paths:
+      - "server/**"
+      - "src/**"
+      - "windows/**"
+      - "tests/**"
+      - "scripts/build-windows.mjs"
+      - "package*.json"
+      - ".github/workflows/windows.yml"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            windows/package-lock.json
+
+      - run: npm ci
+      - run: npm test
+      - run: npm --prefix windows ci
+
+      - name: Build the installer
+        run: node scripts/build-windows.mjs
+
+      - name: Install silently
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem release/windows/TokenTide-Setup-*.exe | Select-Object -First 1
+          Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait
+          $app = Join-Path $env:LOCALAPPDATA "Programs\TokenTide\TokenTide.exe"
+          if (-not (Test-Path $app)) { throw "TokenTide.exe was not installed at $app" }
+          "Installed $app"
+
+      - name: Stand-in CLIs as .cmd shims
+        run: |
+          tools="$RUNNER_TEMP/fake tools"
+          mkdir -p "$tools"
+          node_exe="$(cygpath -w "$(command -v node)")"
+          for tool in codex claude qodercli; do
+            printf '@"%s" "%s" %%*\r\n' "$node_exe" "$(cygpath -w "$PWD/tests/fixtures/fake-$tool.mjs")" > "$tools/$tool.cmd"
+          done
+          cygpath -w "$tools" >> "$GITHUB_PATH"
+
+      - name: Smoke run of the installed app
+        shell: pwsh
+        run: |
+          $app = Join-Path $env:LOCALAPPDATA "Programs\TokenTide\TokenTide.exe"
+          $out = Join-Path $env:RUNNER_TEMP "smoke"
+          $process = Start-Process -FilePath $app -ArgumentList "--smoke-test=$out" -PassThru
+          if (-not $process.WaitForExit(180000)) { $process.Kill(); throw "The smoke run did not finish in time." }
+          Get-Content (Join-Path $out "smoke.json")
+          Get-Content (Join-Path $env:APPDATA "TokenTide\logs\service.log") -ErrorAction SilentlyContinue
+
+      - name: Check the smoke result
+        run: |
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const result = JSON.parse(readFileSync(process.env.RUNNER_TEMP + "/smoke/smoke.json", "utf8"));
+            const remaining = Object.fromEntries(result.summary.items.map((item) => [item.label, item.remaining]));
+            console.log(remaining);
+            if (!result.ok) throw new Error(result.error);
+            if (result.platform !== "win32") throw new Error("not Windows");
+            // Stand-in quotas: Codex 60%, Claude Code 75%, Qoder 10% left.
+            if (remaining.CX !== 60 || remaining.CC !== 75 || remaining.QD !== 10) throw new Error("unexpected quota readings");
+          '
+          tasklist //FI "IMAGENAME eq TokenTide.exe" | grep -i tokentide && { echo "::error::TokenTide is still running"; exit 1; } || true
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: tokentide-windows
+          path: |
+            ${{ runner.temp }}/smoke
+            release/windows/TokenTide-Setup-*.exe
+          if-no-files-found: warn

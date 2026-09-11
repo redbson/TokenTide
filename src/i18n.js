@@ -1,5 +1,5 @@
-// Interface languages. "system" follows the Mac: Chinese when the primary system language is
-// Chinese, English otherwise.
+// Interface languages. "system" follows the computer: Chinese when the primary system language
+// is Chinese, English otherwise.
 export const LANGUAGES = ["zh", "en"];
 export const LANGUAGE_NAMES = { zh: "中文", en: "English" };
 
@@ -9,6 +9,11 @@ export function detectLanguage(systemLanguages = []) {
 
 export function resolveLanguage(preference, systemLanguages) {
   return LANGUAGES.includes(preference) ? preference : detectLanguage(systemLanguages);
+}
+
+/** "windows" inside the Windows tray app (windows/preload.cjs), otherwise "mac". */
+export function platform() {
+  return typeof window !== "undefined" && window.__TOKENTIDE__?.platform === "windows" ? "windows" : "mac";
 }
 
 /** System languages as reported by the native shell (WebKit's own may ignore them), else the browser's. */
@@ -371,9 +376,41 @@ export const MESSAGES = {
  * With `count: 1`, a `<key>.one` variant is used when the language defines one (English
  * singulars; Chinese needs none).
  */
-export function translate(language, key, params = {}) {
+// Windows wording: the tray instead of the menu bar, Startup apps instead of Login Items, and
+// "this PC" instead of "this Mac".
+const onThisPc = (table) =>
+  Object.fromEntries(
+    Object.entries(table)
+      .filter(([, text]) => text.includes("this Mac"))
+      .map(([key, text]) => [key, text.replaceAll("this Mac", "this PC")]),
+  );
+
+export const PLATFORM_MESSAGES = {
+  windows: {
+    zh: {
+      "login.enabled": "登录 Windows 后自动出现在任务栏通知区域",
+      "login.requiresApproval": "已添加，但在 Windows「启动应用」里被关闭了",
+      "login.checking": "正在读取启动设置…",
+      "login.off": "登录 Windows 后自动启动 TokenTide",
+      "login.openSettings": "打开「启动应用」设置",
+      "settings.toolsNote": "关闭后，额度页、任务栏图标、低额度提醒和历史中都不再显示该工具",
+    },
+    en: {
+      ...onThisPc(MESSAGES.en),
+      "login.enabled": "Appears in the taskbar tray when you sign in",
+      "login.requiresApproval": "Added, but turned off in Windows Startup apps",
+      "login.checking": "Reading startup settings…",
+      "login.off": "Start TokenTide when you sign in to Windows",
+      "login.openSettings": "Open Startup apps settings",
+      "settings.toolsNote": "A tool that is off is left out of the Quota tab, the tray icon, low-quota notices, and History",
+    },
+  },
+};
+
+export function translate(language, key, params = {}, target = platform()) {
   const table = MESSAGES[language] ?? MESSAGES.en;
-  const singular = params.count === 1 ? table[`${key}.one`] : undefined;
-  const template = singular ?? table[key] ?? MESSAGES.en[key] ?? key;
+  const overrides = PLATFORM_MESSAGES[target]?.[MESSAGES[language] ? language : "en"] ?? {};
+  const singular = params.count === 1 ? (overrides[`${key}.one`] ?? table[`${key}.one`]) : undefined;
+  const template = singular ?? overrides[key] ?? table[key] ?? MESSAGES.en[key] ?? key;
   return template.replace(/\{(\w+)\}/g, (match, name) => (params[name] === undefined ? match : String(params[name])));
 }

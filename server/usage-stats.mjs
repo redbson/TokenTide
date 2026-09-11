@@ -249,7 +249,11 @@ async function listFiles(directory, accept) {
 
 function defaultCachePath() {
   const base =
-    process.platform === "darwin" ? path.join(os.homedir(), "Library", "Caches", "TokenTide") : os.tmpdir();
+    process.platform === "darwin"
+      ? path.join(os.homedir(), "Library", "Caches", "TokenTide")
+      : process.platform === "win32"
+        ? path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), "AppData", "Local"), "TokenTide", "Cache")
+        : os.tmpdir();
   return path.join(base, `usage-stats-v${CACHE_VERSION}.json`);
 }
 

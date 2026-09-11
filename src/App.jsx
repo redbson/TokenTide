@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { SettingsView } from "./SettingsView.jsx";
 import { I18nContext, useI18n } from "./i18n-context.js";
-import { resolveLanguage, systemLanguages, translate } from "./i18n.js";
+import { platform, resolveLanguage, systemLanguages, translate } from "./i18n.js";
 import { UsageStats } from "./UsageStats.jsx";
 import { AlertIcon, CloseIcon, PowerIcon } from "./icons.jsx";
 import {
@@ -43,8 +43,13 @@ const DEFAULT_SETTINGS = {
   language: "system",
 };
 
-// Present when the page runs inside the macOS menu-bar panel (macos/AppDelegate.swift).
-const nativeBridge = typeof window === "undefined" ? null : window.webkit?.messageHandlers?.usageMonitor;
+// Present when the page runs inside a native shell: the macOS menu-bar panel
+// (macos/AppDelegate.swift) or the Windows tray panel (windows/preload.cjs).
+const nativeBridge =
+  typeof window === "undefined" ? null : (window.webkit?.messageHandlers?.usageMonitor ?? window.tokentideNative ?? null);
+const IS_WINDOWS = platform() === "windows";
+// How to install the Qoder CLI: the shell installer on macOS, npm on Windows.
+const QODER_INSTALL = IS_WINDOWS ? "npm install -g @qoder-ai/qodercli" : "curl -fsSL https://qoder.com/install | bash";
 
 function postNative(message) {
   try {
@@ -115,7 +120,7 @@ function ProviderBlock({ provider, loading, now }) {
       {provider.errorCode === "qoderCliMissing" ? (
         <p className="provider-error">
           {t("providerError.qoderCliMissing")}
-          <code>curl -fsSL https://qoder.com/install | bash</code>
+          <code>{QODER_INSTALL}</code>
         </p>
       ) : provider.error ? (
         <p className="provider-error">{provider.error}</p>
@@ -410,6 +415,7 @@ export function App() {
       type: "summary",
       items: shown.map((provider) => ({
         label: PROVIDER_META[provider.id]?.short ?? provider.id,
+        name: PROVIDER_META[provider.id]?.name ?? provider.id,
         remaining: getPrimaryRemaining(provider),
       })),
       low: shown.some((provider) => isLow(provider)),
@@ -426,6 +432,7 @@ export function App() {
   // The native panel sizes itself to the rendered content.
   useLayoutEffect(() => {
     document.documentElement.classList.toggle("is-native", Boolean(nativeBridge));
+    document.documentElement.classList.toggle("is-windows", IS_WINDOWS);
     const panel = panelRef.current;
     if (!panel || !nativeBridge) return undefined;
     const report = () => postNative({ type: "resize", height: Math.ceil(panel.getBoundingClientRect().height) });

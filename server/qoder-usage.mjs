@@ -1,6 +1,7 @@
-import { accessSync, constants, existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { resolveCommand } from "./commands.mjs";
 import { exchangeJsonLines, makeLimit } from "./usage-service.mjs";
 
 // Qoder credits, read through the official Qoder CLI (`qodercli`): the `get_usage_info`
@@ -10,16 +11,13 @@ import { exchangeJsonLines, makeLimit } from "./usage-service.mjs";
 
 const QODER_TIMEOUT_MS = 20_000;
 const QODER_ARGS = ["--print", "--output-format", "stream-json", "--input-format", "stream-json"];
-const QODER_APP_PATHS = ["/Applications/Qoder.app", path.join(os.homedir(), "Applications", "Qoder.app")];
-
-const isExecutable = (file) => {
-  try {
-    accessSync(file, constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
-};
+const qoderAppPaths = (platform = process.platform, env = process.env, home = os.homedir()) =>
+  platform === "win32"
+    ? [
+        path.join(env.LOCALAPPDATA ?? path.join(home, "AppData", "Local"), "Programs", "Qoder", "Qoder.exe"),
+        path.join(env.ProgramFiles ?? "C:\\Program Files", "Qoder", "Qoder.exe"),
+      ]
+    : ["/Applications/Qoder.app", path.join(home, "Applications", "Qoder.app")];
 
 /** The installer's versioned binaries (`~/.qoder/bin/qodercli/qodercli-1.1.49`), newest first. */
 function versionedQoderClis(directory) {
@@ -27,6 +25,7 @@ function versionedQoderClis(directory) {
     const version = (name) => name.slice("qodercli-".length).split(".").map((part) => Number.parseInt(part, 10) || 0);
     return readdirSync(directory)
       .filter((name) => name.startsWith("qodercli-"))
+      .map((name) => name.replace(/\.exe$/i, ""))
       .sort((a, b) => {
         const [x, y] = [version(a), version(b)];
         for (let index = 0; index < Math.max(x.length, y.length); index += 1) {
@@ -34,7 +33,7 @@ function versionedQoderClis(directory) {
         }
         return 0;
       })
-      .map((name) => path.join(directory, name));
+      .map((name) => path.join(directory, process.platform === "win32" ? `${name}.exe` : name));
   } catch {
     return [];
   }
@@ -43,16 +42,14 @@ function versionedQoderClis(directory) {
 /** `qodercli` on PATH or in the Qoder installer's locations (as `qoder` looks for it). */
 export function findQoderCli(env = process.env, home = os.homedir()) {
   const installDir = path.join(home, ".qoder", "bin", "qodercli");
-  const candidates = [
-    ...(env.PATH ?? "").split(path.delimiter).filter(Boolean).map((dir) => path.join(dir, "qodercli")),
-    path.join(home, ".local", "bin", "qodercli"),
-    path.join(installDir, "qodercli"),
-    ...versionedQoderClis(installDir),
-  ];
-  return candidates.find(isExecutable) ?? null;
+  return (
+    resolveCommand("qodercli", { env, extraDirs: [path.join(home, ".local", "bin"), installDir] }) ??
+    versionedQoderClis(installDir).find((file) => existsSync(file)) ??
+    null
+  );
 }
 
-export const isQoderAppInstalled = () => QODER_APP_PATHS.some((app) => existsSync(app));
+export const isQoderAppInstalled = () => qoderAppPaths().some((app) => existsSync(app));
 
 const toEpochSeconds = (value) => {
   const number = Number(value);

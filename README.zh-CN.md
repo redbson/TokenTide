@@ -4,9 +4,9 @@
 
 [![Latest release](https://img.shields.io/github/v/release/redbson/TokenTide?label=%E6%9C%80%E6%96%B0%E7%89%88)](https://github.com/redbson/TokenTide/releases/latest) [![License](https://img.shields.io/github/license/redbson/TokenTide)](LICENSE)
 
-TokenTide 是一个 macOS 菜单栏小工具：随时看 Codex、Claude Code 和 Qoder 还剩多少额度、每周额度用了多少，以及历史使用记录。数据全部来自你本机已登录的命令行工具，不需要账号或 API Key，也不会上传任何数据。界面支持中文和英文，默认跟随系统语言，也可以在设置里切换。
+TokenTide 是一个 macOS 菜单栏小工具（也有 [Windows 托盘版](#windows-版预览)）：随时看 Codex、Claude Code 和 Qoder 还剩多少额度、每周额度用了多少，以及历史使用记录。数据全部来自你本机已登录的命令行工具，不需要账号或 API Key，也不会上传任何数据。界面支持中文和英文，默认跟随系统语言，也可以在设置里切换。
 
-**[⬇ 下载最新版（TokenTide.zip）](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [所有版本](https://github.com/redbson/TokenTide/releases)
+**[⬇ 下载 macOS 版（TokenTide.zip）](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [Windows 版（TokenTide-Setup.exe）](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe) · [所有版本](https://github.com/redbson/TokenTide/releases)
 
 <p>
   <img src="docs/screenshot-quota.png" alt="额度页" width="330">
@@ -59,6 +59,20 @@ open /Applications/TokenTide.app
 ```
 
 打包好的 app 自带界面和本机服务，装好之后可以随意移动或删除项目目录。
+
+## Windows 版（预览）
+
+TokenTide 也能在 Windows 10 / 11（x64）上运行：同样的面板，从任务栏通知区域的图标打开。Windows 版刚推出，实际使用还不如 Mac 版多，遇到问题欢迎[反馈](https://github.com/redbson/TokenTide/issues)。
+
+**[⬇ 下载 TokenTide-Setup.exe](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe)**
+
+- **安装**：运行 `TokenTide-Setup.exe`，只为当前用户安装（不需要管理员权限），位置是 `%LOCALAPPDATA%\Programs\TokenTide`，并加入开始菜单。安装包没有代码签名，Windows SmartScreen 可能提示「已保护你的电脑」：点「更多信息 → 仍要运行」。
+- **需要**：和 Mac 版一样的命令行工具，并已登录：`codex` 和/或 `claude`，可选 `qodercli`（`npm install -g @qoder-ai/qodercli`）。npm 安装的和 Claude Code 原生安装的（`%USERPROFILE%\.local\bin`）都可以。不需要装 Node.js，TokenTide 自带。
+- **托盘图标**：每个显示的工具一条横条，填充长度就是剩余额度（低于 20% 变成琥珀色）；鼠标悬停显示具体数字。如果图标被收进 **^** 里，把它拖到任务栏上，或在 设置 → 个性化 → 任务栏 → 其他系统托盘图标 里打开。
+- **使用**：左键点图标打开面板，点别处或按 Esc 关闭；右键：显示额度 / 立即刷新 / 退出。设置里的「开机时启动」使用 Windows 的「启动应用」。
+- **更新**：和 Mac 版一样，每 6 小时检查 GitHub Releases，校验安装包的 SHA-256 后，在面板关闭时静默安装。
+- **文件**：设置和额度记录在 `%APPDATA%\TokenTide`（`quota-weeks.json`，日志在 `logs\service.log`），历史缓存在 `%LOCALAPPDATA%\TokenTide\Cache`。Windows 上没有 Claude Code `/usage` 画面的备用读取。
+- **卸载**：设置 → 应用 → 已安装的应用 → TokenTide。
 
 ## 自动更新
 
@@ -132,6 +146,10 @@ npm test                             # 单元测试
 npm run build                        # 构建界面到 dist/client
 npm run build:mac                    # 打包 release/TokenTide.app（本机架构）
 npm run build:mac -- --universal     # 打包 Apple 芯片 + Intel 通用版
+
+npm --prefix windows ci              # Windows 版：安装 Electron 和 electron-builder
+npm --prefix windows start           # 从源码运行 Windows 托盘版（在 Mac 上也能跑）
+node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.Y.Z.exe
 ```
 
 开发时 Vite 用 5173 端口，和装好的 TokenTide（4173）互不影响。在浏览器里面板会居中显示在深色背景上；在 app 里则铺满下拉面板。
@@ -145,7 +163,7 @@ npm run build:mac -- --universal     # 打包 Apple 芯片 + Intel 通用版
    gh release create v0.5.1 --generate-notes
    ```
 
-3. [Release 工作流](.github/workflows/release.yml) 会自动跑测试、打包通用版 app，并把 `TokenTide-X.Y.Z.zip`、`.sha256` 校验文件和不带版本号的 `TokenTide.zip`（供「下载最新版」链接使用）附加到这个 Release 上。已安装的 TokenTide 会在下次检查时自动更新。
+3. [Release 工作流](.github/workflows/release.yml) 会自动跑测试、打包通用版 Mac app 和 Windows 安装包，并把 `TokenTide-X.Y.Z.zip`、`TokenTide-Setup-X.Y.Z.exe`、它们的 `.sha256` 校验文件，以及不带版本号的 `TokenTide.zip` / `TokenTide-Setup.exe`（供下载链接使用）附加到这个 Release 上。已安装的 TokenTide 会在下次检查时自动更新。
 4. 需要重新打包某个已发布的版本时，在 Actions 里手动运行 Release 工作流并填入标签。
 
 | 目录 | 内容 |
@@ -153,14 +171,16 @@ npm run build:mac -- --universal     # 打包 Apple 芯片 + Intel 通用版
 | `src/` | 面板界面（React） |
 | `server/` | 本机服务：额度读取、转录统计、每周额度记录；`main.mjs` 是打包进 app 的服务入口 |
 | `macos/` | 菜单栏外壳（Swift / AppKit + WKWebView）和自动更新（`Updater.swift`） |
-| `.github/workflows/` | 发布 Release 时自动打包 |
+| `windows/` | Windows 托盘外壳（Electron）：托盘图标、面板、自动更新（`updater.mjs`） |
+| `.github/workflows/` | 发布 Release 时自动打包；Windows 检查（测试、安装包、冒烟运行） |
 | `branding/`、`public/assets/` | 图标 |
-| `scripts/` | 打包 app（`build-macos.mjs`）、生成图标 |
+| `scripts/` | 打包 app（`build-macos.mjs`、`build-windows.mjs`）、生成图标 |
 | `tests/` | `node --test` 测试 |
 
 ## 更新日志
 
 ### 未发布
+- Windows 版（预览）：托盘图标 + 同样的面板，按用户安装，支持自动更新。
 - 设置 → 显示的工具：选择在面板、菜单栏、低额度提醒和历史中显示 Codex、Claude Code、Qoder 中的哪些。
 - Qoder 的剩余比例只计个人积分（套餐和加购额度）。团队资源包仍单独显示一行，但不再计入剩余比例、菜单栏 `QD` 和低额度提醒。
 

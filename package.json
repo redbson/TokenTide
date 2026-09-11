@@ -1,7 +1,7 @@
 {
   "name": "tokentide",
   "version": "0.5.0",
-  "description": "macOS menu-bar widget for Codex and Claude Code quota, weekly utilization, and usage history",
+  "description": "macOS menu-bar and Windows tray widget for Codex, Claude Code, and Qoder quota, weekly utilization, and usage history",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -15,7 +15,8 @@
     "preview": "vite preview",
     "test": "node --test tests/usage-*.test.mjs tests/quota-*.test.mjs",
     "test:sites": "node --test tests/sites-worker.test.mjs",
-    "build:mac": "node scripts/build-macos.mjs"
+    "build:mac": "node scripts/build-macos.mjs",
+    "build:windows": "node scripts/build-windows.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "5.0.4",

@@ -134,11 +134,12 @@ test("finds the installer's versioned binary when PATH has no qodercli", async (
   try {
     const dir = path.join(home, ".qoder", "bin", "qodercli");
     await mkdir(dir, { recursive: true });
+    const binary = (version) => path.join(dir, `qodercli-${version}${process.platform === "win32" ? ".exe" : ""}`);
     for (const version of ["1.1.9", "1.1.49"]) {
-      await writeFile(path.join(dir, `qodercli-${version}`), "#!/bin/sh\n");
-      await chmod(path.join(dir, `qodercli-${version}`), 0o755);
+      await writeFile(binary(version), "#!/bin/sh\n");
+      await chmod(binary(version), 0o755);
     }
-    assert.equal(findQoderCli({ PATH: "" }, home), path.join(dir, "qodercli-1.1.49"));
+    assert.equal(findQoderCli({ PATH: "" }, home), binary("1.1.49"));
   } finally {
     await rm(home, { recursive: true, force: true });
   }

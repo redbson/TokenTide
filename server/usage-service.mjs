@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { spawnCommand, stopCommand } from "./commands.mjs";
 import { weeklyReadingFromProvider } from "./quota-weeks.mjs";
 import { readQoderUsage } from "./qoder-usage.mjs";
 
@@ -166,7 +167,7 @@ export function parseClaudeUsage(rawOutput, now = Date.now()) {
  */
 export function exchangeJsonLines({ command, args, env = process.env, timeoutMs, start, handle }) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ["pipe", "pipe", "ignore"], env });
+    const child = spawnCommand(command, args, { stdio: ["pipe", "pipe", "ignore"], env });
     let buffer = "";
     let settled = false;
 
@@ -174,7 +175,7 @@ export function exchangeJsonLines({ command, args, env = process.env, timeoutMs,
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      child.kill("SIGTERM");
+      stopCommand(child);
       if (error) reject(error);
       else resolve(value);
     };
@@ -421,6 +422,8 @@ class ClaudeUsageSession {
 
   request() {
     if (this.pending) return this.pending.promise;
+    // The fallback drives Claude Code's terminal UI through expect, which Windows lacks.
+    if (process.platform === "win32") return Promise.reject(new Error("The /usage fallback is not available on Windows."));
     this.start();
     this.output = "";
     this.sentForPending = false;
