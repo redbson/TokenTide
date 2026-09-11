@@ -14,6 +14,9 @@ on:
       tag:
         description: Existing release tag to build again, e.g. v0.3.0
         required: true
+      ref:
+        description: Commit or branch to build instead of the tag (optional; replaces the release's files without a new version)
+        required: false
 
 permissions:
   contents: write
@@ -24,10 +27,11 @@ jobs:
     env:
       # Passed through env, never interpolated into scripts, so a tag name cannot inject shell.
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      SOURCE: ${{ inputs.ref || github.event.release.tag_name || inputs.tag }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ env.SOURCE }}
 
       - name: Read the version from the tag
         run: |
@@ -73,13 +77,14 @@ jobs:
     runs-on: windows-latest
     env:
       TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      SOURCE: ${{ inputs.ref || github.event.release.tag_name || inputs.tag }}
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ env.SOURCE }}
 
       - name: Read the version from the tag
         run: |
