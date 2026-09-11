@@ -1,4 +1,4 @@
-import { accessSync, constants, existsSync } from "node:fs";
+import { accessSync, constants, existsSync, readdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { exchangeJsonLines, makeLimit } from "./usage-service.mjs";
@@ -21,12 +21,33 @@ const isExecutable = (file) => {
   }
 };
 
+/** The installer's versioned binaries (`~/.qoder/bin/qodercli/qodercli-1.1.49`), newest first. */
+function versionedQoderClis(directory) {
+  try {
+    const version = (name) => name.slice("qodercli-".length).split(".").map((part) => Number.parseInt(part, 10) || 0);
+    return readdirSync(directory)
+      .filter((name) => name.startsWith("qodercli-"))
+      .sort((a, b) => {
+        const [x, y] = [version(a), version(b)];
+        for (let index = 0; index < Math.max(x.length, y.length); index += 1) {
+          if ((x[index] ?? 0) !== (y[index] ?? 0)) return (y[index] ?? 0) - (x[index] ?? 0);
+        }
+        return 0;
+      })
+      .map((name) => path.join(directory, name));
+  } catch {
+    return [];
+  }
+}
+
 /** `qodercli` on PATH or in the Qoder installer's locations (as `qoder` looks for it). */
-export function findQoderCli(env = process.env) {
+export function findQoderCli(env = process.env, home = os.homedir()) {
+  const installDir = path.join(home, ".qoder", "bin", "qodercli");
   const candidates = [
     ...(env.PATH ?? "").split(path.delimiter).filter(Boolean).map((dir) => path.join(dir, "qodercli")),
-    path.join(os.homedir(), ".local", "bin", "qodercli"),
-    path.join(os.homedir(), ".qoder", "bin", "qodercli", "qodercli"),
+    path.join(home, ".local", "bin", "qodercli"),
+    path.join(installDir, "qodercli"),
+    ...versionedQoderClis(installDir),
   ];
   return candidates.find(isExecutable) ?? null;
 }
@@ -61,13 +82,21 @@ export function parseQoderUsage(response) {
   }
 
   const resetsAt = toEpochSeconds(usage.expiresAt ?? usage.expires_at);
-  const limits = [makeLimit("total", "Total", usage.totalUsagePercentage ?? usage.total_usage_percentage, resetsAt)];
+  const pools = [];
   const plan = usage.userQuota ?? usage.user_quota;
-  if (plan && finiteOr(plan.total, 0) > 0) limits.push(creditLimit("plan", "Plan credits", plan, resetsAt));
+  if (plan && finiteOr(plan.total, 0) > 0) pools.push(creditLimit("plan", "Plan credits", plan, resetsAt));
   const org = usage.orgResourcePackage ?? usage.org_resource_package;
-  if (org && (org.available ?? finiteOr(org.cap ?? org.total, 0) > 0)) limits.push(creditLimit("org", "Org package", org));
+  if (org && (org.available ?? finiteOr(org.cap ?? org.total, 0) > 0)) pools.push(creditLimit("org", "Org package", org));
   const addOn = usage.addOnQuota ?? usage.add_on_quota;
-  if (addOn && finiteOr(addOn.total, 0) > 0) limits.push(creditLimit("addon", "Add-on credits", addOn));
+  if (addOn && finiteOr(addOn.total, 0) > 0) pools.push(creditLimit("addon", "Add-on credits", addOn));
+
+  // The headline covers every credit pool the account can spend. Qoder's own
+  // totalUsagePercentage tracks only the plan quota, so a Teams member with an untouched org
+  // package would otherwise look nearly out of credits.
+  const total = pools.reduce((sum, pool) => sum + pool.totalAmount, 0);
+  const remaining = pools.reduce((sum, pool) => sum + pool.remainingAmount, 0);
+  const usedPercent = total > 0 ? ((total - remaining) / total) * 100 : (usage.totalUsagePercentage ?? usage.total_usage_percentage);
+  const limits = [makeLimit("total", "Total", usedPercent, resetsAt), ...pools];
 
   const planType = String(usage.userType ?? usage.user_type ?? "").trim();
   return {

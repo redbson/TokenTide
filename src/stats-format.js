@@ -83,28 +83,34 @@ function longestStreak(activeDates, start, today) {
   return longest;
 }
 
-/** Totals, streaks, peak hour, and model shares for one provider over a range. */
-export function summarizeStats(days, range, today = localDayKey()) {
+/**
+ * Totals, streaks, peak hour, and model shares for one provider over a range. `measure` is
+ * what models are ranked by: "tokens", or "credits" for Qoder (which reports no tokens).
+ */
+export function summarizeStats(days, range, today = localDayKey(), measure = "tokens") {
   const start = rangeStart(range, days, today);
   const inRange = days.filter((day) => day.date >= start && day.date <= today);
   const hours = {};
   const models = {};
-  const totals = { sessions: 0, messages: 0, tokens: 0, io: 0 };
+  const totals = { sessions: 0, messages: 0, tokens: 0, io: 0, credits: 0 };
+  const modelField = measure === "credits" ? "modelCredits" : "models";
 
   for (const day of inRange) {
     totals.sessions += day.sessions;
     totals.messages += day.messages;
     totals.tokens += day.tokens;
     totals.io += day.io;
+    totals.credits += day.credits ?? 0;
     for (const [hour, value] of Object.entries(day.hours ?? {})) hours[hour] = (hours[hour] ?? 0) + value;
-    for (const [model, value] of Object.entries(day.models ?? {})) models[model] = (models[model] ?? 0) + value;
+    for (const [model, value] of Object.entries(day[modelField] ?? {})) models[model] = (models[model] ?? 0) + value;
   }
 
   const peak = Object.entries(hours).sort(([hourA, a], [hourB, b]) => b - a || hourA - hourB)[0];
+  const measured = measure === "credits" ? totals.credits : totals.tokens;
   const modelList = Object.entries(models)
-    .filter(([, tokens]) => tokens > 0)
+    .filter(([, amount]) => amount > 0)
     .sort(([, a], [, b]) => b - a)
-    .map(([model, tokens]) => ({ model, tokens, share: totals.tokens > 0 ? tokens / totals.tokens : 0 }));
+    .map(([model, amount]) => ({ model, tokens: amount, amount, share: measured > 0 ? amount / measured : 0 }));
 
   const activeInRange = new Set(inRange.filter(isActive).map((day) => day.date));
   const activeAll = new Set(days.filter(isActive).map((day) => day.date));
@@ -171,8 +177,39 @@ export function formatMonthDay(seconds, now = new Date()) {
   return date.getFullYear() === now.getFullYear() ? monthDay : `${date.getFullYear()}/${monthDay}`;
 }
 
+/** Credits per Monday-first week over a range, for Qoder's 使用率 view. */
+export function summarizeCreditWeeks(days, range = "all", today = localDayKey()) {
+  const weekOf = (key) => addDays(key, -((dateOf(key).getDay() + 6) % 7));
+  const byWeek = new Map();
+  for (const day of days) {
+    if (!(day.credits > 0)) continue;
+    byWeek.set(weekOf(day.date), (byWeek.get(weekOf(day.date)) ?? 0) + day.credits);
+  }
+  const currentWeek = weekOf(today);
+  const firstActive = [...byWeek.keys()].sort()[0] ?? currentWeek;
+  const start = RANGE_DAYS[range] ? weekOf(addDays(today, -(RANGE_DAYS[range] - 1))) : firstActive;
+  const weeks = [];
+  for (let week = start; week <= currentWeek; week = addDays(week, 7)) {
+    weeks.push({ start: week, credits: byWeek.get(week) ?? 0, isCurrent: week === currentWeek });
+  }
+  const completed = weeks.filter((week) => !week.isCurrent);
+  const values = completed.map((week) => week.credits);
+  return {
+    weeks,
+    total: weeks.reduce((sum, week) => sum + week.credits, 0),
+    average: values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null,
+    peak: values.length ? Math.max(...values) : null,
+    current: weeks.at(-1)?.isCurrent ? weeks.at(-1).credits : 0,
+  };
+}
+
+export function formatCredits(value) {
+  if (!Number.isFinite(value)) return "—";
+  return value.toLocaleString("en-US", { maximumFractionDigits: value < 100 ? 1 : 0 });
+}
+
 /** GitHub-style grid: `weeks` columns (Monday first) ending with the current week. */
-export function buildHeatmap(days, today = localDayKey(), weeks = 26) {
+export function buildHeatmap(days, today = localDayKey(), weeks = 26, measure = "tokens") {
   const byDate = new Map(days.map((day) => [day.date, day]));
   const weekday = (dateOf(today).getDay() + 6) % 7;
   const first = addDays(today, -((weeks - 1) * 7 + weekday));
@@ -184,8 +221,16 @@ export function buildHeatmap(days, today = localDayKey(), weeks = 26) {
     for (let row = 0; row < 7; row += 1) {
       const date = addDays(first, column * 7 + row);
       const day = byDate.get(date);
-      const cell = { date, tokens: day?.tokens ?? 0, sessions: day?.sessions ?? 0, future: date > today, level: 0 };
-      if (!cell.future && cell.tokens > 0) values.push(cell.tokens);
+      const cell = {
+        date,
+        tokens: day?.tokens ?? 0,
+        credits: day?.credits ?? 0,
+        sessions: day?.sessions ?? 0,
+        future: date > today,
+        level: 0,
+      };
+      cell.value = cell[measure] ?? 0;
+      if (!cell.future && cell.value > 0) values.push(cell.value);
       cells.push(cell);
     }
     columns.push(cells);
@@ -197,8 +242,8 @@ export function buildHeatmap(days, today = localDayKey(), weeks = 26) {
   const thresholds = values.length ? [quantile(0.25), quantile(0.5), quantile(0.75)] : [];
   for (const cells of columns) {
     for (const cell of cells) {
-      if (cell.future || cell.tokens <= 0) continue;
-      cell.level = 1 + thresholds.filter((threshold) => cell.tokens > threshold).length;
+      if (cell.future || cell.value <= 0) continue;
+      cell.level = 1 + thresholds.filter((threshold) => cell.value > threshold).length;
     }
   }
 

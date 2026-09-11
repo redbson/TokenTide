@@ -16,9 +16,9 @@ TokenTide is a macOS menu-bar widget that shows how much of your **Codex**, **Cl
 ## Features
 
 - **Menu-bar readout**: small lines — `CX` / `CC` for the remaining current Codex and Claude Code window, and `QD` beside them for Qoder's credits.
-- **Quota tab**: current-window and weekly quota left for Codex and Claude Code, with reset countdowns; Qoder's credits left overall, with rows for plan, org-package, and add-on credits; a notice when a window drops below 20%; refreshes every 5 minutes, and again when you open the panel if the data is more than a minute old.
-- **History · Overview / Models** (Codex and Claude Code): sessions, messages, tokens, active days, streaks, peak hour, and top model, modeled on Claude Code's `/stats`, plus a 26-week heatmap.
-- **History · Utilization**: how much of each weekly quota you actually used — average, peak week, weeks that maxed out, this week so far — with a bar per week, over the last 7, 30, or 90 days or all time.
+- **Quota tab**: current-window and weekly quota left for Codex and Claude Code, with reset countdowns; Qoder's credits left across every pool you can spend (plan, org package, add-on), with a row and credit count for each; a notice when a window drops below 20%; refreshes every 5 minutes, and again when you open the panel if the data is more than a minute old.
+- **History · Overview / Models** (Codex, Claude Code, and Qoder — Qoder is measured in credits, since it reports no tokens): sessions, messages, tokens, active days, streaks, peak hour, and top model, modeled on Claude Code's `/stats`, plus a 26-week heatmap.
+- **History · Utilization**: how much of each weekly quota you actually used — average, peak week, weeks that maxed out, this week so far — with a bar per week, over the last 7, 30, or 90 days or all time. For Qoder, credits used per week.
 - **Quota trend**: the current-window remaining quota across recent checks.
 - **Settings tab**: language (English / Chinese / follow the system), launch at login, automatic updates, auto-refresh, and the low-quota notice.
 - **Automatic updates**: when a new release is published, TokenTide downloads, verifies, and installs it by itself.
@@ -72,7 +72,7 @@ The built app contains its own interface and local service, so you can move or d
 - **Left-click** the menu-bar readout to open the panel; click anywhere else or press Esc to close it.
 - **Right-click** for Show Quota, Refresh Now, and Quit. The panel footer also has Quit.
 - **Quota**: quota left and reset times for both tools; the button at the top right refreshes immediately.
-- **History**: switch between Codex and Claude Code at the top, then pick Overview / Models / Utilization and a range (All / 90d / 30d / 7d).
+- **History**: switch between Codex, Claude Code, and Qoder at the top (Qoder appears once this Mac has Qoder sessions), then pick Overview / Models / Utilization and a range (All / 90d / 30d / 7d).
 - **Settings**:
   - **Language**: English, Chinese (中文), or follow the system — Chinese when your Mac's primary language is Chinese, English otherwise. The menu-bar menu follows it too.
   - **Launch at login**: shows TokenTide in the menu bar after you log in. It uses macOS Login Items, so you can also turn it off in System Settings → General → Login Items.
@@ -90,6 +90,7 @@ The built app contains its own interface and local service, so you can move or d
   - The weeks TokenTide has recorded give a "percent of the weekly quota per dollar" factor, which is applied to earlier weeks, stepping back 7 days at a time from the recorded reset time.
   - The estimate only sees Claude Code usage on this Mac. Usage in claude.ai, the Claude app, or on other computers counts against the same weekly quota, so estimates **run low**; they get more accurate as more weeks are recorded. Claude Code keeps transcripts for about 30 days by default, so older weeks can't be estimated.
 - If you switched accounts, each account's windows are counted separately.
+- **Qoder**'s quota runs per plan period rather than weekly, so its Utilization view shows the credits your Qoder sessions on this Mac used each week, from `~/.qoder/projects`.
 
 ## Data sources and privacy
 
@@ -98,7 +99,7 @@ The built app contains its own interface and local service, so you can move or d
 | Codex quota | `account/rateLimits/read` from `codex app-server` |
 | Claude Code quota | A short-lived `claude -p` process sends the structured `get_usage` request (the same source as `/usage`). No prompt is sent, so it uses no quota. The request is marked experimental upstream; if it fails, TokenTide falls back to reading the `/usage` screen |
 | Qoder credits | A short-lived `qodercli --print` process receives the structured `get_usage_info` request over stream-json (the data behind Qoder CLI's `/usage`). No prompt is sent, so it uses no credits; the account's user id is dropped |
-| Usage history | Local transcripts: `~/.claude/projects/**/*.jsonl`, `~/.codex/sessions`, `~/.codex/archived_sessions` |
+| Usage history | Local transcripts: `~/.claude/projects/**/*.jsonl`, `~/.codex/sessions`, `~/.codex/archived_sessions`, and `~/.qoder/projects/**/*.jsonl` (credits per reply for Qoder) |
 | Weekly utilization | Quota snapshots in Codex session files plus TokenTide's own records; earlier Claude Code weeks are estimated from local transcripts |
 
 - From transcripts, TokenTide only counts messages, tokens, model names, and times. **It never reads or returns conversation content.**
@@ -159,7 +160,8 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 ## Changelog
 
 ### Unreleased
-- Qoder credits, read through the Qoder CLI: overall credits left, plan / org-package / add-on rows, and `QD` in the menu bar.
+- Qoder credits, read through the Qoder CLI: credits left across plan, org package, and add-on, with a row for each, and `QD` in the menu bar.
+- Qoder in History: sessions, messages, credits used, heatmap, models, and credits per week, from `~/.qoder/projects`; a Qoder line in the quota trend.
 
 ### 0.4.0
 - English and Chinese interface. It follows your Mac's language by default (Chinese when the primary system language is Chinese, English otherwise) and can be switched in Settings → Language. The menu-bar menu follows it too.

@@ -174,6 +174,7 @@ function HistoryChart({ history }) {
       <line className="grid-line" x1="0" x2={width} y1={y(LOW_USAGE_THRESHOLD)} y2={y(LOW_USAGE_THRESHOLD)} />
       {renderSeries("codex")}
       {renderSeries("claude")}
+      {renderSeries("qoder")}
     </svg>
   );
 }
@@ -197,11 +198,13 @@ function QuotaHistory({ history, onClear }) {
 
 function QuotaHistoryDetails({ history }) {
   const { t } = useI18n();
+  const hasQoder = history.some((item) => Number.isFinite(item.qoder));
   return (
     <>
       <div className="legend">
         <span className="legend-item legend-codex">Codex</span>
         <span className="legend-item legend-claude">Claude Code</span>
+        {hasQoder ? <span className="legend-item legend-qoder">Qoder</span> : null}
       </div>
       <HistoryChart history={history} />
       <p className="history-caption">{t("trend.caption", { count: history.length })}</p>
@@ -266,7 +269,7 @@ export function App() {
     });
 
     const snapshot = makeSnapshot(payload);
-    if (snapshot.codex !== null || snapshot.claude !== null) {
+    if (snapshot.codex !== null || snapshot.claude !== null || snapshot.qoder !== null) {
       setHistory((current) => [snapshot, ...current.filter((item) => item.at !== snapshot.at)].slice(0, HISTORY_LIMIT));
     }
 

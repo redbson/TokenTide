@@ -8,8 +8,8 @@ export const PROVIDER_META = {
   qoder: { name: "Qoder", short: "QD", icon: "/assets/qoder.png", iconAlt: "Qoder" },
 };
 
-// Codex and Claude Code have local transcripts for the History tab; Qoder only reports quota.
-export const STATS_PROVIDERS = ["codex", "claude"];
+// Providers with local transcripts for the History tab (Qoder is measured in credits).
+export const STATS_PROVIDERS = ["codex", "claude", "qoder"];
 const LIMIT_IDS = ["window", "weekly", "total", "plan", "org", "addon"];
 
 const pad = (value) => String(value).padStart(2, "0");
@@ -124,5 +124,6 @@ export function makeSnapshot(payload) {
     at: payload.updatedAt,
     codex: getPrimaryRemaining(byId.codex),
     claude: getPrimaryRemaining(byId.claude),
+    qoder: getPrimaryRemaining(byId.qoder),
   };
 }

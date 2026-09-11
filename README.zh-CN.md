@@ -16,9 +16,9 @@ TokenTide 是一个 macOS 菜单栏小工具：随时看 Codex、Claude Code 和
 ## 功能
 
 - **菜单栏读数**：几行小字——`CX` / `CC` 是 Codex 和 Claude Code 当前窗口的剩余百分比，旁边的 `QD` 是 Qoder 的剩余额度。
-- **额度页**：Codex 和 Claude Code 的当前窗口和每周剩余额度、重置倒计时；Qoder 的总剩余额度，以及套餐、团队资源包、加购额度各一行；额度低于 20% 时提示；每 5 分钟自动刷新，打开面板时数据超过 1 分钟也会刷新。
-- **历史 · 概览 / 模型**（Codex 和 Claude Code）：参照 Claude Code 的 `/stats`，统计会话、消息、Token、活跃天数、连续天数、高峰时段、常用模型，附 26 周热力图。
-- **历史 · 使用率**：每周额度实际用了多少——平均使用率、最高一周、用满次数、本周已用，以及每周柱状图。可以看过去 7 天、30 天、90 天和全部。
+- **额度页**：Codex 和 Claude Code 的当前窗口和每周剩余额度、重置倒计时；Qoder 所有可用积分（套餐、团队资源包、加购额度）合计的剩余比例，每类各一行并显示剩余积分；额度低于 20% 时提示；每 5 分钟自动刷新，打开面板时数据超过 1 分钟也会刷新。
+- **历史 · 概览 / 模型**（Codex、Claude Code 和 Qoder；Qoder 不记录 token，按积分统计）：参照 Claude Code 的 `/stats`，统计会话、消息、Token、活跃天数、连续天数、高峰时段、常用模型，附 26 周热力图。
+- **历史 · 使用率**：每周额度实际用了多少——平均使用率、最高一周、用满次数、本周已用，以及每周柱状图。可以看过去 7 天、30 天、90 天和全部。Qoder 显示每周消耗的积分。
 - **额度趋势**：最近几次检查的当前窗口剩余曲线。
 - **设置页**：语言（中文 / English / 跟随系统）、开机时启动、自动更新、自动刷新、低额度提醒。
 - **自动更新**：发布新 Release 后，TokenTide 会自己下载、校验并安装。
@@ -72,7 +72,7 @@ open /Applications/TokenTide.app
 - **左键**点菜单栏读数打开面板，点别处或按 Esc 关闭。
 - **右键**：显示额度 / 立即刷新 / 退出。面板底部也有「退出」。
 - **额度**标签：看两个服务的剩余额度和重置时间；右上角按钮立即刷新。
-- **历史**标签：顶部切换 Codex / Claude Code，再选「概览 / 模型 / 使用率」和时间范围（全部 / 90 天 / 30 天 / 7 天）。
+- **历史**标签：顶部切换 Codex / Claude Code / Qoder（本机有 Qoder 会话记录时才出现 Qoder），再选「概览 / 模型 / 使用率」和时间范围（全部 / 90 天 / 30 天 / 7 天）。
 - **设置**标签：
   - **语言**：中文、English 或跟随系统。跟随系统时，系统首选语言是中文就显示中文，否则显示英文；菜单栏右键菜单也会跟着切换。
   - **开机时启动**：登录 Mac 后自动出现在菜单栏，用的是 macOS 的「登录项」，也可以在 系统设置 → 通用 → 登录项 里关闭。
@@ -90,6 +90,7 @@ open /Applications/TokenTide.app
   - 用 TokenTide 已记录的周算出「每 1 美元约占周额度的百分之几」，再套用到之前每一周；周期按记录到的重置时间每 7 天往前推。
   - 估算只能看到本机 Claude Code 的用量，claude.ai 网页、Claude App 和其他电脑的用量同样占用周额度，所以估算**偏低**；记录的周越多，校准越准。Claude Code 默认只保留约 30 天的转录，更早的周没法估算。
 - 切换过账号时，不同账号的周期会各算一条。
+- **Qoder** 的额度按套餐周期而不是按周计算，所以它的「使用率」显示本机 Qoder 会话每周消耗的积分，数据来自 `~/.qoder/projects`。
 
 ## 数据来源与隐私
 
@@ -98,7 +99,7 @@ open /Applications/TokenTide.app
 | Codex 额度 | `codex app-server` 的 `account/rateLimits/read` |
 | Claude Code 额度 | 短暂启动 `claude -p`，发送结构化的 `get_usage` 请求（和 `/usage` 同源）。不发送任何提示词，不消耗额度。该接口上游标注为实验性，失败时会退回读取 `/usage` 界面 |
 | Qoder 额度 | 短暂启动 `qodercli --print`，通过 stream-json 发送结构化的 `get_usage_info` 请求（和 Qoder CLI 的 `/usage` 同源）。不发送任何提示词，不消耗额度；账号的用户 ID 会被丢弃 |
-| 使用记录 | 本机转录文件：`~/.claude/projects/**/*.jsonl`、`~/.codex/sessions`、`~/.codex/archived_sessions` |
+| 使用记录 | 本机转录文件：`~/.claude/projects/**/*.jsonl`、`~/.codex/sessions`、`~/.codex/archived_sessions`，以及 `~/.qoder/projects/**/*.jsonl`（Qoder 按每次回复的积分统计） |
 | 每周使用率 | Codex 会话记录里的额度快照 + TokenTide 自己的记录；Claude Code 更早的周按本机转录估算 |
 
 - 转录文件只统计次数、Token 数、模型名和时间，**不读取、不返回对话内容**。
@@ -159,7 +160,8 @@ npm run build:mac -- --universal     # 打包 Apple 芯片 + Intel 通用版
 ## 更新日志
 
 ### 未发布
-- 通过 Qoder CLI 查看 Qoder 额度：总剩余额度，套餐 / 团队资源包 / 加购额度分行显示，菜单栏显示 `QD`。
+- 通过 Qoder CLI 查看 Qoder 额度：套餐、团队资源包、加购额度合计的剩余比例，每类一行，菜单栏显示 `QD`。
+- 历史中加入 Qoder：会话、消息、消耗积分、热力图、模型和每周积分，数据来自 `~/.qoder/projects`；额度趋势里加入 Qoder 曲线。
 
 ### 0.4.0
 - 界面支持中文和英文。默认跟随系统语言（系统首选语言是中文时显示中文，否则显示英文），也可以在「设置 → 语言」里切换；菜单栏右键菜单同步切换。

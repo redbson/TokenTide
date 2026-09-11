@@ -116,8 +116,8 @@ test("merges aggregates into a per-day series", () => {
     { sessions: [{ day: "2026-09-09", hour: 19 }, { day: "2026-09-08", hour: 9 }], days: { "2026-09-09": { messages: 1, models: { a: { total: 5, io: 1 }, b: { total: 7, io: 7 } } } } },
   ]);
   assert.deepEqual(days, [
-    { date: "2026-09-08", sessions: 1, messages: 0, tokens: 0, io: 0, models: {}, hours: { 9: 1 } },
-    { date: "2026-09-09", sessions: 2, messages: 4, tokens: 22, io: 12, models: { a: 15, b: 7 }, hours: { 19: 2 } },
+    { date: "2026-09-08", sessions: 1, messages: 0, tokens: 0, io: 0, credits: 0, models: {}, modelCredits: {}, hours: { 9: 1 } },
+    { date: "2026-09-09", sessions: 2, messages: 4, tokens: 22, io: 12, credits: 0, models: { a: 15, b: 7 }, modelCredits: {}, hours: { 19: 2 } },
   ]);
 });
 
@@ -127,6 +127,17 @@ test("stats service reads both tools and reuses its file cache", async () => {
     const claudeDir = path.join(root, "claude");
     const codexDir = path.join(root, "codex");
     const cachePath = path.join(root, "cache.json");
+    const qoderDir = path.join(root, "qoder");
+    await mkdir(path.join(qoderDir, "projects", "demo"), { recursive: true });
+    // Qoder reports credits and zero tokens.
+    await writeFile(
+      path.join(qoderDir, "projects", "demo", "session-q.jsonl"),
+      lines(
+        { type: "user", timestamp: at(9, 10), message: { role: "user" } },
+        { type: "assistant", timestamp: at(9, 10, 1), message: { id: "q1", model: "auto", usage: { ...usage(0, 0), credits: 12.5 } } },
+        { type: "assistant", timestamp: at(9, 11), message: { id: "q2", model: "gmodel", usage: { ...usage(0, 0), credits: 7.5 } } },
+      ),
+    );
     await mkdir(path.join(claudeDir, "projects", "demo", "session-a", "subagents"), { recursive: true });
     await mkdir(path.join(codexDir, "sessions", "2026", "09", "09"), { recursive: true });
     await writeFile(
@@ -142,14 +153,20 @@ test("stats service reads both tools and reuses its file cache", async () => {
       lines({ timestamp: at(9, 8), type: "session_meta", payload: {} }, tokenCount(at(9, 8), 10, 0, 5)),
     );
 
-    const first = await createStatsService({ claudeDir, codexDir, cachePath }).read();
-    const [codex, claude] = first.providers;
+    const first = await createStatsService({ claudeDir, codexDir, qoderDir, cachePath }).read();
+    const [codex, claude, qoder] = first.providers;
+    assert.equal(qoder.id, "qoder");
+    assert.equal(qoder.days[0].credits, 20);
+    assert.equal(qoder.days[0].tokens, 0);
+    assert.equal(qoder.days[0].sessions, 1);
+    assert.equal(qoder.days[0].messages, 3);
+    assert.deepEqual(qoder.days[0].modelCredits, { auto: 12.5, gmodel: 7.5 });
     assert.equal(codex.days[0].tokens, 15);
     assert.equal(claude.days[0].tokens, 6);
     assert.equal(claude.days[0].sessions, 1);
 
     // A new service instance answers from the on-disk cache with identical results.
-    const second = await createStatsService({ claudeDir, codexDir, cachePath }).read();
+    const second = await createStatsService({ claudeDir, codexDir, qoderDir, cachePath }).read();
     assert.deepEqual(second.providers, first.providers);
   } finally {
     await rm(root, { recursive: true, force: true });

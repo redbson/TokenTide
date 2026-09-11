@@ -30,6 +30,7 @@ test("maps Qoder usage info to total, plan, and org package rows", () => {
   assert.ok(!JSON.stringify(provider).includes("should-not-leak"), "the user id is dropped");
 
   const [total, plan, org] = provider.limits;
+  // Headline: every pool the account can spend (1,500 + 1,000 of 4,000 credits left).
   assert.deepEqual([total.id, total.remainingPercent, total.resetsAt], ["total", 62.5, EXPIRES_MS / 1000]);
   assert.deepEqual([plan.id, plan.remainingPercent, plan.remainingAmount, plan.totalAmount], ["plan", 75, 1500, 2000]);
   assert.deepEqual([org.id, org.remainingPercent, org.remainingAmount, org.resetsAt], ["org", 50, 1000, null]);
@@ -99,4 +100,37 @@ test("a failing Qoder CLI stays visible with its error", async () => {
   assert.equal(providers[2].installed, true);
   assert.equal(providers[2].connected, false);
   assert.match(providers[2].error, /in time/);
+});
+
+test("the headline counts org credits even when the plan quota is nearly used up", () => {
+  const provider = parseQoderUsage({
+    usage: {
+      userType: "teams",
+      totalUsagePercentage: 98,
+      userQuota: { total: 3000, used: 2932, remaining: 68 },
+      orgResourcePackage: { used: 0, cap: 6000, remaining: 6000, available: true },
+    },
+  });
+  assert.equal(provider.limits[0].remainingPercent, 67.4);
+  assert.equal(provider.limits[1].remainingPercent, 2.3);
+  // Without credit pools, Qoder's own percentage is used.
+  assert.equal(parseQoderUsage({ usage: { userType: "free", totalUsagePercentage: 40 } }).limits[0].remainingPercent, 60);
+});
+
+test("finds the installer's versioned binary when PATH has no qodercli", async () => {
+  const { mkdtemp, mkdir, writeFile, chmod, rm } = await import("node:fs/promises");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const home = await mkdtemp(path.join(os.tmpdir(), "qoder-home-"));
+  try {
+    const dir = path.join(home, ".qoder", "bin", "qodercli");
+    await mkdir(dir, { recursive: true });
+    for (const version of ["1.1.9", "1.1.49"]) {
+      await writeFile(path.join(dir, `qodercli-${version}`), "#!/bin/sh\n");
+      await chmod(path.join(dir, `qodercli-${version}`), 0o755);
+    }
+    assert.equal(findQoderCli({ PATH: "" }, home), path.join(dir, "qodercli-1.1.49"));
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
 });

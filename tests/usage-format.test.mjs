@@ -68,6 +68,6 @@ test("localizes account labels", () => {
 test("snapshots record only connected primary values", () => {
   assert.deepEqual(
     makeSnapshot({ updatedAt: NOW, providers: [provider("codex", 41), provider("claude", 70, false)] }),
-    { at: NOW, codex: 41, claude: null },
+    { at: NOW, codex: 41, claude: null, qoder: null },
   );
 });

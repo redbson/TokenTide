@@ -41,11 +41,13 @@ function dayEntry(aggregate, day) {
   return (aggregate.days[day] ??= { messages: 0, models: {} });
 }
 
-function addTokens(aggregate, day, model, total, io) {
-  if (total <= 0) return;
+function addTokens(aggregate, day, model, total, io, credits = 0) {
+  if (total <= 0 && credits <= 0) return;
   const bucket = (dayEntry(aggregate, day).models[model] ??= { total: 0, io: 0 });
   bucket.total += total;
   bucket.io += io;
+  // Qoder bills in credits (and reports zero tokens); Claude Code has none.
+  if (credits > 0) bucket.credits = (bucket.credits ?? 0) + credits;
 }
 
 function addSession(aggregate, timestamp) {
@@ -61,7 +63,7 @@ function addSession(aggregate, timestamp) {
  * across several transcript entries is counted once. `costByHour` (API-price equivalent per
  * epoch hour) feeds the weekly utilization estimate.
  */
-export function aggregateClaudeTranscript(text, { subagent = false } = {}) {
+export function aggregateClaudeTranscript(text, { subagent = false, pricing = true } = {}) {
   const aggregate = createAggregate();
   const responses = new Map();
   const assistantIds = new Set();
@@ -99,8 +101,8 @@ export function aggregateClaudeTranscript(text, { subagent = false } = {}) {
     const output = count(usage.output_tokens);
     const cacheRead = count(usage.cache_read_input_tokens);
     const cacheWrite = count(usage.cache_creation_input_tokens);
-    addTokens(aggregate, day, model, input + output + cacheRead + cacheWrite, input + output);
-    if (Number.isFinite(at)) {
+    addTokens(aggregate, day, model, input + output + cacheRead + cacheWrite, input + output, count(usage.credits));
+    if (pricing && Number.isFinite(at)) {
       const hour = Math.floor(at / 3_600_000);
       aggregate.costByHour[hour] =
         (aggregate.costByHour[hour] ?? 0) + claudeUsageCost(model, { input, output, cacheRead, cacheWrite });
@@ -194,7 +196,9 @@ export function aggregateCodexRollout(text) {
 export function summarizeAggregates(aggregates) {
   const days = new Map();
   const dayOf = (date) => {
-    if (!days.has(date)) days.set(date, { date, sessions: 0, messages: 0, tokens: 0, io: 0, models: {}, hours: {} });
+    if (!days.has(date)) {
+      days.set(date, { date, sessions: 0, messages: 0, tokens: 0, io: 0, credits: 0, models: {}, modelCredits: {}, hours: {} });
+    }
     return days.get(date);
   };
 
@@ -211,6 +215,10 @@ export function summarizeAggregates(aggregates) {
         entry.tokens += tokens.total;
         entry.io += tokens.io;
         entry.models[model] = (entry.models[model] ?? 0) + tokens.total;
+        if (tokens.credits > 0) {
+          entry.credits += tokens.credits;
+          entry.modelCredits[model] = (entry.modelCredits[model] ?? 0) + tokens.credits;
+        }
       }
     }
   }
@@ -248,6 +256,8 @@ function defaultCachePath() {
 export function createStatsService({
   claudeDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude"),
   codexDir = process.env.CODEX_HOME || path.join(os.homedir(), ".codex"),
+  // Qoder (app and CLI) keeps Claude Code-style transcripts under ~/.qoder/projects.
+  qoderDir = path.join(os.homedir(), ".qoder"),
   cachePath = defaultCachePath(),
   quotaLog = null,
 } = {}) {
@@ -282,21 +292,24 @@ export function createStatsService({
 
   async function scan() {
     await loadCache();
-    const projects = path.join(claudeDir, "projects");
-    const [claudeFiles, codexSessions, codexArchived] = await Promise.all([
-      listFiles(projects, (file) => {
-        const parts = file.split(path.sep);
-        return (
-          file.endsWith(".jsonl") &&
-          (parts.length === 2 || (parts.length === 4 && parts[2] === "subagents" && parts[3].startsWith("agent-")))
-        );
-      }),
+    const transcriptFile = (file) => {
+      const parts = file.split(path.sep);
+      return (
+        file.endsWith(".jsonl") &&
+        (parts.length === 2 || (parts.length === 4 && parts[2] === "subagents" && parts[3].startsWith("agent-")))
+      );
+    };
+    const [claudeFiles, qoderFiles, codexSessions, codexArchived] = await Promise.all([
+      listFiles(path.join(claudeDir, "projects"), transcriptFile),
+      qoderDir ? listFiles(path.join(qoderDir, "projects"), transcriptFile) : [],
       listFiles(path.join(codexDir, "sessions"), (file) => file.endsWith(".jsonl")),
       listFiles(path.join(codexDir, "archived_sessions"), (file) => file.endsWith(".jsonl")),
     ]);
 
+    const isSubagent = (file) => file.includes(`${path.sep}subagents${path.sep}`);
     const sources = [
-      ...claudeFiles.map((file) => ({ file, kind: "claude", subagent: file.includes(`${path.sep}subagents${path.sep}`) })),
+      ...claudeFiles.map((file) => ({ file, kind: "claude", subagent: isSubagent(file) })),
+      ...qoderFiles.map((file) => ({ file, kind: "qoder", subagent: isSubagent(file) })),
       ...[...codexSessions, ...codexArchived].map((file) => ({ file, kind: "codex" })),
     ];
 
@@ -316,7 +329,10 @@ export function createStatsService({
         kind,
         mtimeMs: info.mtimeMs,
         size: info.size,
-        aggregate: kind === "claude" ? aggregateClaudeTranscript(text, { subagent }) : aggregateCodexRollout(text),
+        aggregate:
+          kind === "codex"
+            ? aggregateCodexRollout(text)
+            : aggregateClaudeTranscript(text, { subagent, pricing: kind === "claude" }),
       };
       changed = true;
       // Keep the dev server responsive during a cold scan.
@@ -341,6 +357,7 @@ export function createStatsService({
           quotaWeeks: buildWeeklyWindows([...codexAggregates.flatMap((aggregate) => aggregate.quota ?? []), ...codexLogged]),
         },
         claudeProvider(byKind("claude"), claudeLogged),
+        { id: "qoder", days: summarizeAggregates(byKind("qoder")) },
       ],
     };
   }

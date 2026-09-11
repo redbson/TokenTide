@@ -446,6 +446,11 @@ button:focus-visible {
   --stats-accent-rgb: 240, 138, 93;
 }
 
+.usage-stats.stats-qoder {
+  --stats-accent: #3cc98c;
+  --stats-accent-rgb: 60, 201, 140;
+}
+
 .stats-providers {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -459,7 +464,10 @@ button:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
+  min-width: 0;
+  padding: 0 4px;
+  white-space: nowrap;
   height: 28px;
   border: 0;
   border-radius: 7px;
@@ -615,6 +623,7 @@ button:focus-visible {
 
 .legend-codex::before { background: var(--codex); }
 .legend-claude::before { background: var(--claude); }
+.legend-qoder::before { background: #3cc98c; }
 
 .link-button {
   padding: 2px 0;
@@ -643,6 +652,9 @@ button:focus-visible {
 .series-claude .series-area { fill: rgba(240, 138, 93, 0.14); }
 .series-codex .series-dot { fill: var(--codex); }
 .series-claude .series-dot { fill: var(--claude); }
+.series-qoder .series-line { stroke: #3cc98c; }
+.series-qoder .series-area { fill: rgba(60, 201, 140, 0.12); }
+.series-qoder .series-dot { fill: #3cc98c; }
 
 .history-caption { margin: 8px 0 0; color: var(--faint); font-size: 11.5px; }
 
