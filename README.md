@@ -6,7 +6,7 @@ English | [简体中文](README.zh-CN.md)
 
 TokenTide is a macOS menu-bar widget (with a [Windows tray version](#windows-preview)) that shows how much of your **Codex**, **Claude Code**, and **Qoder** quota is left, how much of each weekly quota you actually use, and your usage history. Everything is read locally from the command-line tools you are already signed in to: no account, no API key, and nothing leaves your Mac. The interface is in English and Chinese; it follows your Mac's language and can be switched in Settings.
 
-**[⬇ Download for macOS (TokenTide.zip)](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [Windows (TokenTide-Setup.exe)](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe) · [All releases](https://github.com/redbson/TokenTide/releases)
+**[⬇ Download for macOS (TokenTide.zip)](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [Windows (TokenTide-Setup.exe, about 103 MB)](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe) · [All releases](https://github.com/redbson/TokenTide/releases)
 
 <p>
   <img src="docs/screenshot-quota-en.png" alt="Quota tab" width="330">
@@ -64,7 +64,7 @@ The built app contains its own interface and local service, so you can move or d
 
 TokenTide also runs on Windows 10 and 11 (x64) as a tray app: the same panel, opened from an icon in the taskbar's notification area. It is new and has had less real-world use than the Mac app, so please [report problems](https://github.com/redbson/TokenTide/issues).
 
-**[⬇ Download TokenTide-Setup.exe](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe)**
+**[⬇ Download TokenTide-Setup.exe](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe)** (about 103 MB; it brings its own browser engine and Node.js, while the under-1 MB Mac app uses macOS's built-in engine and your installed Node.js)
 
 - **Install**: run `TokenTide-Setup.exe`. It installs for your user only (no administrator rights) into `%LOCALAPPDATA%\Programs\TokenTide` and adds TokenTide to the Start menu. The installer is not code-signed, so Windows SmartScreen may say it protected your PC: click **More info → Run anyway**.
 - **Requirements**: the same command-line tools as on the Mac, signed in: `codex` and/or `claude`, and optionally `qodercli` (`npm install -g @qoder-ai/qodercli`). npm installs and Claude Code's native installer (`%USERPROFILE%\.local\bin`) both work. Node.js is not required; TokenTide brings its own.

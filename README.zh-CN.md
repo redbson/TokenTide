@@ -6,7 +6,7 @@
 
 TokenTide 是一个 macOS 菜单栏小工具（也有 [Windows 托盘版](#windows-版预览)）：随时看 Codex、Claude Code 和 Qoder 还剩多少额度、每周额度用了多少，以及历史使用记录。数据全部来自你本机已登录的命令行工具，不需要账号或 API Key，也不会上传任何数据。界面支持中文和英文，默认跟随系统语言，也可以在设置里切换。
 
-**[⬇ 下载 macOS 版（TokenTide.zip）](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [Windows 版（TokenTide-Setup.exe）](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe) · [所有版本](https://github.com/redbson/TokenTide/releases)
+**[⬇ 下载 macOS 版（TokenTide.zip）](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [Windows 版（TokenTide-Setup.exe，约 103 MB）](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe) · [所有版本](https://github.com/redbson/TokenTide/releases)
 
 <p>
   <img src="docs/screenshot-quota.png" alt="额度页" width="330">
@@ -64,7 +64,7 @@ open /Applications/TokenTide.app
 
 TokenTide 也能在 Windows 10 / 11（x64）上运行：同样的面板，从任务栏通知区域的图标打开。Windows 版刚推出，实际使用还不如 Mac 版多，遇到问题欢迎[反馈](https://github.com/redbson/TokenTide/issues)。
 
-**[⬇ 下载 TokenTide-Setup.exe](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe)**
+**[⬇ 下载 TokenTide-Setup.exe](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe)**（约 103 MB：自带浏览器引擎和 Node.js；Mac 版不到 1 MB，用的是 macOS 自带的引擎和你安装的 Node.js）
 
 - **安装**：运行 `TokenTide-Setup.exe`，只为当前用户安装（不需要管理员权限），位置是 `%LOCALAPPDATA%\Programs\TokenTide`，并加入开始菜单。安装包没有代码签名，Windows SmartScreen 可能提示「已保护你的电脑」：点「更多信息 → 仍要运行」。
 - **需要**：和 Mac 版一样的命令行工具，并已登录：`codex` 和/或 `claude`，可选 `qodercli`（`npm install -g @qoder-ai/qodercli`）。npm 安装的和 Claude Code 原生安装的（`%USERPROFILE%\.local\bin`）都可以。不需要装 Node.js，TokenTide 自带。
