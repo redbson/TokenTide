@@ -190,7 +190,7 @@ export const MESSAGES = {
     "settings.lowAlertDetail": "当前窗口剩余低于 {percent}% 时提示",
     "settings.about": "TokenTide {version} · 所有数据只在本机读取和保存",
     "settings.tools": "显示的工具",
-    "settings.toolsNote": "关闭后，额度页、菜单栏、低额度提醒和历史中都不再显示该工具",
+    "settings.toolsNote": "关闭后，额度页、菜单栏、提醒和历史中都不再显示",
     "settings.providerNotInstalled": "本机未安装",
   },
 
@@ -366,7 +366,7 @@ export const MESSAGES = {
     "settings.lowAlertDetail": "Shows a notice when the current window drops below {percent}%",
     "settings.about": "TokenTide {version} · All data is read and kept on this Mac",
     "settings.tools": "Shown tools",
-    "settings.toolsNote": "A tool that is off is left out of the Quota tab, the menu bar, low-quota notices, and History",
+    "settings.toolsNote": "Hidden from Quota, the menu bar, notices, and History",
     "settings.providerNotInstalled": "Not installed on this Mac",
   },
 };
@@ -393,7 +393,7 @@ export const PLATFORM_MESSAGES = {
       "login.checking": "正在读取启动设置…",
       "login.off": "登录 Windows 后自动启动 TokenTide",
       "login.openSettings": "打开「启动应用」设置",
-      "settings.toolsNote": "关闭后，额度页、任务栏图标、低额度提醒和历史中都不再显示该工具",
+      "settings.toolsNote": "关闭后，额度页、托盘图标、提醒和历史中都不再显示",
     },
     en: {
       ...onThisPc(MESSAGES.en),
@@ -402,7 +402,7 @@ export const PLATFORM_MESSAGES = {
       "login.checking": "Reading startup settings…",
       "login.off": "Start TokenTide when you sign in to Windows",
       "login.openSettings": "Open Startup apps settings",
-      "settings.toolsNote": "A tool that is off is left out of the Quota tab, the tray icon, low-quota notices, and History",
+      "settings.toolsNote": "Hidden from Quota, the tray icon, notices, and History",
     },
   },
 };

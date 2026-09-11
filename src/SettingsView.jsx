@@ -147,7 +147,7 @@ function ShownTools({ providers, hiddenProviders, onChange }) {
           );
         })}
       </div>
-      <p className="settings-note">{t("settings.toolsNote")}</p>
+      <p className="settings-note" title={t("settings.toolsNote")}>{t("settings.toolsNote")}</p>
     </section>
   );
 }
