@@ -160,7 +160,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 2. Publish a GitHub release tagged `vX.Y.Z`, or run:
 
    ```bash
-   gh release create v0.5.1 --generate-notes
+   gh release create v0.6.1 --generate-notes
    ```
 
 3. The [release workflow](.github/workflows/release.yml) runs the tests, builds the universal Mac app and the Windows installer, and attaches `TokenTide-X.Y.Z.zip` and `TokenTide-Setup-X.Y.Z.exe`, their `.sha256` checksums, and unversioned `TokenTide.zip` / `TokenTide-Setup.exe` copies (used by the download links). Installed copies update themselves at their next check.
@@ -179,7 +179,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 
 ## Changelog
 
-### Unreleased
+### 0.6.0
 - Windows version (preview): a tray app with the same panel, a per-user installer, and automatic updates.
 - Settings → Shown tools: choose which of Codex, Claude Code, and Qoder appear in the panel, the menu bar, low-quota notices, and History.
 - Qoder's headline counts only your own credits (plan and add-on). The org resource package keeps its own row but no longer raises the percentage, the menu-bar `QD`, or the low-quota notice.

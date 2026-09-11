@@ -160,7 +160,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 2. 在 GitHub 上发布一个标签为 `vX.Y.Z` 的 Release，或者运行：
 
    ```bash
-   gh release create v0.5.1 --generate-notes
+   gh release create v0.6.1 --generate-notes
    ```
 
 3. [Release 工作流](.github/workflows/release.yml) 会自动跑测试、打包通用版 Mac app 和 Windows 安装包，并把 `TokenTide-X.Y.Z.zip`、`TokenTide-Setup-X.Y.Z.exe`、它们的 `.sha256` 校验文件，以及不带版本号的 `TokenTide.zip` / `TokenTide-Setup.exe`（供下载链接使用）附加到这个 Release 上。已安装的 TokenTide 会在下次检查时自动更新。
@@ -179,7 +179,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 
 ## 更新日志
 
-### 未发布
+### 0.6.0
 - Windows 版（预览）：托盘图标 + 同样的面板，按用户安装，支持自动更新。
 - 设置 → 显示的工具：选择在面板、菜单栏、低额度提醒和历史中显示 Codex、Claude Code、Qoder 中的哪些。
 - Qoder 的剩余比例只计个人积分（套餐和加购额度）。团队资源包仍单独显示一行，但不再计入剩余比例、菜单栏 `QD` 和低额度提醒。
