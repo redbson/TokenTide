@@ -1,7 +1,7 @@
 import { useI18n } from "./i18n-context.js";
 import { LANGUAGE_NAMES } from "./i18n.js";
 import { BellIcon, ClockIcon, DownloadIcon, GlobeIcon, LoginIcon } from "./icons.jsx";
-import { LOW_USAGE_THRESHOLD } from "./usage-format.js";
+import { LOW_USAGE_THRESHOLD, PROVIDER_META, STATS_PROVIDERS, formatAccount, isVisibleProvider } from "./usage-format.js";
 
 function Toggle({ checked, onChange, label, disabled = false }) {
   return (
@@ -113,8 +113,48 @@ function LanguagePicker({ value, onChange }) {
   );
 }
 
+// What the Shown tools row says about a tool: its plan when connected, or why it has no data.
+function providerDetail(provider, t, language) {
+  if (!provider) return t("provider.checking");
+  if (!isVisibleProvider(provider)) return t("settings.providerNotInstalled");
+  if (!provider.connected) return t("provider.unavailable");
+  return formatAccount(provider.account, language) ?? t("provider.connected");
+}
+
+function ShownTools({ providers, hiddenProviders, onChange }) {
+  const { t, language } = useI18n();
+  const byId = Object.fromEntries(providers.map((provider) => [provider.id, provider]));
+  // At least one installed tool stays on, so the panel and the menu bar never go blank.
+  const shownInstalled = STATS_PROVIDERS.filter((id) => !hiddenProviders.includes(id) && isVisibleProvider(byId[id]));
+  const toggle = (id) => (shown) =>
+    onChange(shown ? hiddenProviders.filter((item) => item !== id) : [...hiddenProviders, id]);
+  return (
+    <section className="settings-group" aria-labelledby="settings-tools">
+      <h3 id="settings-tools">{t("settings.tools")}</h3>
+      <div className="settings-list">
+        {STATS_PROVIDERS.map((id) => {
+          const shown = !hiddenProviders.includes(id);
+          return (
+            <SettingRow
+              key={id}
+              icon={<img className="settings-provider-icon" src={PROVIDER_META[id].icon} alt="" />}
+              title={PROVIDER_META[id].name}
+              detail={providerDetail(byId[id], t, language)}
+              checked={shown}
+              onChange={toggle(id)}
+              disabled={shown && shownInstalled.length === 1 && shownInstalled[0] === id}
+            />
+          );
+        })}
+      </div>
+      <p className="settings-note">{t("settings.toolsNote")}</p>
+    </section>
+  );
+}
+
 export function SettingsView({
   settings,
+  providers,
   onSettingChange,
   loginItem,
   onLoginItemChange,
@@ -153,6 +193,12 @@ export function SettingsView({
           />
         </div>
       </section>
+
+      <ShownTools
+        providers={providers}
+        hiddenProviders={settings.hiddenProviders}
+        onChange={(value) => onSettingChange("hiddenProviders", value)}
+      />
 
       <section className="settings-group" aria-labelledby="settings-update">
         <h3 id="settings-update">{t("settings.update")}</h3>

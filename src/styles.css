@@ -395,6 +395,19 @@ button:focus-visible {
 .settings-segmented { align-self: flex-start; margin: 5px 0 0 -8px; }
 .segmented button[aria-checked="true"] { background: rgba(255, 255, 255, 0.1); color: var(--text); }
 
+.settings-provider-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.settings-note {
+  margin: 6px 2px 0;
+  color: var(--faint);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
 .settings-about {
   margin: 14px 0 0;
   color: var(--faint);

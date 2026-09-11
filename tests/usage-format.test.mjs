@@ -6,6 +6,7 @@ import {
   findNewlyLow,
   formatAccount,
   formatReset,
+  isShownProvider,
   makeSnapshot,
   timeAgo,
 } from "../src/usage-format.js";
@@ -70,4 +71,11 @@ test("snapshots record only connected primary values", () => {
     makeSnapshot({ updatedAt: NOW, providers: [provider("codex", 41), provider("claude", 70, false)] }),
     { at: NOW, codex: 41, claude: null, qoder: null },
   );
+});
+
+test("tools turned off in Settings or not installed are not shown", () => {
+  assert.equal(isShownProvider(provider("codex", 50)), true);
+  assert.equal(isShownProvider(provider("codex", 50), ["codex"]), false);
+  assert.equal(isShownProvider(provider("claude", 50), ["codex"]), true);
+  assert.equal(isShownProvider({ id: "qoder", installed: false, limits: [] }), false);
 });

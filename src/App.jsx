@@ -14,8 +14,9 @@ import {
   formatPercent,
   getPrimaryLimit,
   getPrimaryRemaining,
+  STATS_PROVIDERS,
   isLow,
-  isVisibleProvider,
+  isShownProvider,
   limitLabel,
   makeSnapshot,
   timeAgo,
@@ -36,6 +37,8 @@ const DEFAULT_SETTINGS = {
   statsProvider: "codex",
   statsRange: "all",
   statsView: "overview",
+  // Provider ids turned off in Settings → Shown tools; they drop out of every view.
+  hiddenProviders: [],
   // "system", "zh", or "en"; see i18n.js.
   language: "system",
 };
@@ -132,7 +135,7 @@ function ProviderBlock({ provider, loading, now }) {
   );
 }
 
-function HistoryChart({ history }) {
+function HistoryChart({ history, series: keys }) {
   const { t } = useI18n();
   const points = [...history].reverse();
   const width = 328;
@@ -172,14 +175,12 @@ function HistoryChart({ history }) {
     <svg className="history-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={t("trend.chart")}>
       <line className="grid-line" x1="0" x2={width} y1={y(50)} y2={y(50)} />
       <line className="grid-line" x1="0" x2={width} y1={y(LOW_USAGE_THRESHOLD)} y2={y(LOW_USAGE_THRESHOLD)} />
-      {renderSeries("codex")}
-      {renderSeries("claude")}
-      {renderSeries("qoder")}
+      {keys.map((key) => renderSeries(key))}
     </svg>
   );
 }
 
-function QuotaHistory({ history, onClear }) {
+function QuotaHistory({ history, hiddenProviders, onClear }) {
   const { t } = useI18n();
   return (
     <section className="quota-history" aria-labelledby="quota-history-title">
@@ -190,23 +191,26 @@ function QuotaHistory({ history, onClear }) {
       {history.length === 0 ? (
         <p className="empty-history">{t("trend.empty")}</p>
       ) : (
-        <QuotaHistoryDetails history={history} />
+        <QuotaHistoryDetails history={history} hiddenProviders={hiddenProviders} />
       )}
     </section>
   );
 }
 
-function QuotaHistoryDetails({ history }) {
+function QuotaHistoryDetails({ history, hiddenProviders }) {
   const { t } = useI18n();
-  const hasQoder = history.some((item) => Number.isFinite(item.qoder));
+  // Qoder joins the legend once it has readings; hidden tools are left out.
+  const series = STATS_PROVIDERS.filter(
+    (id) => !hiddenProviders.includes(id) && (id !== "qoder" || history.some((item) => Number.isFinite(item.qoder))),
+  );
   return (
     <>
       <div className="legend">
-        <span className="legend-item legend-codex">Codex</span>
-        <span className="legend-item legend-claude">Claude Code</span>
-        {hasQoder ? <span className="legend-item legend-qoder">Qoder</span> : null}
+        {series.map((id) => (
+          <span key={id} className={`legend-item legend-${id}`}>{PROVIDER_META[id].name}</span>
+        ))}
       </div>
-      <HistoryChart history={history} />
+      <HistoryChart history={history} series={series} />
       <p className="history-caption">{t("trend.caption", { count: history.length })}</p>
     </>
   );
@@ -221,10 +225,10 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("quota");
   const [history, setHistory] = useState(() => readStoredJson(HISTORY_KEY, []));
-  const [settings, setSettings] = useState(() => ({
-    ...DEFAULT_SETTINGS,
-    ...readStoredJson(SETTINGS_KEY, {}),
-  }));
+  const [settings, setSettings] = useState(() => {
+    const stored = { ...DEFAULT_SETTINGS, ...readStoredJson(SETTINGS_KEY, {}) };
+    return { ...stored, hiddenProviders: Array.isArray(stored.hiddenProviders) ? stored.hiddenProviders : [] };
+  });
   const [banner, setBanner] = useState(null);
   const [loginItem, setLoginItem] = useState({ status: nativeBridge ? "checking" : "unavailable", error: null });
   const [update, setUpdate] = useState({
@@ -249,7 +253,7 @@ export function App() {
   const i18n = useMemo(() => ({ language, t: (key, params) => translate(language, key, params) }), [language]);
 
   const applyPayload = useCallback((payload) => {
-    const visible = payload.providers.filter(isVisibleProvider);
+    const visible = payload.providers.filter((provider) => isShownProvider(provider, settingsRef.current.hiddenProviders));
     const lowProviders = visible.filter((provider) => isLow(provider));
     const newlyLow = findNewlyLow(previousProvidersRef.current, visible);
     previousProvidersRef.current = payload.providers;
@@ -272,15 +276,6 @@ export function App() {
     if (snapshot.codex !== null || snapshot.claude !== null || snapshot.qoder !== null) {
       setHistory((current) => [snapshot, ...current.filter((item) => item.at !== snapshot.at)].slice(0, HISTORY_LIMIT));
     }
-
-    postNative({
-      type: "summary",
-      items: visible.map((provider) => ({
-        label: PROVIDER_META[provider.id]?.short ?? provider.id,
-        remaining: getPrimaryRemaining(provider),
-      })),
-      low: lowProviders.length > 0,
-    });
   }, []);
 
   // Concurrent callers (StrictMode, auto-refresh, the refresh button) share one request.
@@ -407,6 +402,20 @@ export function App() {
 
   useEffect(() => writeStoredJson(SETTINGS_KEY, settings), [settings]);
 
+  // The menu-bar readout lists the shown tools and follows the setting right away.
+  useEffect(() => {
+    if (!updatedAt) return;
+    const shown = providers.filter((provider) => isShownProvider(provider, settings.hiddenProviders));
+    postNative({
+      type: "summary",
+      items: shown.map((provider) => ({
+        label: PROVIDER_META[provider.id]?.short ?? provider.id,
+        remaining: getPrimaryRemaining(provider),
+      })),
+      low: shown.some((provider) => isLow(provider)),
+    });
+  }, [providers, updatedAt, settings.hiddenProviders]);
+
   // The native shell uses the same language for its menu, tooltips, and loading screens.
   useEffect(() => {
     document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
@@ -426,15 +435,19 @@ export function App() {
     return () => observer.disconnect();
   }, []);
 
-  const visibleProviders = providers.filter(isVisibleProvider);
+  const hiddenProviders = settings.hiddenProviders;
+  const visibleProviders = providers.filter((provider) => isShownProvider(provider, hiddenProviders));
   const connectedCount = visibleProviders.filter((provider) => provider.connected).length;
   const initialLoading = loading && !updatedAt;
   const updateSetting = (key) => (value) => setSettings((current) => ({ ...current, [key]: value }));
   const { t } = i18n;
-  const bannerText = !banner
+  // A low-quota notice only names tools that are still shown.
+  const bannerLow = banner?.lowProviders?.filter((provider) => !hiddenProviders.includes(provider.id));
+  const shownBanner = bannerLow && bannerLow.length === 0 ? null : banner;
+  const bannerText = !shownBanner
     ? null
-    : banner.lowProviders
-      ? describeLow(banner.lowProviders, language)
+    : bannerLow
+      ? describeLow(bannerLow, language)
       : banner.key
         ? t(banner.key)
         : banner.text;
@@ -484,7 +497,7 @@ export function App() {
               ))}
             </div>
 
-            {banner ? (
+            {shownBanner ? (
               <div className={`banner banner-${banner.tone}`} role="status">
                 <AlertIcon />
                 <span>{bannerText}</span>
@@ -502,13 +515,15 @@ export function App() {
               provider={settings.statsProvider}
               range={settings.statsRange}
               view={settings.statsView}
+              hiddenProviders={hiddenProviders}
               onChange={(key, value) => updateSetting(key)(value)}
             />
-            <QuotaHistory history={history} onClear={() => setHistory([])} />
+            <QuotaHistory history={history} hiddenProviders={hiddenProviders} onClear={() => setHistory([])} />
           </div>
         ) : (
           <SettingsView
             settings={settings}
+            providers={providers}
             onSettingChange={(key, value) => updateSetting(key)(value)}
             loginItem={loginItem}
             onLoginItemChange={changeLoginItem}

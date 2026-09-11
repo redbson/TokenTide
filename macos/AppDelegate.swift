@@ -96,7 +96,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let width = columnWidths.reduce(0, +) + columnGap * CGFloat(max(columns.count - 1, 0)) + 2
         let height: CGFloat = 22
         let image = NSImage(size: NSSize(width: max(width, 4), height: height), flipped: true) { _ in
-            let top = (height - lineHeight * 2) / 2
+            // Two rows per column; a single tool (the others turned off in Settings) sits centered.
+            let top = (height - lineHeight * CGFloat(min(rendered.count, 2))) / 2
             var x: CGFloat = 1
             for (column, lines) in columns.enumerated() {
                 for (row, line) in lines.enumerated() {

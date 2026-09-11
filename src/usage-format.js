@@ -57,6 +57,10 @@ export function getPrimaryLimit(provider) {
 /** Providers the panel shows: Qoder is hidden unless the Qoder app or CLI is installed. */
 export const isVisibleProvider = (provider) => provider?.installed !== false;
 
+/** Visible and not turned off in Settings → Shown tools. */
+export const isShownProvider = (provider, hiddenProviders = []) =>
+  isVisibleProvider(provider) && !hiddenProviders.includes(provider?.id);
+
 export function getPrimaryRemaining(provider) {
   const remaining = getPrimaryLimit(provider)?.remainingPercent;
   return provider?.connected && Number.isFinite(remaining) ? remaining : null;

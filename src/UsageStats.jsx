@@ -230,13 +230,16 @@ function CreditUsage({ days, range, today }) {
   );
 }
 
-export function UsageStats({ stats, error, provider: selected, range, view, onChange }) {
+export function UsageStats({ stats, error, provider: selected, range, view, hiddenProviders = [], onChange }) {
   const { t, language } = useI18n();
   const today = localDayKey();
-  // Qoder gets a tab only when this Mac has Qoder transcripts.
-  const providerIds = STATS_PROVIDERS.filter(
+  // Tools turned off in Settings are left out; Qoder gets a tab only when this Mac has Qoder
+  // transcripts, unless it is the only tool shown.
+  const shownIds = STATS_PROVIDERS.filter((id) => !hiddenProviders.includes(id));
+  const withRecords = shownIds.filter(
     (id) => id !== "qoder" || stats?.providers.find((item) => item.id === "qoder")?.days?.length,
   );
+  const providerIds = withRecords.length ? withRecords : shownIds.length ? shownIds : [STATS_PROVIDERS[0]];
   const provider = providerIds.includes(selected) ? selected : providerIds[0];
   const measure = measureOf(provider);
   const providerStats = stats?.providers.find((item) => item.id === provider);

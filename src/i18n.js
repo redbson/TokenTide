@@ -184,6 +184,9 @@ export const MESSAGES = {
     "settings.lowAlert": "低额度提醒",
     "settings.lowAlertDetail": "当前窗口剩余低于 {percent}% 时提示",
     "settings.about": "TokenTide {version} · 所有数据只在本机读取和保存",
+    "settings.tools": "显示的工具",
+    "settings.toolsNote": "关闭后，额度页、菜单栏、低额度提醒和历史中都不再显示该工具",
+    "settings.providerNotInstalled": "本机未安装",
   },
 
   en: {
@@ -357,6 +360,9 @@ export const MESSAGES = {
     "settings.lowAlert": "Low-quota notice",
     "settings.lowAlertDetail": "Shows a notice when the current window drops below {percent}%",
     "settings.about": "TokenTide {version} · All data is read and kept on this Mac",
+    "settings.tools": "Shown tools",
+    "settings.toolsNote": "A tool that is off is left out of the Quota tab, the menu bar, low-quota notices, and History",
+    "settings.providerNotInstalled": "Not installed on this Mac",
   },
 };
 

@@ -71,10 +71,11 @@ The built app contains its own interface and local service, so you can move or d
 
 - **Left-click** the menu-bar readout to open the panel; click anywhere else or press Esc to close it.
 - **Right-click** for Show Quota, Refresh Now, and Quit. The panel footer also has Quit.
-- **Quota**: quota left and reset times for both tools; the button at the top right refreshes immediately.
+- **Quota**: quota left and reset times for each tool; the button at the top right refreshes immediately.
 - **History**: switch between Codex, Claude Code, and Qoder at the top (Qoder appears once this Mac has Qoder sessions), then pick Overview / Models / Utilization and a range (All / 90d / 30d / 7d).
 - **Settings**:
   - **Language**: English, Chinese (中文), or follow the system — Chinese when your Mac's primary language is Chinese, English otherwise. The menu-bar menu follows it too.
+  - **Shown tools**: turn Codex, Claude Code, or Qoder off to leave it out of the Quota tab, the menu bar, low-quota notices, and History. At least one tool stays on.
   - **Launch at login**: shows TokenTide in the menu bar after you log in. It uses macOS Login Items, so you can also turn it off in System Settings → General → Login Items.
   - **Automatic updates**: see [Automatic updates](#automatic-updates).
   - **Auto-refresh**: reads your quota every 5 minutes.
@@ -160,6 +161,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 ## Changelog
 
 ### Unreleased
+- Settings → Shown tools: choose which of Codex, Claude Code, and Qoder appear in the panel, the menu bar, low-quota notices, and History.
 - Qoder's headline counts only your own credits (plan and add-on). The org resource package keeps its own row but no longer raises the percentage, the menu-bar `QD`, or the low-quota notice.
 
 ### 0.5.0
