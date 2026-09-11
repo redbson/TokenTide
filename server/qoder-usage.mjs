@@ -82,21 +82,21 @@ export function parseQoderUsage(response) {
   }
 
   const resetsAt = toEpochSeconds(usage.expiresAt ?? usage.expires_at);
-  const pools = [];
   const plan = usage.userQuota ?? usage.user_quota;
-  if (plan && finiteOr(plan.total, 0) > 0) pools.push(creditLimit("plan", "Plan credits", plan, resetsAt));
-  const org = usage.orgResourcePackage ?? usage.org_resource_package;
-  if (org && (org.available ?? finiteOr(org.cap ?? org.total, 0) > 0)) pools.push(creditLimit("org", "Org package", org));
   const addOn = usage.addOnQuota ?? usage.add_on_quota;
-  if (addOn && finiteOr(addOn.total, 0) > 0) pools.push(creditLimit("addon", "Add-on credits", addOn));
+  const org = usage.orgResourcePackage ?? usage.org_resource_package;
+  const personal = [];
+  if (plan && finiteOr(plan.total, 0) > 0) personal.push(creditLimit("plan", "Plan credits", plan, resetsAt));
+  if (addOn && finiteOr(addOn.total, 0) > 0) personal.push(creditLimit("addon", "Add-on credits", addOn));
+  const orgLimit = org && (org.available ?? finiteOr(org.cap ?? org.total, 0) > 0) ? creditLimit("org", "Org package", org) : null;
 
-  // The headline covers every credit pool the account can spend. Qoder's own
-  // totalUsagePercentage tracks only the plan quota, so a Teams member with an untouched org
-  // package would otherwise look nearly out of credits.
-  const total = pools.reduce((sum, pool) => sum + pool.totalAmount, 0);
-  const remaining = pools.reduce((sum, pool) => sum + pool.remainingAmount, 0);
+  // The headline covers the account's own credits (plan and add-on). The org resource package
+  // is shared by the team, so it gets its own row but never lifts the headline.
+  const total = personal.reduce((sum, pool) => sum + pool.totalAmount, 0);
+  const remaining = personal.reduce((sum, pool) => sum + pool.remainingAmount, 0);
   const usedPercent = total > 0 ? ((total - remaining) / total) * 100 : (usage.totalUsagePercentage ?? usage.total_usage_percentage);
-  const limits = [makeLimit("total", "Total", usedPercent, resetsAt), ...pools];
+  const limits = [makeLimit("total", "Personal", usedPercent, resetsAt), ...personal];
+  if (orgLimit) limits.push(orgLimit);
 
   const planType = String(usage.userType ?? usage.user_type ?? "").trim();
   return {

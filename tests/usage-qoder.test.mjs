@@ -30,8 +30,8 @@ test("maps Qoder usage info to total, plan, and org package rows", () => {
   assert.ok(!JSON.stringify(provider).includes("should-not-leak"), "the user id is dropped");
 
   const [total, plan, org] = provider.limits;
-  // Headline: every pool the account can spend (1,500 + 1,000 of 4,000 credits left).
-  assert.deepEqual([total.id, total.remainingPercent, total.resetsAt], ["total", 62.5, EXPIRES_MS / 1000]);
+  // Headline: the account's own credits (1,500 of 2,000 left); the org package stays separate.
+  assert.deepEqual([total.id, total.remainingPercent, total.resetsAt], ["total", 75, EXPIRES_MS / 1000]);
   assert.deepEqual([plan.id, plan.remainingPercent, plan.remainingAmount, plan.totalAmount], ["plan", 75, 1500, 2000]);
   assert.deepEqual([org.id, org.remainingPercent, org.remainingAmount, org.resetsAt], ["org", 50, 1000, null]);
   assert.equal(provider.limits.length, 3);
@@ -73,7 +73,7 @@ test("reads usage through the get_usage_info control request", async () => {
     });
   `);
   const provider = await readQoderUsage({ command, args, timeoutMs: 5000 });
-  assert.equal(provider.limits[0].remainingPercent, 62.5);
+  assert.equal(provider.limits[0].remainingPercent, 75);
 });
 
 test("without the CLI Qoder is hidden unless the Qoder app is installed", async () => {
@@ -102,17 +102,26 @@ test("a failing Qoder CLI stays visible with its error", async () => {
   assert.match(providers[2].error, /in time/);
 });
 
-test("the headline counts org credits even when the plan quota is nearly used up", () => {
+test("the headline counts plan and add-on credits but not the org package", () => {
   const provider = parseQoderUsage({
     usage: {
       userType: "teams",
       totalUsagePercentage: 98,
       userQuota: { total: 3000, used: 2932, remaining: 68 },
+      addOnQuota: { total: 1000, used: 0, remaining: 1000 },
       orgResourcePackage: { used: 0, cap: 6000, remaining: 6000, available: true },
     },
   });
-  assert.equal(provider.limits[0].remainingPercent, 67.4);
+  assert.deepEqual(provider.limits.map((limit) => limit.id), ["total", "plan", "addon", "org"]);
+  // 1,068 of 4,000 own credits left; the untouched 6,000-credit org package does not count.
+  assert.equal(provider.limits[0].remainingPercent, 26.7);
   assert.equal(provider.limits[1].remainingPercent, 2.3);
+  assert.equal(provider.limits[3].remainingPercent, 100);
+  // Only an org package: Qoder's own percentage is used.
+  const orgOnly = parseQoderUsage({
+    usage: { userType: "teams", totalUsagePercentage: 40, orgResourcePackage: { used: 0, cap: 6000, available: true } },
+  });
+  assert.equal(orgOnly.limits[0].remainingPercent, 60);
   // Without credit pools, Qoder's own percentage is used.
   assert.equal(parseQoderUsage({ usage: { userType: "free", totalUsagePercentage: 40 } }).limits[0].remainingPercent, 60);
 });

@@ -16,7 +16,7 @@ TokenTide is a macOS menu-bar widget that shows how much of your **Codex**, **Cl
 ## Features
 
 - **Menu-bar readout**: small lines — `CX` / `CC` for the remaining current Codex and Claude Code window, and `QD` beside them for Qoder's credits.
-- **Quota tab**: current-window and weekly quota left for Codex and Claude Code, with reset countdowns; Qoder's credits left across every pool you can spend (plan, org package, add-on), with a row and credit count for each; a notice when a window drops below 20%; refreshes every 5 minutes, and again when you open the panel if the data is more than a minute old.
+- **Quota tab**: current-window and weekly quota left for Codex and Claude Code, with reset countdowns; Qoder's own credits left (plan plus add-on; the team's org package has its own row and is not counted), with a row and credit count for each pool; a notice when a window drops below 20%; refreshes every 5 minutes, and again when you open the panel if the data is more than a minute old.
 - **History · Overview / Models** (Codex, Claude Code, and Qoder — Qoder is measured in credits, since it reports no tokens): sessions, messages, tokens, active days, streaks, peak hour, and top model, modeled on Claude Code's `/stats`, plus a 26-week heatmap.
 - **History · Utilization**: how much of each weekly quota you actually used — average, peak week, weeks that maxed out, this week so far — with a bar per week, over the last 7, 30, or 90 days or all time. For Qoder, credits used per week.
 - **Quota trend**: the current-window remaining quota across recent checks.
@@ -158,6 +158,9 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 | `tests/` | `node --test` tests |
 
 ## Changelog
+
+### Unreleased
+- Qoder's headline counts only your own credits (plan and add-on). The org resource package keeps its own row but no longer raises the percentage, the menu-bar `QD`, or the low-quota notice.
 
 ### 0.5.0
 - Qoder credits, read through the Qoder CLI: credits left across plan, org package, and add-on, with a row for each, and `QD` in the menu bar.
