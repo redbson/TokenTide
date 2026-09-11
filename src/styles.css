@@ -90,7 +90,11 @@ button:focus-visible {
 /* The Windows tray panel is a transparent window, so the page draws the rounded corners. Its
    height is capped by the space above the taskbar, so a tall tab scrolls. */
 .is-windows.is-native .panel { border-radius: 8px; }
-.is-windows.is-native body { overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.25) transparent; }
+.is-windows.is-native body { overflow-y: auto; }
+.is-windows.is-native ::-webkit-scrollbar { width: 6px; }
+.is-windows.is-native ::-webkit-scrollbar-button { display: none; }
+.is-windows.is-native ::-webkit-scrollbar-track { background: transparent; }
+.is-windows.is-native ::-webkit-scrollbar-thumb { border-radius: 3px; background: rgba(255, 255, 255, 0.22); }
 
 .panel-header,
 .panel-footer,
