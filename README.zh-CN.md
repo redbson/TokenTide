@@ -6,7 +6,7 @@
 
 TokenTide 是一个 macOS 菜单栏小工具（也有 [Windows 托盘版](#windows-版预览)）：随时看 Codex、Claude Code 和 Qoder 还剩多少额度、每周额度用了多少，以及历史使用记录。数据全部来自你本机已登录的命令行工具，不需要账号或 API Key，也不会上传任何数据。界面支持中文和英文，默认跟随系统语言，也可以在设置里切换。
 
-**[⬇ 下载 macOS 版（TokenTide.zip）](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [Windows 版（TokenTide-Setup.exe，约 103 MB）](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe) · [所有版本](https://github.com/redbson/TokenTide/releases)
+**⬇ 下载：[macOS 版](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip) · [Windows 版](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe)** · [所有版本](https://github.com/redbson/TokenTide/releases)
 
 <p>
   <img src="docs/screenshot-quota.png" alt="额度页" width="330">

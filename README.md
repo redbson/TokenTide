@@ -6,7 +6,7 @@ English | [简体中文](README.zh-CN.md)
 
 TokenTide is a macOS menu-bar widget (with a [Windows tray version](#windows-preview)) that shows how much of your **Codex**, **Claude Code**, and **Qoder** quota is left, how much of each weekly quota you actually use, and your usage history. Everything is read locally from the command-line tools you are already signed in to: no account, no API key, and nothing leaves your Mac. The interface is in English and Chinese; it follows your Mac's language and can be switched in Settings.
 
-**[⬇ Download for macOS (TokenTide.zip)](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip)** · [Windows (TokenTide-Setup.exe, about 103 MB)](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe) · [All releases](https://github.com/redbson/TokenTide/releases)
+**⬇ Download: [macOS](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip) · [Windows](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe)** · [All releases](https://github.com/redbson/TokenTide/releases)
 
 <p>
   <img src="docs/screenshot-quota-en.png" alt="Quota tab" width="330">
