@@ -161,7 +161,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 2. Publish a GitHub release tagged `vX.Y.Z`, or run:
 
    ```bash
-   gh release create v0.6.2 --generate-notes
+   gh release create v0.6.3 --generate-notes
    ```
 
 3. The [release workflow](.github/workflows/release.yml) runs the tests, builds the universal Mac app and the Windows installer, and attaches `TokenTide-X.Y.Z.zip` and `TokenTide-Setup-X.Y.Z.exe`, their `.sha256` checksums, and unversioned `TokenTide.zip` / `TokenTide-Setup.exe` copies (used by the download links). Installed copies update themselves at their next check.
@@ -180,7 +180,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 
 ## Changelog
 
-### Unreleased
+### 0.6.2
 - Claude Code signed out: a one-click **Sign in to Claude Code** button (opens Terminal, or a command window on Windows, on `claude auth login`); the quota is read again when you reopen the panel.
 - A Claude Code read that briefly returns no plan data is retried once, then shown as a temporary problem instead of "no plan limits". API-key and third-party setups get their own explanation.
 

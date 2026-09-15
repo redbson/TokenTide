@@ -161,7 +161,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 2. 在 GitHub 上发布一个标签为 `vX.Y.Z` 的 Release，或者运行：
 
    ```bash
-   gh release create v0.6.2 --generate-notes
+   gh release create v0.6.3 --generate-notes
    ```
 
 3. [Release 工作流](.github/workflows/release.yml) 会自动跑测试、打包通用版 Mac app 和 Windows 安装包，并把 `TokenTide-X.Y.Z.zip`、`TokenTide-Setup-X.Y.Z.exe`、它们的 `.sha256` 校验文件，以及不带版本号的 `TokenTide.zip` / `TokenTide-Setup.exe`（供下载链接使用）附加到这个 Release 上。已安装的 TokenTide 会在下次检查时自动更新。
@@ -180,7 +180,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 
 ## 更新日志
 
-### 未发布
+### 0.6.2
 - Claude Code 退出登录时，额度栏里有「登录 Claude Code」一键登录按钮（在终端 / Windows 命令行窗口里运行 `claude auth login`），重新打开面板时自动刷新额度。
 - Claude Code 偶尔返回不了套餐数据时先重试一次，仍失败则提示「暂时没能取到额度」，不再显示「没有套餐额度」；使用 API Key 或第三方服务时单独说明。
 
