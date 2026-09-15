@@ -300,6 +300,10 @@ function handleMessage(message) {
       hidePanel();
       shell.openExternal("ms-settings:startupapps");
       break;
+    case "signIn":
+      hidePanel();
+      startSignIn(message.tool);
+      break;
     case "getUpdate":
       sendUpdateStatus();
       break;
@@ -355,6 +359,21 @@ function setLoginItem(enabled) {
     error = failure.message;
   }
   sendLoginItemStatus(error);
+}
+
+// MARK: Sign in
+
+/** Opens a command window on the tool's own sign-in command. */
+function startSignIn(tool) {
+  const command = { claude: "claude auth login", codex: "codex login", qoder: "qodercli" }[tool];
+  if (!command) return;
+  const done = tr("登录完成后可以关闭这个窗口，回到 TokenTide 刷新。", "When you are done, close this window and refresh TokenTide.");
+  // `start` opens its own console window; `/k` keeps it open for the sign-in prompts.
+  const child = spawn("cmd.exe", ["/c", "start", "TokenTide", "cmd", "/k", `${command} & echo. & echo ${done}`], {
+    detached: true,
+    stdio: "ignore",
+  });
+  child.unref();
 }
 
 // MARK: Updates

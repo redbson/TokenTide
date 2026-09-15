@@ -257,6 +257,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         case "openLoginItems":
             hidePanel()
             SMAppService.openSystemSettingsLoginItems()
+        case "signIn":
+            hidePanel()
+            startSignIn(tool: body["tool"] as? String ?? "claude")
         case "getUpdate":
             sendUpdateStatus()
         case "checkUpdate":
@@ -281,6 +284,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         attempts = 0
         showLoading(tr("正在重新连接本机额度服务…", "Reconnecting to the local quota service…"))
         probe(startIfNeeded: true)
+    }
+
+    // MARK: Sign in
+
+    /// Opens Terminal on the tool's own sign-in command. It runs in a `.command` file rather
+    /// than through AppleScript, which would ask for permission to control Terminal.
+    func startSignIn(tool: String) {
+        let command: String
+        switch tool {
+        case "claude": command = "claude auth login"
+        case "codex": command = "codex login"
+        case "qoder": command = "qodercli"
+        default: return
+        }
+        let support = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/TokenTide")
+        try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        let script = support.appendingPathComponent("sign-in-\(tool).command")
+        let done = tr("登录完成后可以关闭这个窗口，回到 TokenTide 刷新。", "When you are done, close this window and refresh TokenTide.")
+        let contents = """
+        #!/bin/zsh -l
+        clear
+        \(command)
+        echo
+        echo "\(done)"
+        """
+        guard (try? contents.write(to: script, atomically: true, encoding: .utf8)) != nil else { return }
+        try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+        NSWorkspace.shared.open(script)
     }
 
     // MARK: Launch at login

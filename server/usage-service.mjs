@@ -365,6 +365,66 @@ export async function readClaudeUsageDirect(
   return parseClaudeDirectUsage(usage);
 }
 
+/** An error whose `code` the page translates (`providerError.<code>` in src/i18n.js). */
+const codedError = (code, message) => Object.assign(new Error(message), { code });
+
+/**
+ * `claude auth status --json`: `{ loggedIn, authMethod, apiProvider }`. Resolves null when the
+ * command is missing or unreadable, so callers fall back to the generic message.
+ */
+export function readClaudeAuthStatus(command = "claude", timeoutMs = 5000, leadingArgs = []) {
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = spawnCommand(command, [...leadingArgs, "auth", "status", "--json"], { stdio: ["ignore", "pipe", "ignore"], env: claudeEnv() });
+    } catch {
+      resolve(null);
+      return;
+    }
+    let output = "";
+    const timer = setTimeout(() => {
+      stopCommand(child);
+      resolve(null);
+    }, timeoutMs);
+    child.stdout.on("data", (chunk) => {
+      output += chunk.toString("utf8");
+    });
+    child.once("error", () => {
+      clearTimeout(timer);
+      resolve(null);
+    });
+    // Exits 1 when signed out; the JSON is still printed.
+    child.once("close", () => {
+      clearTimeout(timer);
+      try {
+        const status = JSON.parse(output);
+        resolve(status && typeof status === "object" ? status : null);
+      } catch {
+        resolve(null);
+      }
+    });
+  });
+}
+
+/**
+ * Turns a "no plan limits" failure into a coded error when `claude auth status` explains it:
+ * signed out, or signed in with an API key / third-party provider (no plan quota to read).
+ * Returns null for a signed-in claude.ai account: then the failure is temporary (Claude Code
+ * could not reach its server) and worth retrying.
+ */
+export function explainMissingPlanLimits(status) {
+  if (!status) return null;
+  if (status.loggedIn === false) {
+    return codedError("claudeSignedOut", "Claude Code is signed out on this computer. Run `claude auth login`.");
+  }
+  if (/key/i.test(status.authMethod ?? "") || (status.apiProvider && status.apiProvider !== "firstParty")) {
+    return codedError("claudeNoPlan", "Claude Code is using an API key or another provider, which has no plan quota.");
+  }
+  return null;
+}
+
+const CLAUDE_RETRY_DELAY_MS = 3000;
+
 class ClaudeUsageSession {
   constructor() {
     this.child = null;
@@ -511,6 +571,7 @@ function unavailableProvider(id, name, error) {
     source: null,
     limits: [],
     error: error instanceof Error ? error.message : "Usage is currently unavailable.",
+    ...(error?.code ? { errorCode: error.code } : {}),
   };
 }
 
@@ -525,6 +586,8 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
   const readClaudeDirect = readers.claudeDirect ?? (() => readClaudeUsageDirect());
   const readClaudeFallback =
     readers.claudeFallback ?? (() => (claudeSession ??= new ClaudeUsageSession()).request());
+  const readClaudeAuth = readers.claudeAuth ?? (() => readClaudeAuthStatus());
+  const retryDelayMs = readers.claudeRetryDelayMs ?? CLAUDE_RETRY_DELAY_MS;
   let inFlight = null;
 
   async function readClaude() {
@@ -534,10 +597,28 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
       claudeSession?.close();
       return provider;
     } catch (directError) {
+      let finalError = directError;
+      // No plan limits: ask Claude Code why before spending 45 s on the /usage screen.
+      if (/plan limits/.test(directError.message)) {
+        const explained = explainMissingPlanLimits(await readClaudeAuth().catch(() => null));
+        if (explained) {
+          claudeSession?.close();
+          throw explained;
+        }
+        // Signed in, so Claude Code most likely could not reach its server. Try once more.
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+        try {
+          const provider = await readClaudeDirect();
+          claudeSession?.close();
+          return provider;
+        } catch {
+          finalError = codedError("claudeTemporary", "Claude Code could not fetch its quota from the server just now.");
+        }
+      }
       try {
         return await readClaudeFallback();
       } catch {
-        throw directError;
+        throw finalError;
       }
     }
   }

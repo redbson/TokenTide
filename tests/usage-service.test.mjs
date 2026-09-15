@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import {
   createUsageService,
+  explainMissingPlanLimits,
   makeLimit,
+  readClaudeAuthStatus,
   parseClaudeDirectUsage,
   parseClaudeUsage,
   readClaudeUsageDirect,
@@ -241,4 +246,80 @@ test("concurrent reads share one provider request", async () => {
 
   await service.read();
   assert.equal(codexCalls, 2);
+});
+
+test("a signed-out Claude Code gets a coded error instead of the /usage fallback", async () => {
+  let fallbackCalls = 0;
+  const service = createUsageService({
+    codex: async () => ({ id: "codex", name: "Codex", connected: true, limits: [] }),
+    qoder: async () => ({ id: "qoder", connected: false, installed: false, limits: [] }),
+    claudeDirect: async () => {
+      throw new Error("Claude Code did not report plan limits for this account.");
+    },
+    claudeAuth: async () => ({ loggedIn: false, authMethod: "none", apiProvider: "firstParty" }),
+    claudeFallback: async () => {
+      fallbackCalls += 1;
+      throw new Error("unused");
+    },
+  });
+  const claude = (await service.read()).providers[1];
+  assert.equal(claude.connected, false);
+  assert.equal(claude.errorCode, "claudeSignedOut");
+  assert.equal(fallbackCalls, 0, "no point driving the /usage screen while signed out");
+
+  // Signed in with an API key: no plan quota either. Unknown reasons keep the generic message.
+  assert.equal(explainMissingPlanLimits({ loggedIn: true, authMethod: "apiKey", apiProvider: "firstParty" }).code, "claudeNoPlan");
+  assert.equal(explainMissingPlanLimits({ loggedIn: true, authMethod: "oauth", apiProvider: "bedrock" }).code, "claudeNoPlan");
+  assert.equal(explainMissingPlanLimits({ loggedIn: true, authMethod: "oauth", apiProvider: "firstParty" }), null);
+  assert.equal(explainMissingPlanLimits(null), null);
+});
+
+test("a signed-in account that gets no limits is retried, then reported as temporary", async () => {
+  let directCalls = 0;
+  const base = {
+    codex: async () => ({ id: "codex", name: "Codex", connected: true, limits: [] }),
+    qoder: async () => ({ id: "qoder", connected: false, installed: false, limits: [] }),
+    claudeAuth: async () => ({ loggedIn: true, authMethod: "claude.ai", apiProvider: "firstParty" }),
+    claudeRetryDelayMs: 1,
+    claudeFallback: async () => {
+      throw new Error("Usage view unavailable.");
+    },
+  };
+  // The second try succeeds: the reading is shown as usual.
+  const recovers = createUsageService({
+    ...base,
+    claudeDirect: async () => {
+      directCalls += 1;
+      if (directCalls === 1) throw new Error("Claude Code did not report plan limits for this account.");
+      return parseClaudeDirectUsage(DIRECT_USAGE);
+    },
+  });
+  const recovered = (await recovers.read()).providers[1];
+  assert.equal(recovered.connected, true);
+  assert.equal(directCalls, 2);
+
+  // Both tries fail: a translated "temporary" notice instead of Claude Code's raw message.
+  const fails = createUsageService({
+    ...base,
+    claudeDirect: async () => {
+      throw new Error("Claude Code did not report plan limits for this account.");
+    },
+  });
+  const failed = (await fails.read()).providers[1];
+  assert.equal(failed.connected, false);
+  assert.equal(failed.errorCode, "claudeTemporary");
+});
+
+test("reads `claude auth status` JSON even though a signed-out CLI exits 1", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "claude-auth-"));
+  try {
+    const script = path.join(dir, "claude.mjs");
+    await writeFile(script, `process.stdout.write(JSON.stringify({ loggedIn: false, authMethod: "none", apiProvider: "firstParty" })); process.exit(1);`);
+    // The stand-in ignores the ["auth", "status", "--json"] arguments.
+    const status = await readClaudeAuthStatus(process.execPath, 5000, [script]);
+    assert.deepEqual(status, { loggedIn: false, authMethod: "none", apiProvider: "firstParty" });
+    assert.equal(await readClaudeAuthStatus("tokentide-missing-claude", 5000), null);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

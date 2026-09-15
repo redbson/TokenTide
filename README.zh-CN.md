@@ -134,7 +134,8 @@ TokenTide 在本机写入的文件：
 - **面板显示「无法启动本机额度服务」**：确认装了 Node.js 20 或更新版本，并且 `node` 能在 `~/.local/bin`、`/opt/homebrew/bin`、`/usr/local/bin` 或登录 shell 的 PATH 里找到。详细原因看 `~/Library/Logs/TokenTide.log`。
 - **端口 4173 被占用**：TokenTide 固定使用 4173 端口，请先关掉占用该端口的程序。
 - **自动更新失败**：「设置 → 更新」会显示原因；也可以随时到 [Releases](https://github.com/redbson/TokenTide/releases/latest) 手动下载，覆盖安装即可，设置和记录都会保留。
-- **某个服务显示「不可用」**：在终端运行一次 `codex`、`claude` 或 `qodercli`，确认已经登录。
+- **某个服务显示「不可用」**：在终端运行一次 `codex`、`claude` 或 `qodercli`，确认已经登录。如果 Claude Code 已退出登录，它那一栏会有「登录 Claude Code」按钮，点一下就会在终端里运行 `claude auth login`。
+- **Claude Code 提示暂时没能取到额度**：是 Claude Code 自己没连上 Anthropic 的服务器（多为网络或代理问题）。TokenTide 会马上重试一次，下次刷新时再试。
 - **Qoder 提示安装 Qoder CLI**：运行 `curl -fsSL https://qoder.com/install | bash`（或 `npm install -g @qoder-ai/qodercli`），然后运行一次 `qodercli`，用和 Qoder app 相同的账号登录。
 - **Claude Code 显示「/usage 备用读取」**：说明 `get_usage` 请求失败，已退回读取 `/usage` 界面，数值仍然有效。
 
@@ -178,6 +179,10 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 | `tests/` | `node --test` 测试 |
 
 ## 更新日志
+
+### 未发布
+- Claude Code 退出登录时，额度栏里有「登录 Claude Code」一键登录按钮（在终端 / Windows 命令行窗口里运行 `claude auth login`），重新打开面板时自动刷新额度。
+- Claude Code 偶尔返回不了套餐数据时先重试一次，仍失败则提示「暂时没能取到额度」，不再显示「没有套餐额度」；使用 API Key 或第三方服务时单独说明。
 
 ### 0.6.1
 - 设置 → 显示的工具：开关下方的说明文字缩短为一行。

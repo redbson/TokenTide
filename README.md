@@ -134,7 +134,8 @@ Files TokenTide writes on your Mac:
 - **The panel says it couldn't start the local quota service**: make sure Node.js 20 or later is installed and `node` can be found in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, or your login shell's PATH. Details are in `~/Library/Logs/TokenTide.log`.
 - **Port 4173 is taken**: TokenTide always uses port 4173. Quit whatever is using it first.
 - **An automatic update failed**: Settings → Updates shows the reason. You can always download the latest version from [Releases](https://github.com/redbson/TokenTide/releases/latest) and install it over the old one; your settings and records are kept.
-- **A tool shows Unavailable**: run `codex`, `claude`, or `qodercli` once in Terminal and make sure you're signed in.
+- **A tool shows Unavailable**: run `codex`, `claude`, or `qodercli` once in Terminal and make sure you're signed in. If Claude Code is signed out, its block has a **Sign in to Claude Code** button that opens Terminal on `claude auth login`.
+- **Claude Code says it couldn't fetch its quota just now**: Claude Code itself couldn't reach Anthropic's server (usually the network or a proxy). TokenTide retries once right away and again at the next refresh.
 - **Qoder asks you to install the Qoder CLI**: run `curl -fsSL https://qoder.com/install | bash` (or `npm install -g @qoder-ai/qodercli`), then run `qodercli` once to sign in with the same account as the Qoder app.
 - **Claude Code shows /usage fallback**: the `get_usage` request failed and TokenTide read the `/usage` screen instead. The numbers are still valid.
 
@@ -178,6 +179,10 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 | `tests/` | `node --test` tests |
 
 ## Changelog
+
+### Unreleased
+- Claude Code signed out: a one-click **Sign in to Claude Code** button (opens Terminal, or a command window on Windows, on `claude auth login`); the quota is read again when you reopen the panel.
+- A Claude Code read that briefly returns no plan data is retried once, then shown as a temporary problem instead of "no plan limits". API-key and third-party setups get their own explanation.
 
 ### 0.6.1
 - Settings → Shown tools: the note under the switches fits on one line.

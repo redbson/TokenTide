@@ -50,6 +50,14 @@ const nativeBridge =
 const IS_WINDOWS = platform() === "windows";
 // How to install the Qoder CLI: the shell installer on macOS, npm on Windows.
 const QODER_INSTALL = IS_WINDOWS ? "npm install -g @qoder-ai/qodercli" : "curl -fsSL https://qoder.com/install | bash";
+// Error codes from the service that get a translated notice, with the command that fixes it.
+// `signIn` codes offer a button that runs the command in a terminal through the native shell.
+const PROVIDER_ERRORS = {
+  qoderCliMissing: { command: QODER_INSTALL },
+  claudeSignedOut: { command: "claude auth login", signIn: true },
+  claudeNoPlan: {},
+  claudeTemporary: {},
+};
 
 function postNative(message) {
   try {
@@ -76,7 +84,7 @@ function writeStoredJson(key, value) {
   }
 }
 
-function ProviderBlock({ provider, loading, now }) {
+function ProviderBlock({ provider, loading, now, onSignIn }) {
   const { t, language } = useI18n();
   const meta = PROVIDER_META[provider.id];
   const primary = getPrimaryLimit(provider);
@@ -117,11 +125,20 @@ function ProviderBlock({ provider, loading, now }) {
         <div className="progress-value" style={{ width: `${remaining ?? 0}%` }} />
       </div>
 
-      {provider.errorCode === "qoderCliMissing" ? (
-        <p className="provider-error">
-          {t("providerError.qoderCliMissing")}
-          <code>{QODER_INSTALL}</code>
-        </p>
+      {provider.errorCode in PROVIDER_ERRORS ? (
+        <div className="provider-error">
+          <p>{t(`providerError.${provider.errorCode}`)}</p>
+          {PROVIDER_ERRORS[provider.errorCode].signIn && nativeBridge ? (
+            <>
+              <button className="provider-action" type="button" onClick={() => onSignIn(provider.id)}>
+                {t("providerError.signIn")}
+              </button>
+              <span className="provider-hint">{t("providerError.signInHint")}</span>
+            </>
+          ) : (
+            PROVIDER_ERRORS[provider.errorCode].command && <code>{PROVIDER_ERRORS[provider.errorCode].command}</code>
+          )}
+        </div>
       ) : provider.error ? (
         <p className="provider-error">{provider.error}</p>
       ) : (
@@ -250,6 +267,8 @@ export function App() {
   const settingsRef = useRef(settings);
   const updatedAtRef = useRef(null);
   const previousProvidersRef = useRef(null);
+  // Set while a sign-in runs in a terminal, so reopening the panel reads the quota again.
+  const signingInRef = useRef(false);
   const inFlightRef = useRef(null);
 
   settingsRef.current = settings;
@@ -332,7 +351,12 @@ export function App() {
       // WebKit focuses the first control when the panel becomes key; don't show a focus ring for that.
       window.setTimeout(() => document.activeElement?.blur?.(), 0);
       setNow(Date.now());
-      if (!updatedAtRef.current || Date.now() - updatedAtRef.current > STALE_ON_SHOW_MS) refresh();
+      if (signingInRef.current) {
+        signingInRef.current = false;
+        refresh();
+      } else if (!updatedAtRef.current || Date.now() - updatedAtRef.current > STALE_ON_SHOW_MS) {
+        refresh();
+      }
     };
     const onVisibility = () => {
       if (document.visibilityState === "visible") onShow();
@@ -398,6 +422,12 @@ export function App() {
   const updateAction = (type, enabled) => {
     if (type === "setAutoUpdate") setUpdate((current) => ({ ...current, autoUpdate: enabled }));
     postNative(enabled === undefined ? { type } : { type, enabled });
+  };
+
+  /** Runs the tool's sign-in command in a terminal window (macOS Terminal, Windows console). */
+  const signIn = (tool) => {
+    signingInRef.current = true;
+    postNative({ type: "signIn", tool });
   };
 
   const changeLoginItem = (enabled) => {
@@ -500,7 +530,7 @@ export function App() {
           <>
             <div className="providers">
               {visibleProviders.map((provider) => (
-                <ProviderBlock key={provider.id} provider={provider} loading={initialLoading} now={now} />
+                <ProviderBlock key={provider.id} provider={provider} loading={initialLoading} now={now} onSignIn={signIn} />
               ))}
             </div>
 
