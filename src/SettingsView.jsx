@@ -1,6 +1,6 @@
 import { useI18n } from "./i18n-context.js";
 import { LANGUAGE_NAMES } from "./i18n.js";
-import { BellIcon, ClockIcon, DownloadIcon, GlobeIcon, LoginIcon } from "./icons.jsx";
+import { BellIcon, ClockIcon, DownloadIcon, GlobeIcon, LoginIcon, NotesIcon } from "./icons.jsx";
 import { LOW_USAGE_THRESHOLD, PROVIDER_META, STATS_PROVIDERS, formatAccount, isVisibleProvider } from "./usage-format.js";
 
 function Toggle({ checked, onChange, label, disabled = false }) {
@@ -162,6 +162,7 @@ export function SettingsView({
   update,
   onUpdateAction,
   version,
+  onOpenChangelog,
 }) {
   const { t } = useI18n();
   const loginEnabled = loginItem.status === "enabled" || loginItem.status === "requiresApproval";
@@ -217,6 +218,16 @@ export function SettingsView({
                 onInstall={() => onUpdateAction("installUpdate")}
                 onOpenRelease={() => onUpdateAction("openRelease")}
               />
+            }
+          />
+          <SettingRow
+            icon={<NotesIcon />}
+            title={t("settings.changelog")}
+            detail={t("settings.changelogDetail")}
+            action={
+              <button className="link-button settings-action" type="button" onClick={onOpenChangelog}>
+                {t("settings.changelogOpen")}
+              </button>
             }
           />
         </div>

@@ -4,7 +4,9 @@ import { I18nContext, useI18n } from "./i18n-context.js";
 import { platform, resolveLanguage, systemLanguages, translate } from "./i18n.js";
 import { UsageStats } from "./UsageStats.jsx";
 import { mergeMigratedHistory, mergeMigratedSettings } from "./storage-migration.js";
-import { AlertIcon, CloseIcon, PowerIcon } from "./icons.jsx";
+import { ChangelogView, hasReleaseNotes } from "./Changelog.jsx";
+import { isNewerVersion } from "./changelog-parse.js";
+import { AlertIcon, CloseIcon, NotesIcon, PowerIcon } from "./icons.jsx";
 import {
   LOW_USAGE_THRESHOLD,
   PROVIDER_META,
@@ -44,6 +46,8 @@ const DEFAULT_SETTINGS = {
   hiddenProviders: [],
   // "system", "zh", or "en"; see i18n.js.
   language: "system",
+  // The version whose release notes the user has seen; a newer app shows "What's new" once.
+  lastSeenVersion: null,
 };
 
 // Present when the page runs inside a native shell: the macOS menu-bar panel
@@ -249,6 +253,11 @@ export function App() {
   const [updatedAt, setUpdatedAt] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("quota");
+  const [showChangelog, setShowChangelog] = useState(false);
+  // Whether the old port's storage hand-over has been checked, and whether this panel already
+  // had data (an upgrade, so its first launch shows "What's new"; a fresh install does not).
+  const [migrationChecked, setMigrationChecked] = useState(() => Boolean(readStoredJson(MIGRATION_KEY, false)));
+  const hadDataRef = useRef(readStoredJson(HISTORY_KEY, []).length > 0);
   const [history, setHistory] = useState(() => readStoredJson(HISTORY_KEY, []));
   const [settings, setSettings] = useState(() => {
     const stored = { ...DEFAULT_SETTINGS, ...readStoredJson(SETTINGS_KEY, {}) };
@@ -451,11 +460,20 @@ export function App() {
         if (!body?.state) return;
         setSettings((current) => mergeMigratedSettings(current, body.state.settings, DEFAULT_SETTINGS));
         setHistory((current) => mergeMigratedHistory(current, body.state.history, HISTORY_LIMIT));
+        if (body.state.history?.length) hadDataRef.current = true;
         writeStoredJson(MIGRATION_KEY, true);
         postNative({ type: "storageMigrated" });
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setMigrationChecked(true));
   }, []);
+
+  // A fresh install has nothing new to show: record the running version as seen.
+  useEffect(() => {
+    if (migrationChecked && APP_VERSION && !settingsRef.current.lastSeenVersion && !hadDataRef.current) {
+      setSettings((current) => ({ ...current, lastSeenVersion: APP_VERSION }));
+    }
+  }, [migrationChecked]);
 
   // The menu-bar readout lists the shown tools and follows the setting right away.
   useEffect(() => {
@@ -497,6 +515,17 @@ export function App() {
   const connectedCount = visibleProviders.filter((provider) => provider.connected).length;
   const initialLoading = loading && !updatedAt;
   const updateSetting = (key) => (value) => setSettings((current) => ({ ...current, [key]: value }));
+  // "What's new" after an update: once per version that has release notes.
+  const showWhatsNew =
+    hasReleaseNotes(APP_VERSION) &&
+    (settings.lastSeenVersion
+      ? isNewerVersion(APP_VERSION, settings.lastSeenVersion)
+      : migrationChecked && hadDataRef.current);
+  const markNotesSeen = () => updateSetting("lastSeenVersion")(APP_VERSION);
+  const openChangelog = () => {
+    setShowChangelog(true);
+    markNotesSeen();
+  };
   const { t } = i18n;
   // A low-quota notice only names tools that are still shown.
   const bannerLow = banner?.lowProviders?.filter((provider) => !hiddenProviders.includes(provider.id));
@@ -521,7 +550,10 @@ export function App() {
               type="button"
               role="tab"
               aria-selected={tab === id}
-              onClick={() => setTab(id)}
+              onClick={() => {
+                setTab(id);
+                setShowChangelog(false);
+              }}
             >
               {t(`tabs.${id}`)}
             </button>
@@ -546,8 +578,26 @@ export function App() {
       </header>
 
       <div className="panel-body">
-        {tab === "quota" ? (
+        {showChangelog ? (
+          <ChangelogView
+            version={APP_VERSION}
+            onBack={() => setShowChangelog(false)}
+            onOpenReleases={() => postNative({ type: "openReleases" })}
+          />
+        ) : tab === "quota" ? (
           <>
+            {showWhatsNew ? (
+              <div className="banner banner-info whats-new" role="status">
+                <NotesIcon />
+                <span>
+                  {t("whatsNew.updated", { version: APP_VERSION })}
+                  <button className="link-button" type="button" onClick={openChangelog}>{t("whatsNew.view")}</button>
+                </span>
+                <button className="banner-close" type="button" onClick={markNotesSeen} aria-label={t("banner.close")}>
+                  <CloseIcon />
+                </button>
+              </div>
+            ) : null}
             <div className="providers">
               {visibleProviders.map((provider) => (
                 <ProviderBlock key={provider.id} provider={provider} loading={initialLoading} now={now} onSignIn={signIn} />
@@ -588,6 +638,7 @@ export function App() {
             update={update}
             onUpdateAction={updateAction}
             version={APP_VERSION}
+            onOpenChangelog={openChangelog}
           />
         )}
       </div>

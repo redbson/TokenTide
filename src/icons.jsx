@@ -28,3 +28,6 @@ export const AlertIcon = () => (
 export const CloseIcon = () => (
   <Icon><path d="M7 7l10 10M17 7 7 17" /></Icon>
 );
+export const NotesIcon = () => (
+  <Icon><path d="M7 3.5h7.5L19 8v12.5H7z" /><path d="M14.5 3.5V8H19" /><path d="M10 12h6M10 15.5h6" /></Icon>
+);

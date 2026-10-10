@@ -289,6 +289,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         case "openRelease":
             hidePanel()
             NSWorkspace.shared.open(updater.latest?.page ?? Updater.releasesPage)
+        case "openReleases":
+            hidePanel()
+            NSWorkspace.shared.open(Updater.releasesPage)
         case "quit":
             quit()
         default:

@@ -339,6 +339,10 @@ function handleMessage(message) {
       hidePanel();
       shell.openExternal(updater.latest?.page ?? RELEASES_PAGE);
       break;
+    case "openReleases":
+      hidePanel();
+      shell.openExternal(RELEASES_PAGE);
+      break;
     case "quit":
       quit();
       break;

@@ -24,7 +24,7 @@ test("both languages define the same keys with the same placeholders", () => {
 });
 
 test("every key used in the UI exists in the dictionary", () => {
-  const sources = ["App.jsx", "UsageStats.jsx", "SettingsView.jsx", "usage-format.js", "stats-format.js"]
+  const sources = ["App.jsx", "UsageStats.jsx", "SettingsView.jsx", "Changelog.jsx", "usage-format.js", "stats-format.js"]
     .map((file) => readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8"))
     .join("\n");
   const literal = [...sources.matchAll(/\bt(?:ranslate\(language,)?\(\s*"([a-zA-Z]+\.[a-zA-Z0-9]+)"/g)].map((match) => match[1]);

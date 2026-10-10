@@ -180,6 +180,9 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 
 ## Changelog
 
+### Unreleased
+- In-app release notes: Settings → Updates → **What's new** lists what changed in each version, and after an update the Quota tab offers them once.
+
 ### 0.6.3
 - TokenTide moved from port 4173, which `vite preview` also uses by default, to 46173, so Vite projects no longer take its port or stop its service. Your settings and quota trend move over automatically on first launch.
 - The app checks that it is really TokenTide answering on the port before showing the panel; if another program holds the port, it says so and reconnects once it is free.
