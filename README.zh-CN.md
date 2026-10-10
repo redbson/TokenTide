@@ -185,6 +185,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 - 历史中的 30 天和 7 天视图更清晰，每根柱子下标注日期。
 - 7 天视图显示本周用量趋势，Qoder 按天显示积分。
 - Codex 不再计入空周期，平均使用率更准确。
+- 被提前重置的周期在图中单独标出。
 
 ### 0.6.4
 - 菜单栏可以切换成精简样式，占用更少空间。

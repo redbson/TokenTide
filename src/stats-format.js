@@ -147,12 +147,36 @@ export function isIdleWindow(window) {
   return window.usedPercent === 0 && !window.estimated && window.resetsAt - window.lastAt / 1000 >= WEEK_SECONDS - 3600;
 }
 
+// Reset times drift by an hour or two, so a week counts as reset early only well before it was due.
+const EARLY_RESET_MARGIN = 12 * 3600;
+
+/**
+ * Weeks the tool reset before their seven days were up, as `Map(window → seconds it ended)`:
+ * the next week began well before this one's reset, and this one's readings stopped by then.
+ * (Two accounts in use at once also overlap, but their readings interleave, so they don't match.)
+ */
+export function findEarlyResets(windows = []) {
+  const started = windows
+    .filter((window) => !window.estimated && !isIdleWindow(window))
+    .map((window) => ({ window, start: weekStart(window) }))
+    .sort((a, b) => a.start - b.start);
+  const ended = new Map();
+  started.forEach(({ window, start }, index) => {
+    const next = started.slice(index + 1).find((item) => item.start > start + 3600);
+    if (next && next.start < window.resetsAt - EARLY_RESET_MARGIN && window.lastAt / 1000 <= next.start + 600) {
+      ended.set(window, next.start);
+    }
+  });
+  return ended;
+}
+
 export function summarizeQuotaWeeks(windows = [], range = "all", now = Date.now()) {
   const nowSeconds = now / 1000;
   const cutoff = RANGE_DAYS[range] ? nowSeconds - RANGE_DAYS[range] * 86_400 : -Infinity;
-  const weeks = windows.filter(
-    (window) => window.resetsAt <= nowSeconds && window.resetsAt > cutoff && !isIdleWindow(window),
-  );
+  const earlyResets = findEarlyResets(windows);
+  const weeks = windows
+    .filter((window) => window.resetsAt <= nowSeconds && window.resetsAt > cutoff && !isIdleWindow(window))
+    .map((window) => (earlyResets.has(window) ? { ...window, endedEarly: true, endedAt: earlyResets.get(window) } : window));
   // Several accounts can each have an open window; the most recently seen one is "this week".
   const current =
     windows.filter((window) => window.resetsAt > nowSeconds).sort((a, b) => b.lastAt - a.lastAt)[0] ?? null;
@@ -166,6 +190,7 @@ export function summarizeQuotaWeeks(windows = [], range = "all", now = Date.now(
     average: values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null,
     peak,
     fullWeeks: fullWeeks.length,
+    earlyResets: weeks.filter((window) => window.endedEarly).length,
     estimatedWeeks: weeks.filter((window) => window.estimated).length,
     peakEstimated: peak !== null && !weeks.some((window) => !window.estimated && window.usedPercent === peak),
     fullWeeksEstimated: fullWeeks.some((window) => window.estimated),

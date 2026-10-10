@@ -776,7 +776,7 @@ button:focus-visible {
   height: 84px;
 }
 
-.quota-bars.is-dense { gap: 1px; }
+.quota-chart.is-dense .quota-bars { gap: 1px; }
 
 .quota-bar {
   position: relative;
@@ -869,12 +869,30 @@ button:focus-visible {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 5px;
+  gap: 12px;
   margin-bottom: 6px;
   color: var(--text-secondary);
   font-size: 10.5px;
 }
-.quota-legend i { width: 14px; border-top: 1px dashed rgba(255, 255, 255, 0.5); }
+.quota-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+
+/* Weeks the tool reset early: a dot under the bar, in a row laid out like the bars. */
+.quota-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-secondary); }
+.quota-dash { width: 14px; border-top: 1px dashed rgba(255, 255, 255, 0.5); }
+
+.quota-marks {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  height: 5px;
+  margin-top: 4px;
+}
+.quota-marks > span { display: flex; flex: 1 1 0; justify-content: center; max-width: 22px; }
+.quota-chart.is-sparse .quota-marks { display: grid; gap: 8px; }
+.quota-chart.is-sparse .quota-marks > span { max-width: none; }
+.quota-chart.is-crowded .quota-marks { gap: 5px; }
+.quota-chart.is-dense .quota-marks { gap: 1px; }
+.quota-chart.is-dense .quota-dot { width: 4px; height: 4px; }
 
 /* This week at its current pace, drawn as a dashed outline behind the bar. */
 .quota-projection {

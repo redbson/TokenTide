@@ -17,6 +17,7 @@ import { createUsageService } from "../server/usage-service.mjs";
 import {
   FULL_WEEK_PERCENT,
   formatMonthDay,
+  findEarlyResets,
   isIdleWindow,
   summarizeCreditDays,
   summarizeQuotaWeeks,
@@ -274,4 +275,29 @@ test("Qoder's 7-day view lists every day, today last", () => {
   assert.equal(summary.total, 40);
   assert.equal(summary.peak, 30);
   assert.equal(summary.today, 0);
+});
+
+test("weeks reset before their seven days are marked, but overlapping accounts are not", () => {
+  const H = 3600;
+  // One account: each week's readings stop when the next week starts, days before the due reset.
+  const first = { resetsAt: END, usedPercent: 50, firstAt: (END - 7 * DAY + H) * 1000, lastAt: (END - 4 * DAY) * 1000 };
+  const second = { resetsAt: END + 3 * DAY, usedPercent: 90, firstAt: (END - 4 * DAY) * 1000, lastAt: (END + 3 * DAY - H) * 1000 };
+  const early = findEarlyResets([first, second]);
+  assert.equal(early.get(first), END - 4 * DAY);
+  assert.equal(early.has(second), false, "the last week ran its course");
+
+  // Two accounts: their readings interleave, so neither counts as reset early.
+  const other = { resetsAt: END + 2 * DAY, usedPercent: 30, firstAt: (END - 5 * DAY) * 1000, lastAt: (END + DAY) * 1000 };
+  const busy = { ...first, lastAt: (END - DAY) * 1000 };
+  assert.equal(findEarlyResets([busy, other]).size, 0);
+
+  // A next week starting an hour or two before the due reset is reset-time drift, not an early reset.
+  const onTime = { resetsAt: END, usedPercent: 28, firstAt: (END - 3 * DAY) * 1000, lastAt: (END - 2 * H) * 1000 };
+  const following = { resetsAt: END + 7 * DAY - 2 * H, usedPercent: 11, firstAt: (END - H) * 1000, lastAt: (END + DAY) * 1000 };
+  assert.equal(findEarlyResets([onTime, following]).size, 0);
+
+  const summary = summarizeQuotaWeeks([first, second], "all", (END + 4 * DAY) * 1000);
+  assert.equal(summary.earlyResets, 1);
+  assert.equal(summary.weeks[0].endedEarly, true);
+  assert.equal(summary.weeks[0].endedAt, END - 4 * DAY);
 });

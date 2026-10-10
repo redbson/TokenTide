@@ -122,23 +122,31 @@ function ModelList({ models, measure }) {
 // label under each; with many (90 days, all) they pack to the right with dates at both ends.
 const SPARSE_BARS = 12;
 
-function BarChart({ label, bars, average = null, axis = ["", ""] }) {
+function BarChart({ label, bars, average = null, axis = ["", ""], markLegend = null }) {
   const sparse = bars.length <= SPARSE_BARS;
+  const dense = bars.length > 30;
   const columns = sparse ? { gridTemplateColumns: `repeat(${bars.length}, minmax(0, 1fr))` } : undefined;
+  const marked = Boolean(markLegend) && bars.some((bar) => bar.mark);
   return (
-    <div className={`quota-chart ${sparse ? "is-sparse" : ""} ${sparse && bars.length > 6 ? "is-crowded" : ""}`}>
-      {sparse && average ? (
+    <div className={`quota-chart ${sparse ? "is-sparse" : ""} ${sparse && bars.length > 6 ? "is-crowded" : ""} ${dense ? "is-dense" : ""}`}>
+      {average || marked ? (
         <div className="quota-legend">
-          <i aria-hidden="true" />
-          {average.text}
+          {marked ? (
+            <span className="quota-legend-item">
+              <i className="quota-dot" aria-hidden="true" />
+              {markLegend}
+            </span>
+          ) : null}
+          {average ? (
+            <span className="quota-legend-item">
+              <i className="quota-dash" aria-hidden="true" />
+              {average.text}
+            </span>
+          ) : null}
         </div>
       ) : null}
-      <div className={`quota-bars ${bars.length > 30 ? "is-dense" : ""}`} style={columns} role="img" aria-label={label}>
-        {average ? (
-          <div className="quota-average" style={{ bottom: `${Math.min(average.height, 100)}%` }}>
-            {sparse ? null : <span>{average.text}</span>}
-          </div>
-        ) : null}
+      <div className="quota-bars" style={columns} role="img" aria-label={label}>
+        {average ? <div className="quota-average" style={{ bottom: `${Math.min(average.height, 100)}%` }} /> : null}
         {bars.map((bar) => (
           <span key={bar.key} className={`quota-bar ${bar.className ?? ""}`} title={bar.title}>
             {bar.projection ? (
@@ -148,6 +156,14 @@ function BarChart({ label, bars, average = null, axis = ["", ""] }) {
           </span>
         ))}
       </div>
+      {/* A dot under each marked bar (weeks reset early), in the bars' own columns. */}
+      {marked ? (
+        <div className="quota-marks" style={columns} aria-hidden="true">
+          {bars.map((bar) => (
+            <span key={bar.key}>{bar.mark ? <i className="quota-dot" /> : null}</span>
+          ))}
+        </div>
+      ) : null}
       {sparse ? (
         <div className="quota-labels" style={columns}>
           {bars.map((bar) => (
@@ -167,9 +183,11 @@ function BarChart({ label, bars, average = null, axis = ["", ""] }) {
 }
 
 function windowBar(window, t, extra = {}) {
-  const period = `${formatMonthDay(weekStart(window))}–${formatMonthDay(window.resetsAt)}`;
+  // A week reset early ended when the next one began, not at its scheduled reset.
+  const period = `${formatMonthDay(weekStart(window))}–${formatMonthDay(window.endedEarly ? window.endedAt : window.resetsAt)}`;
   const title =
     t(window.estimated ? "quota.barEstimated" : "quota.barUsed", { period, percent: formatPercent(window.usedPercent) }) +
+    (window.endedEarly ? t("quota.barEarly", { scheduled: formatMonthDay(window.resetsAt) }) : "") +
     (window.isCurrent ? t("quota.barCurrent") : "");
   const classes = [
     window.isCurrent ? "is-current" : "",
@@ -183,6 +201,7 @@ function windowBar(window, t, extra = {}) {
     title,
     label: window.isCurrent ? t("quota.thisWeek") : formatMonthDay(weekStart(window)),
     isCurrent: Boolean(window.isCurrent),
+    mark: Boolean(window.endedEarly),
     ...extra,
   };
 }
@@ -195,6 +214,7 @@ function QuotaBars({ weeks, current, average }) {
       label={t("quota.chart")}
       bars={windows.map((window) => windowBar(window, t))}
       average={average !== null ? { height: average, text: t("quota.average", { percent: formatPercent(average) }) } : null}
+      markLegend={t("quota.earlyReset")}
       axis={[
         windows.length ? formatMonthDay(weekStart(windows[0])) : "",
         current ? t("quota.thisWeek") : windows.length ? formatMonthDay(windows.at(-1).resetsAt) : "",
@@ -278,6 +298,7 @@ function QuotaUsage({ windows, estimate, provider, range }) {
             ? t("quota.noteEstimated", { count: summary.weeks.length, estimated: summary.estimatedWeeks })
             : t("quota.noteRecorded", { count: summary.weeks.length })
           : t("quota.noteNone")}
+        {summary.earlyResets ? gap + t("quota.noteEarly", { count: summary.earlyResets }) : null}
         {gap}
         {source}
       </p>

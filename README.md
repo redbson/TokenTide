@@ -185,6 +185,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 - Clearer 30-day and 7-day views in History, with a date under each bar.
 - The 7-day view shows this week's pace; Qoder shows credits per day.
 - Codex weeks no longer include empty cycles, so averages are accurate.
+- Weeks that were reset early are marked in the chart.
 
 ### 0.6.4
 - A compact menu bar style that takes up less space.
