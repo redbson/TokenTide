@@ -46,3 +46,16 @@ test("both READMEs have the same released versions, newest first", () => {
   // The version being built has notes for the "What's new" banner, unless it is still unreleased.
   assert.ok(!isNewerVersion(en[0].version, version), "no notes newer than package.json");
 });
+
+test("release notes stay short and plain", () => {
+  const limits = { "README.md": [CHANGELOG_HEADINGS.en, 80], "README.zh-CN.md": [CHANGELOG_HEADINGS.zh, 30] };
+  for (const [file, [heading, max]] of Object.entries(limits)) {
+    for (const release of parseChangelog(readme(file), heading)) {
+      assert.ok(release.items.length <= 4, `${file} ${release.version}: at most 4 notes`);
+      for (const item of release.items) {
+        assert.ok([...item].length <= max, `${file} ${release.version}: "${item}" is longer than ${max} characters`);
+        assert.ok(!/`/.test(item), `${file} ${release.version}: "${item}" uses code formatting`);
+      }
+    }
+  }
+});

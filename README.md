@@ -182,39 +182,39 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 ## Changelog
 
 ### Unreleased
-- Menu bar style (macOS): **Detailed** (`CX 93%` …) or **Compact** (a small gauge with one vertical bar per tool, much narrower), in Settings → General. Hovering the menu-bar item lists every tool's remaining quota.
-- In-app release notes: Settings → Updates → **What's new** lists what changed in each version, and after an update the Quota tab offers them once.
+- A compact menu bar style that takes up less space.
+- Release notes in the app, shown once after each update.
 
 ### 0.6.3
-- TokenTide moved from port 4173, which `vite preview` also uses by default, to 46173, so Vite projects no longer take its port or stop its service. Your settings and quota trend move over automatically on first launch.
-- The app checks that it is really TokenTide answering on the port before showing the panel; if another program holds the port, it says so and reconnects once it is free.
-- If the local quota service stops (crash, or killed by something else), the app restarts it by itself instead of leaving the panel stuck on old readings.
+- No more port clashes with other developer tools, so the app stays connected.
+- The background service restarts by itself if it stops.
+- Your settings and quota trend carry over when you update.
 
 ### 0.6.2
-- Claude Code signed out: a one-click **Sign in to Claude Code** button (opens Terminal, or a command window on Windows, on `claude auth login`); the quota is read again when you reopen the panel.
-- A Claude Code read that briefly returns no plan data is retried once, then shown as a temporary problem instead of "no plan limits". API-key and third-party setups get their own explanation.
+- Sign back in to Claude Code with one click.
+- Clearer message when Claude Code can't fetch its quota.
 
 ### 0.6.1
-- Settings → Shown tools: the note under the switches fits on one line.
+- Tidier wording in the Shown tools setting.
 
 ### 0.6.0
-- Windows version (preview): a tray app with the same panel, a per-user installer, and automatic updates.
-- Settings → Shown tools: choose which of Codex, Claude Code, and Qoder appear in the panel, the menu bar, low-quota notices, and History.
-- Qoder's headline counts only your own credits (plan and add-on). The org resource package keeps its own row but no longer raises the percentage, the menu-bar `QD`, or the low-quota notice.
+- Windows version (preview).
+- Choose which tools to show.
+- Qoder's percentage counts only your own credits.
 
 ### 0.5.0
-- Qoder credits, read through the Qoder CLI: credits left across plan, org package, and add-on, with a row for each, and `QD` in the menu bar.
-- Qoder in History: sessions, messages, credits used, heatmap, models, and credits per week, from `~/.qoder/projects`; a Qoder line in the quota trend.
+- See your Qoder credits.
+- Qoder in History.
 
 ### 0.4.0
-- English and Chinese interface. It follows your Mac's language by default (Chinese when the primary system language is Chinese, English otherwise) and can be switched in Settings → Language. The menu-bar menu follows it too.
-- English labels fit the 360-pixel panel.
+- English and Chinese interface.
+- English text fits the panel better.
 
 ### 0.3.0
-- First downloadable release: a self-contained app for Apple silicon and Intel.
-- Automatic updates from GitHub Releases, verified before installing.
-- Settings tab: launch at login, automatic updates, auto-refresh, low-quota notice.
-- History: weekly quota utilization, with estimated Claude Code weeks before TokenTide started recording.
+- First downloadable release, for Apple silicon and Intel.
+- Automatic updates.
+- New Settings tab: launch at login, auto-refresh, low-quota notice.
+- Weekly quota utilization in History.
 
 See [Releases](https://github.com/redbson/TokenTide/releases) for every version.
 

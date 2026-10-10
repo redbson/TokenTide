@@ -1,3 +1,4 @@
+import { useState } from "react";
 import changelog from "virtual:changelog";
 import { useI18n } from "./i18n-context.js";
 import { isNewerVersion } from "./changelog-parse.js";
@@ -21,9 +22,15 @@ function Inline({ text }) {
   });
 }
 
+// The latest few versions are shown; older ones fold behind a button.
+const RECENT_RELEASES = 3;
+
 export function ChangelogView({ version, onBack, onOpenReleases }) {
   const { t, language } = useI18n();
+  const [showAll, setShowAll] = useState(false);
   const releases = releaseNotes(language, version);
+  const shown = showAll ? releases : releases.slice(0, RECENT_RELEASES);
+  const hidden = releases.length - shown.length;
   return (
     <section className="changelog" aria-labelledby="changelog-title">
       <div className="changelog-heading">
@@ -31,7 +38,7 @@ export function ChangelogView({ version, onBack, onOpenReleases }) {
         <h3 id="changelog-title">{t("changelog.title")}</h3>
       </div>
       {releases.length === 0 ? <p className="changelog-empty">{t("changelog.empty")}</p> : null}
-      {releases.map((release) => (
+      {shown.map((release) => (
         <article className="changelog-release" key={release.version}>
           <h4>
             {release.version}
@@ -46,6 +53,11 @@ export function ChangelogView({ version, onBack, onOpenReleases }) {
           </ul>
         </article>
       ))}
+      {hidden > 0 ? (
+        <button className="link-button changelog-more" type="button" onClick={() => setShowAll(true)}>
+          {t("changelog.showOlder", { count: hidden })}
+        </button>
+      ) : null}
       <button className="link-button changelog-all" type="button" onClick={onOpenReleases}>
         {t("changelog.allReleases")}
       </button>

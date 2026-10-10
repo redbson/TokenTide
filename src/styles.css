@@ -49,12 +49,19 @@ body {
   background: transparent;
 }
 
+/* The panel is as tall as its content, up to the screen height; past that the page scrolls
+   (a long tab, or a small screen). */
 .is-native body {
   min-height: 0;
   padding: 0;
   display: block;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
+.is-native ::-webkit-scrollbar { width: 6px; }
+.is-native ::-webkit-scrollbar-button { display: none; }
+.is-native ::-webkit-scrollbar-track { background: transparent; }
+.is-native ::-webkit-scrollbar-thumb { border-radius: 3px; background: rgba(255, 255, 255, 0.22); }
 
 button { font: inherit; color: inherit; }
 
@@ -87,14 +94,8 @@ button:focus-visible {
   box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
-/* The Windows tray panel is a transparent window, so the page draws the rounded corners. Its
-   height is capped by the space above the taskbar, so a tall tab scrolls. */
+/* The Windows tray panel is a transparent window, so the page draws the rounded corners. */
 .is-windows.is-native .panel { border-radius: 8px; }
-.is-windows.is-native body { overflow-y: auto; }
-.is-windows.is-native ::-webkit-scrollbar { width: 6px; }
-.is-windows.is-native ::-webkit-scrollbar-button { display: none; }
-.is-windows.is-native ::-webkit-scrollbar-track { background: transparent; }
-.is-windows.is-native ::-webkit-scrollbar-thumb { border-radius: 3px; background: rgba(255, 255, 255, 0.22); }
 
 .panel-header,
 .panel-footer,
@@ -860,6 +861,7 @@ button:focus-visible {
 
 .changelog-release { padding: 10px 0; border-bottom: 1px solid var(--border); }
 .changelog-release:last-of-type { border-bottom: 0; }
+.changelog-release li { padding-left: 1px; }
 
 .changelog-release h4 {
   display: flex;
@@ -890,4 +892,5 @@ button:focus-visible {
 }
 .changelog-release strong { color: var(--text); font-weight: 600; }
 .changelog-empty { color: var(--muted); font-size: 12px; }
-.changelog-all { margin-top: 6px; }
+.changelog-more { display: block; margin-top: 4px; }
+.changelog-all { display: block; margin-top: 6px; }
