@@ -7,15 +7,19 @@ import {
   buildHeatmap,
   compareToBook,
   formatCredits,
+  formatDayKey,
   formatHour,
   formatModelName,
   formatMonthDay,
+  formatClock,
   formatShare,
   formatTokens,
   localDayKey,
+  summarizeCreditDays,
   summarizeCreditWeeks,
   summarizeQuotaWeeks,
   summarizeStats,
+  summarizeThisWeek,
   weekStart,
 } from "./stats-format.js";
 
@@ -114,36 +118,125 @@ function ModelList({ models, measure }) {
   );
 }
 
-function QuotaBars({ weeks, current, average }) {
-  const { t } = useI18n();
-  const bars = current ? [...weeks, { ...current, isCurrent: true }] : weeks;
-  const period = (window) => `${formatMonthDay(weekStart(window))}–${formatMonthDay(window.resetsAt)}`;
+// Bars for the 使用率 views. With a few bars (30 or 7 days) they spread across the width with a
+// label under each; with many (90 days, all) they pack to the right with dates at both ends.
+const SPARSE_BARS = 12;
+
+function BarChart({ label, bars, average = null, axis = ["", ""] }) {
+  const sparse = bars.length <= SPARSE_BARS;
+  const columns = sparse ? { gridTemplateColumns: `repeat(${bars.length}, minmax(0, 1fr))` } : undefined;
   return (
-    <div className="quota-chart">
-      <div className={`quota-bars ${bars.length > 30 ? "is-dense" : ""}`} role="img" aria-label={t("quota.chart")}>
-        {average !== null ? (
-          <div className="quota-average" style={{ bottom: `${average}%` }}>
-            <span>{t("quota.average", { percent: formatPercent(average) })}</span>
+    <div className={`quota-chart ${sparse ? "is-sparse" : ""} ${sparse && bars.length > 6 ? "is-crowded" : ""}`}>
+      {sparse && average ? (
+        <div className="quota-legend">
+          <i aria-hidden="true" />
+          {average.text}
+        </div>
+      ) : null}
+      <div className={`quota-bars ${bars.length > 30 ? "is-dense" : ""}`} style={columns} role="img" aria-label={label}>
+        {average ? (
+          <div className="quota-average" style={{ bottom: `${Math.min(average.height, 100)}%` }}>
+            {sparse ? null : <span>{average.text}</span>}
           </div>
         ) : null}
-        {bars.map((window) => (
-          <span
-            key={window.resetsAt}
-            className={`quota-bar ${window.isCurrent ? "is-current" : ""} ${window.estimated ? "is-estimated" : ""} ${window.usedPercent >= FULL_WEEK_PERCENT ? "is-full" : ""}`}
-            title={
-              t(window.estimated ? "quota.barEstimated" : "quota.barUsed", { period: period(window), percent: formatPercent(window.usedPercent) }) +
-              (window.isCurrent ? t("quota.barCurrent") : "")
-            }
-          >
-            <span style={{ height: `${Math.max(window.usedPercent, 1.5)}%` }} />
+        {bars.map((bar) => (
+          <span key={bar.key} className={`quota-bar ${bar.className ?? ""}`} title={bar.title}>
+            {bar.projection ? (
+              <span className="quota-projection" style={{ height: `${Math.min(bar.projection, 100)}%` }} />
+            ) : null}
+            <span className="quota-fill" style={{ height: `${bar.height}%` }} />
           </span>
         ))}
       </div>
-      <div className="quota-axis">
-        <span>{bars.length ? formatMonthDay(weekStart(bars[0])) : ""}</span>
-        <span>{current ? t("quota.thisWeek") : bars.length ? formatMonthDay(bars.at(-1).resetsAt) : ""}</span>
-      </div>
+      {sparse ? (
+        <div className="quota-labels" style={columns}>
+          {bars.map((bar) => (
+            <span key={bar.key} className={bar.isCurrent ? "is-current" : ""}>
+              {bar.label}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div className="quota-axis">
+          <span>{axis[0]}</span>
+          <span>{axis[1]}</span>
+        </div>
+      )}
     </div>
+  );
+}
+
+function windowBar(window, t, extra = {}) {
+  const period = `${formatMonthDay(weekStart(window))}–${formatMonthDay(window.resetsAt)}`;
+  const title =
+    t(window.estimated ? "quota.barEstimated" : "quota.barUsed", { period, percent: formatPercent(window.usedPercent) }) +
+    (window.isCurrent ? t("quota.barCurrent") : "");
+  const classes = [
+    window.isCurrent ? "is-current" : "",
+    window.estimated ? "is-estimated" : "",
+    window.usedPercent >= FULL_WEEK_PERCENT ? "is-full" : "",
+  ];
+  return {
+    key: window.resetsAt,
+    height: Math.max(window.usedPercent ?? 0, 1.5),
+    className: classes.filter(Boolean).join(" "),
+    title,
+    label: window.isCurrent ? t("quota.thisWeek") : formatMonthDay(weekStart(window)),
+    isCurrent: Boolean(window.isCurrent),
+    ...extra,
+  };
+}
+
+function QuotaBars({ weeks, current, average }) {
+  const { t } = useI18n();
+  const windows = current ? [...weeks, { ...current, isCurrent: true }] : weeks;
+  return (
+    <BarChart
+      label={t("quota.chart")}
+      bars={windows.map((window) => windowBar(window, t))}
+      average={average !== null ? { height: average, text: t("quota.average", { percent: formatPercent(average) }) } : null}
+      axis={[
+        windows.length ? formatMonthDay(weekStart(windows[0])) : "",
+        current ? t("quota.thisWeek") : windows.length ? formatMonthDay(windows.at(-1).resetsAt) : "",
+      ]}
+    />
+  );
+}
+
+// 7 days for Codex and Claude Code: this week against last week, and where this week is heading.
+function QuotaWeekFocus({ windows }) {
+  const { t } = useI18n();
+  const { current, previous, elapsedDays, projected } = useMemo(() => summarizeThisWeek(windows), [windows]);
+  if (!current && !previous) return <p className="stats-empty">{t("quota.empty")}</p>;
+  const approx = (estimated, text) => (estimated && text !== "—" ? `≈${text}` : text);
+  const bars = [];
+  if (previous) bars.push(windowBar(previous, t, { label: t("quota.lastWeek") }));
+  if (current) {
+    bars.push(
+      windowBar({ ...current, isCurrent: true }, t, {
+        projection: projected,
+        title: `${windowBar({ ...current, isCurrent: true }, t).title}${projected !== null ? ` · ${t("quota.projectionBar", { percent: formatPercent(projected) })}` : ""}`,
+      }),
+    );
+  }
+  return (
+    <>
+      <div className="stat-grid">
+        <StatCard label={t("quota.currentLabel")} value={formatPercent(current?.usedPercent)} />
+        <StatCard label={t("quota.projectedLabel")} value={projected === null ? "—" : `≈${formatPercent(projected)}`} />
+        <StatCard label={t("quota.lastWeekLabel")} value={approx(previous?.estimated, formatPercent(previous?.usedPercent))} />
+        <StatCard label={t("quota.resetLabel")} value={current ? formatMonthDay(current.resetsAt) : "—"} />
+      </div>
+      <BarChart label={t("quota.chart")} bars={bars} />
+      <p className="quota-note">
+        {current
+          ? t("quota.weekNote", {
+              days: elapsedDays.toFixed(1),
+              reset: `${formatMonthDay(current.resetsAt)} ${formatClock(current.resetsAt)}`,
+            })
+          : t("quota.noteNone")}
+      </p>
+    </>
   );
 }
 
@@ -155,6 +248,7 @@ function QuotaUsage({ windows, estimate, provider, range }) {
   if (windows.length === 0) {
     return <p className="stats-empty">{t("quota.empty")}</p>;
   }
+  if (range === "7d") return <QuotaWeekFocus windows={windows} />;
 
   let source = t("quota.sourceCodex", { date: formatMonthDay(summary.since) });
   if (provider === "claude") {
@@ -191,10 +285,50 @@ function QuotaUsage({ windows, estimate, provider, range }) {
   );
 }
 
+// 7 days for Qoder: credits per day.
+function CreditDays({ days, today }) {
+  const { t } = useI18n();
+  const summary = useMemo(() => summarizeCreditDays(days, today), [days, today]);
+  const max = Math.max(summary.peak, 1);
+  const bars = summary.days.map((day) => ({
+    key: day.date,
+    height: day.credits > 0 ? Math.max((day.credits / max) * 100, 1.5) : 0,
+    className: day.isToday ? "is-current" : "",
+    isCurrent: day.isToday,
+    label: day.isToday ? t("credits.today") : formatDayKey(day.date),
+    title: t("credits.dayBar", { date: formatDayKey(day.date), credits: formatCredits(day.credits) }),
+  }));
+  return (
+    <>
+      <div className="stat-grid">
+        <StatCard label={t("credits.dayTotal")} value={formatCredits(summary.total)} />
+        <StatCard label={t("credits.dayAverage")} value={formatCredits(summary.average)} />
+        <StatCard label={t("credits.dayPeak")} value={formatCredits(summary.peak)} />
+        <StatCard label={t("credits.today")} value={formatCredits(summary.today)} />
+      </div>
+      <BarChart
+        label={t("credits.dayChart")}
+        bars={bars}
+        average={summary.average ? { height: (summary.average / max) * 100, text: t("credits.averageDayLine", { credits: formatCredits(summary.average) }) } : null}
+      />
+      <p className="quota-note">{t(summary.total > 0 ? "credits.dayNote" : "credits.empty")}</p>
+    </>
+  );
+}
+
 function CreditUsage({ days, range, today }) {
   const { t } = useI18n();
   const summary = useMemo(() => summarizeCreditWeeks(days, range, today), [days, range, today]);
+  if (range === "7d") return <CreditDays days={days} today={today} />;
   const max = Math.max(...summary.weeks.map((week) => week.credits), 1);
+  const bars = summary.weeks.map((week) => ({
+    key: week.start,
+    height: week.credits > 0 ? Math.max((week.credits / max) * 100, 1.5) : 0,
+    className: week.isCurrent ? "is-current" : "",
+    isCurrent: week.isCurrent,
+    label: week.isCurrent ? t("quota.thisWeek") : formatDayKey(week.start),
+    title: t("credits.bar", { week: formatDayKey(week.start), credits: formatCredits(week.credits) }),
+  }));
   return (
     <>
       <div className="stat-grid">
@@ -203,28 +337,12 @@ function CreditUsage({ days, range, today }) {
         <StatCard label={t("credits.peak")} value={formatCredits(summary.peak)} />
         <StatCard label={t("credits.thisWeek")} value={formatCredits(summary.current)} />
       </div>
-      <div className="quota-chart">
-        <div className={`quota-bars ${summary.weeks.length > 30 ? "is-dense" : ""}`} role="img" aria-label={t("credits.chart")}>
-          {summary.average ? (
-            <div className="quota-average" style={{ bottom: `${(summary.average / max) * 100}%` }}>
-              <span>{t("credits.averageLine", { credits: formatCredits(summary.average) })}</span>
-            </div>
-          ) : null}
-          {summary.weeks.map((week) => (
-            <span
-              key={week.start}
-              className={`quota-bar ${week.isCurrent ? "is-current" : ""}`}
-              title={t("credits.bar", { week: week.start.slice(5).replace("-", "/"), credits: formatCredits(week.credits) })}
-            >
-              <span style={{ height: `${week.credits > 0 ? Math.max((week.credits / max) * 100, 1.5) : 0}%` }} />
-            </span>
-          ))}
-        </div>
-        <div className="quota-axis">
-          <span>{summary.weeks[0]?.start.slice(5).replace("-", "/")}</span>
-          <span>{t("quota.thisWeek")}</span>
-        </div>
-      </div>
+      <BarChart
+        label={t("credits.chart")}
+        bars={bars}
+        average={summary.average ? { height: (summary.average / max) * 100, text: t("credits.averageLine", { credits: formatCredits(summary.average) }) } : null}
+        axis={[summary.weeks[0] ? formatDayKey(summary.weeks[0].start) : "", t("quota.thisWeek")]}
+      />
       <p className="quota-note">{t("credits.note")}</p>
     </>
   );

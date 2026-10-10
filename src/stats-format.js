@@ -138,10 +138,21 @@ const WEEK_SECONDS = 7 * 86_400;
  * estimate (`estimated: true`). Averages use windows that ended inside the range; the open
  * window is reported as `current`.
  */
+/**
+ * Codex starts a weekly window at the first use after a reset. Until then each reading says "0%,
+ * resets in 7 days" with a reset time that moves with the reading, so idle readings leave
+ * one-off 0% windows that never ran. They are not weeks of usage.
+ */
+export function isIdleWindow(window) {
+  return window.usedPercent === 0 && !window.estimated && window.resetsAt - window.lastAt / 1000 >= WEEK_SECONDS - 3600;
+}
+
 export function summarizeQuotaWeeks(windows = [], range = "all", now = Date.now()) {
   const nowSeconds = now / 1000;
   const cutoff = RANGE_DAYS[range] ? nowSeconds - RANGE_DAYS[range] * 86_400 : -Infinity;
-  const weeks = windows.filter((window) => window.resetsAt <= nowSeconds && window.resetsAt > cutoff);
+  const weeks = windows.filter(
+    (window) => window.resetsAt <= nowSeconds && window.resetsAt > cutoff && !isIdleWindow(window),
+  );
   // Several accounts can each have an open window; the most recently seen one is "this week".
   const current =
     windows.filter((window) => window.resetsAt > nowSeconds).sort((a, b) => b.lastAt - a.lastAt)[0] ?? null;
@@ -168,6 +179,24 @@ export function summarizeQuotaWeeks(windows = [], range = "all", now = Date.now(
 
 export function weekStart(window) {
   return window.resetsAt - WEEK_SECONDS;
+}
+
+/**
+ * The 7-day view: this week's window, the week before it, and where this week is heading at
+ * its current pace (`projected`, null until a few hours in, when the pace means little).
+ */
+export function summarizeThisWeek(windows = [], now = Date.now()) {
+  const { current } = summarizeQuotaWeeks(windows, "all", now);
+  const nowSeconds = now / 1000;
+  const completed = windows.filter((window) => window.resetsAt <= nowSeconds && !isIdleWindow(window));
+  const previous = completed.sort((a, b) => b.resetsAt - a.resetsAt)[0] ?? null;
+  const elapsed = current ? Math.min(Math.max(nowSeconds - weekStart(current), 0), WEEK_SECONDS) : 0;
+  const elapsedDays = elapsed / 86_400;
+  const projected =
+    current && Number.isFinite(current.usedPercent) && elapsed >= 6 * 3600
+      ? (current.usedPercent * WEEK_SECONDS) / elapsed
+      : null;
+  return { current, previous, elapsedDays, projected };
 }
 
 /** `9/16`, or `2025/11/6` outside the current year. */
@@ -201,6 +230,28 @@ export function summarizeCreditWeeks(days, range = "all", today = localDayKey())
     peak: values.length ? Math.max(...values) : null,
     current: weeks.at(-1)?.isCurrent ? weeks.at(-1).credits : 0,
   };
+}
+
+/** Credits per day for the last `count` days, oldest first, for Qoder's 7-day view. */
+export function summarizeCreditDays(days, today = localDayKey(), count = 7) {
+  const byDate = new Map(days.map((day) => [day.date, day.credits ?? 0]));
+  const list = [];
+  for (let offset = count - 1; offset >= 0; offset -= 1) {
+    const date = addDays(today, -offset);
+    list.push({ date, credits: byDate.get(date) ?? 0, isToday: offset === 0 });
+  }
+  const values = list.map((day) => day.credits);
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return { days: list, total, average: total / count, peak: Math.max(...values), today: list.at(-1).credits };
+}
+
+/** `9/16` from a `2026-09-16` day key. */
+export const formatDayKey = (key) => `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}`;
+
+/** `16:00` (the reset time of day in the 7-day view). */
+export function formatClock(seconds) {
+  const date = new Date(seconds * 1000);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 export function formatCredits(value) {

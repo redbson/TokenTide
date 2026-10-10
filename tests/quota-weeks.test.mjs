@@ -14,7 +14,14 @@ import {
 } from "../server/quota-weeks.mjs";
 import { aggregateClaudeTranscript, aggregateCodexRollout } from "../server/usage-stats.mjs";
 import { createUsageService } from "../server/usage-service.mjs";
-import { FULL_WEEK_PERCENT, formatMonthDay, summarizeQuotaWeeks } from "../src/stats-format.js";
+import {
+  FULL_WEEK_PERCENT,
+  formatMonthDay,
+  isIdleWindow,
+  summarizeCreditDays,
+  summarizeQuotaWeeks,
+  summarizeThisWeek,
+} from "../src/stats-format.js";
 
 const DAY = 86_400;
 // Weekly windows ending at 2026-09-16 14:36 local-ish epoch (exact value is arbitrary).
@@ -231,4 +238,40 @@ test("flags figures that include estimated weeks", () => {
   const recentOnly = summarizeQuotaWeeks(windows, "7d", now);
   assert.equal(recentOnly.estimatedWeeks, 0);
   assert.equal(recentOnly.peakEstimated, false);
+});
+
+test("idle Codex readings do not count as weeks", () => {
+  // Before the first use after a reset, Codex reports "0%, resets 7 days from now" on every read.
+  const idle = { resetsAt: END, usedPercent: 0, firstAt: (END - 7 * DAY) * 1000, lastAt: (END - 7 * DAY + 60) * 1000 };
+  const quiet = { resetsAt: END - 14 * DAY, usedPercent: 0, firstAt: (END - 21 * DAY) * 1000, lastAt: (END - 16 * DAY) * 1000 };
+  const busy = { resetsAt: END - 7 * DAY, usedPercent: 40, firstAt: (END - 14 * DAY) * 1000, lastAt: (END - 8 * DAY) * 1000 };
+  assert.equal(isIdleWindow(idle), true);
+  assert.equal(isIdleWindow(quiet), false, "a window watched for days at 0% did run");
+  assert.equal(isIdleWindow(busy), false);
+  const summary = summarizeQuotaWeeks([quiet, busy, idle], "all", (END + DAY) * 1000);
+  assert.deepEqual(summary.weeks.map((window) => window.usedPercent), [0, 40]);
+  assert.equal(summary.average, 20);
+});
+
+test("the 7-day view projects this week at its current pace", () => {
+  const now = (END - 5 * DAY) * 1000; // two days into the week ending at END
+  const previous = { resetsAt: END - 7 * DAY, usedPercent: 60, firstAt: 0, lastAt: (END - 8 * DAY) * 1000 };
+  const current = { resetsAt: END, usedPercent: 20, firstAt: (END - 6 * DAY) * 1000, lastAt: now };
+  const week = summarizeThisWeek([previous, current], now);
+  assert.equal(week.current.usedPercent, 20);
+  assert.equal(week.previous.usedPercent, 60);
+  assert.equal(week.elapsedDays, 2);
+  assert.equal(week.projected, 70);
+  // Too early in the week to project.
+  assert.equal(summarizeThisWeek([current], (END - 7 * DAY + 3600) * 1000).projected, null);
+});
+
+test("Qoder's 7-day view lists every day, today last", () => {
+  const days = [{ date: "2026-10-04", credits: 30 }, { date: "2026-10-09", credits: 10 }, { date: "2026-09-01", credits: 99 }];
+  const summary = summarizeCreditDays(days, "2026-10-10");
+  assert.deepEqual(summary.days.map((day) => day.date), ["2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09", "2026-10-10"]);
+  assert.equal(summary.days.at(-1).isToday, true);
+  assert.equal(summary.total, 40);
+  assert.equal(summary.peak, 30);
+  assert.equal(summary.today, 0);
 });
