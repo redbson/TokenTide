@@ -48,6 +48,8 @@ const DEFAULT_SETTINGS = {
   language: "system",
   // The version whose release notes the user has seen; a newer app shows "What's new" once.
   lastSeenVersion: null,
+  // macOS menu bar: "detailed" (CX 93% …) or "compact" (one thin bar per tool).
+  menuBarStyle: "detailed",
 };
 
 // Present when the page runs inside a native shell: the macOS menu-bar panel
@@ -487,8 +489,9 @@ export function App() {
         remaining: getPrimaryRemaining(provider),
       })),
       low: shown.some((provider) => isLow(provider)),
+      style: settings.menuBarStyle === "compact" ? "compact" : "detailed",
     });
-  }, [providers, updatedAt, settings.hiddenProviders]);
+  }, [providers, updatedAt, settings.hiddenProviders, settings.menuBarStyle]);
 
   // The native shell uses the same language for its menu, tooltips, and loading screens.
   useEffect(() => {
@@ -639,6 +642,7 @@ export function App() {
             onUpdateAction={updateAction}
             version={APP_VERSION}
             onOpenChangelog={openChangelog}
+            showMenuBarStyle={Boolean(nativeBridge) && !IS_WINDOWS}
           />
         )}
       </div>

@@ -1,6 +1,6 @@
 import { useI18n } from "./i18n-context.js";
 import { LANGUAGE_NAMES } from "./i18n.js";
-import { BellIcon, ClockIcon, DownloadIcon, GlobeIcon, LoginIcon, NotesIcon } from "./icons.jsx";
+import { BellIcon, ClockIcon, DownloadIcon, GlobeIcon, LoginIcon, MenuBarIcon, NotesIcon } from "./icons.jsx";
 import { LOW_USAGE_THRESHOLD, PROVIDER_META, STATS_PROVIDERS, formatAccount, isVisibleProvider } from "./usage-format.js";
 
 function Toggle({ checked, onChange, label, disabled = false }) {
@@ -113,6 +113,20 @@ function LanguagePicker({ value, onChange }) {
   );
 }
 
+// The macOS menu-bar readout: labeled percentages, or one thin bar per tool.
+function MenuBarStylePicker({ value, onChange }) {
+  const { t } = useI18n();
+  return (
+    <div className="segmented settings-segmented" role="radiogroup" aria-label={t("settings.menuBar")}>
+      {["detailed", "compact"].map((id) => (
+        <button key={id} type="button" role="radio" aria-checked={value === id} onClick={() => onChange(id)}>
+          {t(`settings.menuBar.${id}`)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // What the Shown tools row says about a tool: its plan when connected, or why it has no data.
 function providerDetail(provider, t, language) {
   if (!provider) return t("provider.checking");
@@ -163,6 +177,7 @@ export function SettingsView({
   onUpdateAction,
   version,
   onOpenChangelog,
+  showMenuBarStyle = false,
 }) {
   const { t } = useI18n();
   const loginEnabled = loginItem.status === "enabled" || loginItem.status === "requiresApproval";
@@ -177,6 +192,19 @@ export function SettingsView({
             detail={t("settings.languageDetail")}
             action={<LanguagePicker value={settings.language} onChange={(value) => onSettingChange("language", value)} />}
           />
+          {showMenuBarStyle ? (
+            <SettingRow
+              icon={<MenuBarIcon />}
+              title={t("settings.menuBar")}
+              detail={t(settings.menuBarStyle === "compact" ? "settings.menuBarDetail.compact" : "settings.menuBarDetail.detailed")}
+              action={
+                <MenuBarStylePicker
+                  value={settings.menuBarStyle === "compact" ? "compact" : "detailed"}
+                  onChange={(value) => onSettingChange("menuBarStyle", value)}
+                />
+              }
+            />
+          ) : null}
           <SettingRow
             icon={<LoginIcon />}
             title={t("settings.launch")}

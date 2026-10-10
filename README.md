@@ -15,7 +15,7 @@ TokenTide is a macOS menu-bar widget (with a [Windows tray version](#windows-pre
 
 ## Features
 
-- **Menu-bar readout**: small lines — `CX` / `CC` for the remaining current Codex and Claude Code window, and `QD` beside them for Qoder's credits.
+- **Menu-bar readout**: two styles. **Detailed** shows small lines — `CX` / `CC` for the remaining current Codex and Claude Code window, and `QD` beside them for Qoder's credits. **Compact** is a small gauge — one vertical bar per tool, filled from the bottom to what's left — in about a fifth of the width. Hover either one for the exact numbers.
 - **Quota tab**: current-window and weekly quota left for Codex and Claude Code, with reset countdowns; Qoder's own credits left (plan plus add-on; the team's org package has its own row and is not counted), with a row and credit count for each pool; a notice when a window drops below 20%; refreshes every 5 minutes, and again when you open the panel if the data is more than a minute old.
 - **History · Overview / Models** (Codex, Claude Code, and Qoder — Qoder is measured in credits, since it reports no tokens): sessions, messages, tokens, active days, streaks, peak hour, and top model, modeled on Claude Code's `/stats`, plus a 26-week heatmap.
 - **History · Utilization**: how much of each weekly quota you actually used — average, peak week, weeks that maxed out, this week so far — with a bar per week, over the last 7, 30, or 90 days or all time. For Qoder, credits used per week.
@@ -89,6 +89,7 @@ TokenTide also runs on Windows 10 and 11 (x64) as a tray app: the same panel, op
 - **History**: switch between Codex, Claude Code, and Qoder at the top (Qoder appears once this Mac has Qoder sessions), then pick Overview / Models / Utilization and a range (All / 90d / 30d / 7d).
 - **Settings**:
   - **Language**: English, Chinese (中文), or follow the system — Chinese when your Mac's primary language is Chinese, English otherwise. The menu-bar menu follows it too.
+  - **Menu bar** (macOS): Detailed or Compact, see above.
   - **Shown tools**: turn Codex, Claude Code, or Qoder off to leave it out of the Quota tab, the menu bar, low-quota notices, and History. At least one tool stays on.
   - **Launch at login**: shows TokenTide in the menu bar after you log in. It uses macOS Login Items, so you can also turn it off in System Settings → General → Login Items.
   - **Automatic updates**: see [Automatic updates](#automatic-updates).
@@ -181,6 +182,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 ## Changelog
 
 ### Unreleased
+- Menu bar style (macOS): **Detailed** (`CX 93%` …) or **Compact** (a small gauge with one vertical bar per tool, much narrower), in Settings → General. Hovering the menu-bar item lists every tool's remaining quota.
 - In-app release notes: Settings → Updates → **What's new** lists what changed in each version, and after an update the Quota tab offers them once.
 
 ### 0.6.3

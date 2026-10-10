@@ -32,6 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var lastHidden = Date.distantPast
     var outsideClickMonitor: Any?
     var quotaLow = false
+    /// The last readout from the page: (short label, full name, remaining %), for the tooltip.
+    var summaryItems: [(label: String, name: String, remaining: Double?)] = []
     var serviceRestarts = 0
     var serviceStartedAt = Date.distantPast
     var isQuitting = false
@@ -97,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
     /// Draws the readout as small text, two lines per column (CX / CC, then QD beside them),
     /// like the network and memory readouts in the menu bar.
-    func updateStatusItem(lines: [String], low: Bool) {
+    func updateStatusItem(lines: [String]) {
         guard let button = statusItem.button else { return }
         let font = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .semibold)
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
@@ -123,12 +125,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         image.isTemplate = true
         button.image = image
         button.imagePosition = .imageOnly
-        quotaLow = low
-        updateTooltip()
     }
 
+    /// The compact readout: a small gauge, one vertical bar per tool filled from the bottom to
+    /// its remaining quota, inside a thin rounded frame (19 pt tall, about 23 pt wide for three
+    /// tools; thin bars leave 14 pt of travel, so a 10% difference is visible). The exact
+    /// numbers are in the tooltip.
+    func updateCompactStatusItem(remaining: [Double?]) {
+        guard let button = statusItem.button else { return }
+        let bars = Array(remaining.prefix(4))
+        // Gap and side padding about equal, so the bars sit evenly in the frame.
+        let barWidth: CGFloat = 2, gap: CGFloat = 4, padding: CGFloat = 4.5
+        let barsWidth = barWidth * CGFloat(bars.count) + gap * CGFloat(max(bars.count - 1, 0))
+        let width = max(barsWidth + padding * 2, 12)
+        let height: CGFloat = 22, frameHeight: CGFloat = 19
+        let image = NSImage(size: NSSize(width: width, height: height), flipped: true) { _ in
+            let top = (height - frameHeight) / 2
+            let frame = NSBezierPath(
+                roundedRect: NSRect(x: 0.5, y: top + 0.5, width: width - 1, height: frameHeight - 1),
+                xRadius: 4.5, yRadius: 4.5
+            )
+            frame.lineWidth = 1
+            NSColor.black.withAlphaComponent(0.55).setStroke()
+            frame.stroke()
+            let innerTop = top + 2.5, innerHeight = frameHeight - 5
+            var x = (width - barsWidth) / 2
+            for value in bars {
+                NSColor.black.withAlphaComponent(0.22).setFill()
+                NSBezierPath(roundedRect: NSRect(x: x, y: innerTop, width: barWidth, height: innerHeight), xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
+                if let value {
+                    // An empty quota keeps a sliver, so it differs from a tool without a reading.
+                    let filled = max(1.5, innerHeight * CGFloat(min(max(value, 0), 100)) / 100)
+                    NSColor.black.setFill()
+                    NSBezierPath(roundedRect: NSRect(x: x, y: innerTop + innerHeight - filled, width: barWidth, height: filled), xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
+                }
+                x += barWidth + gap
+            }
+            return true
+        }
+        image.isTemplate = true
+        button.image = image
+        button.imagePosition = .imageOnly
+    }
+
+    /// Lists every shown tool's remaining quota, so the compact readout's numbers are a hover away.
     func updateTooltip() {
-        statusItem.button?.toolTip = quotaLow ? tr("TokenTide · 有额度偏低", "TokenTide · quota running low") : "TokenTide"
+        var lines = [quotaLow ? tr("TokenTide · 有额度偏低", "TokenTide · quota running low") : "TokenTide"]
+        for item in summaryItems {
+            let percent = item.remaining.map { "\(Int($0.rounded()))%" } ?? "—"
+            lines.append(tr("\(item.name) 剩余 \(percent)", "\(item.name): \(percent) left"))
+        }
+        statusItem.button?.toolTip = lines.joined(separator: "\n")
     }
 
     @objc func statusItemClicked(_ sender: NSStatusBarButton) {
@@ -250,13 +297,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             contentHeight = CGFloat(height)
             if panel.isVisible { positionPanel(); panel.invalidateShadow() }
         case "summary":
-            let items = body["items"] as? [[String: Any]] ?? []
-            let lines = items.map { item -> String in
-                let label = item["label"] as? String ?? "?"
-                guard let remaining = item["remaining"] as? Double else { return "\(label) —" }
-                return "\(label) \(Int(remaining.rounded()))%"
+            let items = (body["items"] as? [[String: Any]] ?? []).map { item in
+                (label: item["label"] as? String ?? "?", name: item["name"] as? String ?? item["label"] as? String ?? "?",
+                 remaining: (item["remaining"] as? NSNumber)?.doubleValue)
             }
-            if lines.isEmpty { showStatusGlyph() } else { updateStatusItem(lines: lines, low: body["low"] as? Bool ?? false) }
+            summaryItems = items
+            quotaLow = body["low"] as? Bool ?? false
+            if items.isEmpty {
+                showStatusGlyph()
+            } else if body["style"] as? String == "compact" {
+                updateCompactStatusItem(remaining: items.map(\.remaining))
+            } else {
+                updateStatusItem(lines: items.map { item in
+                    guard let remaining = item.remaining else { return "\(item.label) —" }
+                    return "\(item.label) \(Int(remaining.rounded()))%"
+                })
+            }
+            updateTooltip()
         case "hide":
             hidePanel()
         case "storageMigrated":

@@ -31,3 +31,6 @@ export const CloseIcon = () => (
 export const NotesIcon = () => (
   <Icon><path d="M7 3.5h7.5L19 8v12.5H7z" /><path d="M14.5 3.5V8H19" /><path d="M10 12h6M10 15.5h6" /></Icon>
 );
+export const MenuBarIcon = () => (
+  <Icon><rect x="3.5" y="5" width="17" height="14" rx="2.5" /><path d="M3.5 9h17" /><path d="M13 7h5" /></Icon>
+);

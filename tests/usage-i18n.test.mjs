@@ -34,6 +34,7 @@ test("every key used in the UI exists in the dictionary", () => {
   for (const id of ["quota", "history", "settings"]) assert.ok(`tabs.${id}` in MESSAGES.en);
   for (const id of ["overview", "models", "quota"]) assert.ok(`stats.${id}` in MESSAGES.en);
   for (const id of ["all", "90d", "30d", "7d"]) assert.ok(`range.${id}` in MESSAGES.en);
+  for (const id of ["detailed", "compact"]) assert.ok(`settings.menuBar.${id}` in MESSAGES.en && `settings.menuBarDetail.${id}` in MESSAGES.en);
   for (const code of ["qoderCliMissing", "claudeSignedOut", "claudeNoPlan", "claudeTemporary"]) assert.ok(`providerError.${code}` in MESSAGES.en, code);
   for (const code of ["network", "response", "checksumFile", "download", "checksum", "package", "tool", "permission", "unknown"]) {
     assert.ok(`updateError.${code}` in MESSAGES.en, code);
@@ -99,11 +100,13 @@ test("Windows wording overrides existing keys with the same placeholders", () =>
   assert.equal(translate("en", "settings.providerNotInstalled", {}, "windows"), "Not installed on this PC");
   assert.equal(translate("en", "settings.providerNotInstalled", {}, "mac"), "Not installed on this Mac");
   assert.equal(translate("zh", "login.off", {}, "windows"), "登录 Windows 后自动启动 TokenTide");
-  // Every English string that names the Mac has a Windows version.
+  // Every string that names the Mac has a Windows version, except the menu-bar style setting,
+  // which only the macOS app shows.
+  const macOnly = (key) => key.startsWith("settings.menuBar");
   for (const [key, text] of Object.entries(MESSAGES.en)) {
-    if (/\bMac\b|menu bar|System Settings|Login Items/.test(text)) assert.ok(key in PLATFORM_MESSAGES.windows.en, key);
+    if (!macOnly(key) && /\bMac\b|menu bar|System Settings|Login Items/i.test(text)) assert.ok(key in PLATFORM_MESSAGES.windows.en, key);
   }
   for (const [key, text] of Object.entries(MESSAGES.zh)) {
-    if (/Mac|菜单栏|系统设置|登录项/.test(text)) assert.ok(key in PLATFORM_MESSAGES.windows.zh, key);
+    if (!macOnly(key) && /Mac|菜单栏|系统设置|登录项/.test(text)) assert.ok(key in PLATFORM_MESSAGES.windows.zh, key);
   }
 });
