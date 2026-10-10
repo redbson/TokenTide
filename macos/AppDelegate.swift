@@ -22,6 +22,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     var lastHidden = Date.distantPast
     var outsideClickMonitor: Any?
     var quotaLow = false
+    var serviceRestarts = 0
+    var serviceStartedAt = Date.distantPast
+    var isQuitting = false
     let updater = Updater()
 
     // MARK: Language
@@ -246,6 +249,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             if lines.isEmpty { showStatusGlyph() } else { updateStatusItem(lines: lines, low: body["low"] as? Bool ?? false) }
         case "hide":
             hidePanel()
+        case "serviceUnreachable":
+            // The panel's own request failed; make sure the service is still there.
+            ensureServiceRunning()
         case "setLanguage":
             guard let chosen = body["language"] as? String, ["zh", "en"].contains(chosen) else { return }
             UserDefaults.standard.set(chosen, forKey: "language")
@@ -404,6 +410,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }.resume()
     }
 
+    /// Restarts the local service when it is gone, and reloads the panel once it answers.
+    func ensureServiceRunning() {
+        guard !isQuitting, service?.isRunning != true else { return }
+        attempts = 0
+        probe(startIfNeeded: true)
+    }
+
+    /// The service exited on its own (crash, or killed): bring it back, with a growing delay.
+    func serviceDidStop() {
+        service = nil
+        guard !isQuitting else { return }
+        // A service that ran for a while and then died starts over with a full set of tries.
+        if Date().timeIntervalSince(serviceStartedAt) > 300 { serviceRestarts = 0 }
+        guard serviceRestarts < 5 else {
+            showLoading(
+                tr("本机额度服务反复退出", "The local quota service keeps stopping"),
+                detail: tr(
+                    "请退出并重新打开 TokenTide。日志：~/Library/Logs/TokenTide.log",
+                    "Quit TokenTide and open it again. Log: ~/Library/Logs/TokenTide.log"
+                )
+            )
+            return
+        }
+        serviceRestarts += 1
+        DispatchQueue.main.asyncAfter(deadline: .now() + Double(serviceRestarts)) { [weak self] in
+            self?.ensureServiceRunning()
+        }
+    }
+
     /// Runs the bundled local service (`Resources/app/server/main.mjs`) with the user's Node.js.
     func startService() {
         if service?.isRunning == true { return }
@@ -422,7 +457,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let log = openLogFile()
         process.standardOutput = log ?? FileHandle.nullDevice
         process.standardError = log ?? FileHandle.nullDevice
-        do { try process.run(); service = process } catch { }
+        process.terminationHandler = { [weak self] _ in
+            DispatchQueue.main.async {
+                guard let self, self.service == process else { return }
+                self.serviceDidStop()
+            }
+        }
+        do {
+            try process.run()
+            service = process
+            serviceStartedAt = Date()
+        } catch { }
     }
 
     func openLogFile() -> FileHandle? {
@@ -441,6 +486,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        isQuitting = true
         if service?.isRunning == true { service?.terminate() }
     }
 }

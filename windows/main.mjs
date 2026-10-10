@@ -284,6 +284,13 @@ function handleMessage(message) {
     case "hide":
       hidePanel();
       break;
+    case "serviceUnreachable":
+      // The panel's own request failed; make sure the service is still there.
+      if (!service) {
+        serviceRestarts = 0;
+        startService();
+      }
+      break;
     case "setLanguage":
       if (["zh", "en"].includes(message.language)) {
         saveShellSettings({ language: message.language });

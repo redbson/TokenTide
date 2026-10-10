@@ -180,6 +180,9 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 
 ## 更新日志
 
+### 未发布
+- 本机额度服务意外退出（崩溃或被其他程序结束）时，应用会自动重新启动它，不再停留在旧数据上。
+
 ### 0.6.2
 - Claude Code 退出登录时，额度栏里有「登录 Claude Code」一键登录按钮（在终端 / Windows 命令行窗口里运行 `claude auth login`），重新打开面板时自动刷新额度。
 - Claude Code 偶尔返回不了套餐数据时先重试一次，仍失败则提示「暂时没能取到额度」，不再显示「没有套餐额度」；使用 API Key 或第三方服务时单独说明。

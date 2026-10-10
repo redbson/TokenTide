@@ -180,6 +180,9 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 
 ## Changelog
 
+### Unreleased
+- If the local quota service stops (crash, or killed by something else), the app restarts it by itself instead of leaving the panel stuck on old readings.
+
 ### 0.6.2
 - Claude Code signed out: a one-click **Sign in to Claude Code** button (opens Terminal, or a command window on Windows, on `claude auth login`); the quota is read again when you reopen the panel.
 - A Claude Code read that briefly returns no plan data is retried once, then shown as a temporary problem instead of "no plan limits". API-key and third-party setups get their own explanation.

@@ -315,6 +315,8 @@ export function App() {
         }
         applyPayload(await response.json());
       } catch (error) {
+        // Connection refused: the local service is gone, so ask the shell to bring it back.
+        if (error instanceof TypeError) postNative({ type: "serviceUnreachable" });
         setBanner(
           error instanceof TypeError || !error?.message
             ? { tone: "error", key: error instanceof TypeError ? "error.serviceUnreachable" : "error.refreshFailed" }
