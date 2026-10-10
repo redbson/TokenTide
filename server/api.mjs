@@ -6,7 +6,7 @@ import { createStatsService } from "./usage-stats.mjs";
  * The local JSON API (`/api/usage`, `/api/stats`), shared by the Vite dev server and the
  * packaged app's server. `services` lets tests replace the real readers.
  */
-export function createLocalApi(services = {}) {
+export function createLocalApi(services = {}, { migration = null } = {}) {
   let usageService = services.usageService;
   let statsService = services.statsService;
   if (!usageService || !statsService) {
@@ -18,6 +18,11 @@ export function createLocalApi(services = {}) {
   const routes = {
     "/api/usage": [() => usageService.read(), "Local usage could not be read."],
     "/api/stats": [() => statsService.read(), "Local history could not be read."],
+    // Lets the native shells tell TokenTide's service apart from another program on the port,
+    // and whether the old-port hand-over (server/storage-migration.mjs) is waiting.
+    "/api/health": [async () => ({ app: "tokentide", migrationPending: Boolean(migration?.pending) }), "Unavailable."],
+    // The panel's settings and quota trend from the old origin, delivered once.
+    "/api/migration": [async () => ({ state: migration?.take() ?? null }), "Unavailable."],
   };
 
   return {

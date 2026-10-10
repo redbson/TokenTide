@@ -7,16 +7,23 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { createLocalApi } from "./api.mjs";
 import { createAppServer } from "./app-server.mjs";
+import { APP_PORT, createMigrationStash, openLegacyPort } from "./storage-migration.mjs";
 
 const { values } = parseArgs({
   options: {
-    port: { type: "string", default: "4173" },
+    port: { type: "string", default: String(APP_PORT) },
     client: { type: "string", default: fileURLToPath(new URL("../client/", import.meta.url)) },
+    // The port of earlier versions, opened briefly to carry the panel's storage over.
+    "legacy-port": { type: "string" },
   },
 });
 
 const port = Number(values.port);
-const api = createLocalApi();
+const migration = createMigrationStash();
+const legacyListening = values["legacy-port"]
+  ? await openLegacyPort({ stash: migration, legacyPort: Number(values["legacy-port"]), appPort: port })
+  : false;
+const api = createLocalApi({}, { migration });
 const server = createAppServer({ api, clientDir: values.client, port });
 
 // Electron utility processes talk to the app through `process.parentPort`.
@@ -29,7 +36,7 @@ server.on("error", (error) => {
 });
 server.listen(port, "127.0.0.1", () => {
   console.log(`TokenTide service on http://127.0.0.1:${port}/`);
-  parent?.postMessage({ type: "listening", port });
+  parent?.postMessage({ type: "listening", port, migrationPending: legacyListening });
 });
 
 const shutdown = () => {

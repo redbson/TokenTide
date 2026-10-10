@@ -132,7 +132,7 @@ TokenTide 在本机写入的文件：
 ## 常见问题
 
 - **面板显示「无法启动本机额度服务」**：确认装了 Node.js 20 或更新版本，并且 `node` 能在 `~/.local/bin`、`/opt/homebrew/bin`、`/usr/local/bin` 或登录 shell 的 PATH 里找到。详细原因看 `~/Library/Logs/TokenTide.log`。
-- **端口 4173 被占用**：TokenTide 固定使用 4173 端口，请先关掉占用该端口的程序。
+- **端口 46173 被占用**：TokenTide 使用 `127.0.0.1` 上的 46173 端口。如果被其他程序占用，面板会直接提示，而不会显示那个程序的页面；关掉它后 TokenTide 会在 10 秒左右自动重新连接。（0.6.3 之前用的是 4173，也是 `vite preview` 的默认端口。）
 - **自动更新失败**：「设置 → 更新」会显示原因；也可以随时到 [Releases](https://github.com/redbson/TokenTide/releases/latest) 手动下载，覆盖安装即可，设置和记录都会保留。
 - **某个服务显示「不可用」**：在终端运行一次 `codex`、`claude` 或 `qodercli`，确认已经登录。如果 Claude Code 已退出登录，它那一栏会有「登录 Claude Code」按钮，点一下就会在终端里运行 `claude auth login`。
 - **Claude Code 提示暂时没能取到额度**：是 Claude Code 自己没连上 Anthropic 的服务器（多为网络或代理问题）。TokenTide 会马上重试一次，下次刷新时再试。
@@ -153,7 +153,7 @@ npm --prefix windows start           # 从源码运行 Windows 托盘版（在 M
 node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.Y.Z.exe
 ```
 
-开发时 Vite 用 5173 端口，和装好的 TokenTide（4173）互不影响。在浏览器里面板会居中显示在深色背景上；在 app 里则铺满下拉面板。
+开发时 Vite 用 5173 端口，和装好的 TokenTide（46173）互不影响。在浏览器里面板会居中显示在深色背景上；在 app 里则铺满下拉面板。
 
 ### 发布新版本
 
@@ -161,7 +161,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 2. 在 GitHub 上发布一个标签为 `vX.Y.Z` 的 Release，或者运行：
 
    ```bash
-   gh release create v0.6.3 --generate-notes
+   gh release create v0.6.4 --generate-notes
    ```
 
 3. [Release 工作流](.github/workflows/release.yml) 会自动跑测试、打包通用版 Mac app 和 Windows 安装包，并把 `TokenTide-X.Y.Z.zip`、`TokenTide-Setup-X.Y.Z.exe`、它们的 `.sha256` 校验文件，以及不带版本号的 `TokenTide.zip` / `TokenTide-Setup.exe`（供下载链接使用）附加到这个 Release 上。已安装的 TokenTide 会在下次检查时自动更新。
@@ -180,7 +180,9 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 
 ## 更新日志
 
-### 未发布
+### 0.6.3
+- TokenTide 的端口从 4173（也是 `vite preview` 的默认端口）改为 46173，Vite 项目不会再占用它的端口或结束它的服务。首次启动时会自动迁移你的设置和额度趋势。
+- 显示面板前会先确认端口上响应的确实是 TokenTide；如果端口被其他程序占用，会直接提示，端口空出来后自动重新连接。
 - 本机额度服务意外退出（崩溃或被其他程序结束）时，应用会自动重新启动它，不再停留在旧数据上。
 
 ### 0.6.2

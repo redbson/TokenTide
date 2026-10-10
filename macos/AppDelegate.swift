@@ -8,7 +8,17 @@ final class DropdownPanel: NSPanel {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMessageHandler, WKNavigationDelegate {
-    let address = URL(string: "http://127.0.0.1:4173/")!
+    // 4173, used before 0.6.3, is Vite's `vite preview` default, so other projects kept taking it.
+    static let port = 46173
+    static let legacyPort = 4173
+    let address = URL(string: "http://127.0.0.1:\(AppDelegate.port)/")!
+    let health = URL(string: "http://127.0.0.1:\(AppDelegate.port)/api/health")!
+    let legacyMigrate = URL(string: "http://127.0.0.1:\(AppDelegate.legacyPort)/migrate")!
+    /// Set once the panel's storage from the old port's origin has been carried over.
+    var storageMigrated: Bool {
+        get { UserDefaults.standard.bool(forKey: "storageMigrated") }
+        set { UserDefaults.standard.set(newValue, forKey: "storageMigrated") }
+    }
     let panelWidth: CGFloat = 360
     let panelGap: CGFloat = 6
     let panelBackground = NSColor(srgbRed: 0x23 / 255, green: 0x24 / 255, blue: 0x28 / 255, alpha: 1)
@@ -249,6 +259,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             if lines.isEmpty { showStatusGlyph() } else { updateStatusItem(lines: lines, low: body["low"] as? Bool ?? false) }
         case "hide":
             hidePanel()
+        case "storageMigrated":
+            storageMigrated = true
         case "serviceUnreachable":
             // The panel's own request failed; make sure the service is still there.
             ensureServiceRunning()
@@ -383,14 +395,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         if panel.isVisible { positionPanel() }
     }
 
+    /// Checks that TokenTide's own service answers on the port (`/api/health`), then loads the
+    /// panel; starts the service when nothing answers. Another program on the port is never shown.
     func probe(startIfNeeded: Bool) {
-        var request = URLRequest(url: address)
+        var request = URLRequest(url: health)
         request.timeoutInterval = 2
-        URLSession.shared.dataTask(with: request) { [weak self] _, response, _ in
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
+            let answered = response != nil
+            let info = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
             DispatchQueue.main.async {
                 guard let self else { return }
-                if (response as? HTTPURLResponse)?.statusCode == 200 {
-                    self.webView.load(URLRequest(url: self.address))
+                if (response as? HTTPURLResponse)?.statusCode == 200, info?["app"] as? String == "tokentide" {
+                    // First run after the port change: let the old origin's page hand its storage over.
+                    let migrate = info?["migrationPending"] as? Bool == true && !self.storageMigrated
+                    self.webView.load(URLRequest(url: migrate ? self.legacyMigrate : self.address))
+                    return
+                }
+                if answered && self.service?.isRunning != true {
+                    self.showPortTaken()
                     return
                 }
                 if startIfNeeded { self.startService() }
@@ -408,6 +430,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
                 }
             }
         }.resume()
+    }
+
+    /// Another program holds TokenTide's port; check again every 10 seconds until it is free.
+    func showPortTaken() {
+        showLoading(
+            tr("端口 \(AppDelegate.port) 被其他程序占用", "Port \(AppDelegate.port) is used by another program"),
+            detail: tr("关闭占用它的程序后，TokenTide 会自动重新连接。", "Close that program and TokenTide reconnects by itself.")
+        )
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+            guard let self, !self.isQuitting, self.service?.isRunning != true else { return }
+            self.attempts = 0
+            self.probe(startIfNeeded: true)
+        }
     }
 
     /// Restarts the local service when it is gone, and reloads the panel once it answers.
@@ -449,7 +484,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let process = Process()
         // A login shell picks up Node from nvm, Homebrew, or other version managers.
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-lc", "exec node \(entry) --port 4173 --client \(client)"]
+        let legacy = storageMigrated ? "" : " --legacy-port \(AppDelegate.legacyPort)"
+        process.arguments = ["-lc", "exec node \(entry) --port \(AppDelegate.port) --client \(client)\(legacy)"]
         process.currentDirectoryURL = app
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = NSHomeDirectory() + "/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"

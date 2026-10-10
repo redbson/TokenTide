@@ -3,6 +3,7 @@ import { SettingsView } from "./SettingsView.jsx";
 import { I18nContext, useI18n } from "./i18n-context.js";
 import { platform, resolveLanguage, systemLanguages, translate } from "./i18n.js";
 import { UsageStats } from "./UsageStats.jsx";
+import { mergeMigratedHistory, mergeMigratedSettings } from "./storage-migration.js";
 import { AlertIcon, CloseIcon, PowerIcon } from "./icons.jsx";
 import {
   LOW_USAGE_THRESHOLD,
@@ -28,6 +29,8 @@ const CLOCK_TICK_MS = 30 * 1000;
 const HISTORY_LIMIT = 72;
 const HISTORY_KEY = "usage-monitor-history-v1";
 const SETTINGS_KEY = "usage-monitor-settings-v1";
+// Set once the storage from TokenTide's old port (4173) has been carried over.
+const MIGRATION_KEY = "tokentide-port-migration-v1";
 const STATS_STALE_MS = 60 * 1000;
 // Injected by vite.config.mjs from package.json.
 const APP_VERSION = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "";
@@ -438,6 +441,21 @@ export function App() {
   };
 
   useEffect(() => writeStoredJson(SETTINGS_KEY, settings), [settings]);
+
+  // Settings and the quota trend from the old port's origin, delivered once by the service.
+  useEffect(() => {
+    if (readStoredJson(MIGRATION_KEY, false)) return;
+    fetch("/api/migration", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body) => {
+        if (!body?.state) return;
+        setSettings((current) => mergeMigratedSettings(current, body.state.settings, DEFAULT_SETTINGS));
+        setHistory((current) => mergeMigratedHistory(current, body.state.history, HISTORY_LIMIT));
+        writeStoredJson(MIGRATION_KEY, true);
+        postNative({ type: "storageMigrated" });
+      })
+      .catch(() => {});
+  }, []);
 
   // The menu-bar readout lists the shown tools and follows the setting right away.
   useEffect(() => {

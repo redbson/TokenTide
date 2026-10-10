@@ -132,7 +132,7 @@ Files TokenTide writes on your Mac:
 ## Troubleshooting
 
 - **The panel says it couldn't start the local quota service**: make sure Node.js 20 or later is installed and `node` can be found in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, or your login shell's PATH. Details are in `~/Library/Logs/TokenTide.log`.
-- **Port 4173 is taken**: TokenTide always uses port 4173. Quit whatever is using it first.
+- **Port 46173 is taken**: TokenTide uses port 46173 on `127.0.0.1`. If another program holds it, the panel says so instead of showing that program; quit it and TokenTide reconnects by itself within about 10 seconds. (Before 0.6.3 TokenTide used 4173, which is also `vite preview`'s default.)
 - **An automatic update failed**: Settings → Updates shows the reason. You can always download the latest version from [Releases](https://github.com/redbson/TokenTide/releases/latest) and install it over the old one; your settings and records are kept.
 - **A tool shows Unavailable**: run `codex`, `claude`, or `qodercli` once in Terminal and make sure you're signed in. If Claude Code is signed out, its block has a **Sign in to Claude Code** button that opens Terminal on `claude auth login`.
 - **Claude Code says it couldn't fetch its quota just now**: Claude Code itself couldn't reach Anthropic's server (usually the network or a proxy). TokenTide retries once right away and again at the next refresh.
@@ -153,7 +153,7 @@ npm --prefix windows start           # run the Windows tray app from source (wor
 node scripts/build-windows.mjs       # build release/windows/TokenTide-Setup-X.Y.Z.exe
 ```
 
-The Vite dev server uses port 5173, so it doesn't collide with an installed TokenTide (port 4173). In a normal browser the panel is centered on a dark backdrop; in the app it fills the dropdown.
+The Vite dev server uses port 5173, so it doesn't collide with an installed TokenTide (port 46173). In a normal browser the panel is centered on a dark backdrop; in the app it fills the dropdown.
 
 ### Publishing a release
 
@@ -161,7 +161,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 2. Publish a GitHub release tagged `vX.Y.Z`, or run:
 
    ```bash
-   gh release create v0.6.3 --generate-notes
+   gh release create v0.6.4 --generate-notes
    ```
 
 3. The [release workflow](.github/workflows/release.yml) runs the tests, builds the universal Mac app and the Windows installer, and attaches `TokenTide-X.Y.Z.zip` and `TokenTide-Setup-X.Y.Z.exe`, their `.sha256` checksums, and unversioned `TokenTide.zip` / `TokenTide-Setup.exe` copies (used by the download links). Installed copies update themselves at their next check.
@@ -180,7 +180,9 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 
 ## Changelog
 
-### Unreleased
+### 0.6.3
+- TokenTide moved from port 4173, which `vite preview` also uses by default, to 46173, so Vite projects no longer take its port or stop its service. Your settings and quota trend move over automatically on first launch.
+- The app checks that it is really TokenTide answering on the port before showing the panel; if another program holds the port, it says so and reconnects once it is free.
 - If the local quota service stops (crash, or killed by something else), the app restarts it by itself instead of leaving the panel stuck on old readings.
 
 ### 0.6.2

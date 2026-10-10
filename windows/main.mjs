@@ -11,9 +11,12 @@ import { RELEASES_PAGE, createUpdater } from "./updater.mjs";
 // by server/main.mjs, which runs in an Electron utility process (Electron's own Node.js, so
 // Node does not need to be installed).
 
-// TOKENTIDE_PORT lets development run beside an installed copy.
-const PORT = Number(process.env.TOKENTIDE_PORT) || 4173;
+// TOKENTIDE_PORT lets development run beside an installed copy. 4173, used before 0.6.3, is
+// Vite's `vite preview` default, so other projects kept taking it.
+const PORT = Number(process.env.TOKENTIDE_PORT) || 46173;
 const ADDRESS = `http://127.0.0.1:${PORT}/`;
+const LEGACY_PORT = 4173;
+const LEGACY_MIGRATE = `http://127.0.0.1:${LEGACY_PORT}/migrate`;
 const PANEL_WIDTH = 360;
 const PANEL_GAP = 8;
 const SERVICE_RESTARTS = 3;
@@ -180,7 +183,13 @@ function setUpPanel() {
   contents.setWindowOpenHandler(() => ({ action: "deny" }));
   contents.on("did-fail-load", (_event, code, _description, url, isMainFrame) => {
     // -3: aborted by a newer navigation.
-    if (!isMainFrame || code === -3 || !url.startsWith(ADDRESS)) return;
+    if (!isMainFrame || code === -3) return;
+    // The old port closed before the hand-over page loaded: go straight to the panel.
+    if (url.startsWith(LEGACY_MIGRATE)) {
+      panel.loadURL(ADDRESS);
+      return;
+    }
+    if (!url.startsWith(ADDRESS)) return;
     showLoading(tr("正在重新连接本机额度服务…", "Reconnecting to the local quota service…"));
     startService();
   });
@@ -283,6 +292,9 @@ function handleMessage(message) {
       break;
     case "hide":
       hidePanel();
+      break;
+    case "storageMigrated":
+      saveShellSettings({ storageMigrated: true });
       break;
     case "serviceUnreachable":
       // The panel's own request failed; make sure the service is still there.
@@ -415,7 +427,9 @@ function startService() {
   const logs = app.getPath("logs");
   mkdirSync(logs, { recursive: true });
   const log = createWriteStream(path.join(logs, "service.log"), { flags: "a" });
-  const child = utilityProcess.fork(serverEntry, ["--port", String(PORT), "--client", clientDir], {
+  // Until the panel's storage has moved from the old port's origin, open that port for the hand-over.
+  const legacy = shellSettings.storageMigrated || process.env.TOKENTIDE_PORT ? [] : ["--legacy-port", String(LEGACY_PORT)];
+  const child = utilityProcess.fork(serverEntry, ["--port", String(PORT), "--client", clientDir, ...legacy], {
     stdio: "pipe",
     serviceName: "TokenTide service",
     cwd: path.dirname(serverEntry),
@@ -425,7 +439,8 @@ function startService() {
   child.stderr?.pipe(log);
   child.on("message", (message) => {
     if (message?.type === "listening") {
-      panel.loadURL(ADDRESS);
+      // The old origin's page hands its storage over, then continues to ADDRESS.
+      panel.loadURL(message.migrationPending ? LEGACY_MIGRATE : ADDRESS);
     } else if (message?.type === "error") {
       showLoading(
         tr("无法启动本机额度服务", "Couldn't start the local quota service"),
