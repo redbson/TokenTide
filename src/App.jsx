@@ -640,7 +640,6 @@ export function App() {
             onOpenLoginItems={() => postNative({ type: "openLoginItems" })}
             update={update}
             onUpdateAction={updateAction}
-            version={APP_VERSION}
             onOpenChangelog={openChangelog}
             showMenuBarStyle={Boolean(nativeBridge) && !IS_WINDOWS}
           />

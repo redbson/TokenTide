@@ -1,6 +1,6 @@
 import { useI18n } from "./i18n-context.js";
 import { LANGUAGE_NAMES } from "./i18n.js";
-import { BellIcon, ClockIcon, DownloadIcon, GlobeIcon, LoginIcon, MenuBarIcon, NotesIcon } from "./icons.jsx";
+import { BellIcon, ClockIcon, DownloadIcon, GlobeIcon, LockIcon, LoginIcon, MenuBarIcon, NotesIcon } from "./icons.jsx";
 import { LOW_USAGE_THRESHOLD, PROVIDER_META, STATS_PROVIDERS, formatAccount, isVisibleProvider } from "./usage-format.js";
 
 function Toggle({ checked, onChange, label, disabled = false }) {
@@ -175,7 +175,6 @@ export function SettingsView({
   onOpenLoginItems,
   update,
   onUpdateAction,
-  version,
   onOpenChangelog,
   showMenuBarStyle = false,
 }) {
@@ -281,7 +280,18 @@ export function SettingsView({
         </div>
       </section>
 
-      <p className="settings-about">{t("settings.about", { version })}</p>
+      <footer className="settings-about">
+        {/* HETERONTO's minimal mark and wordmark in single white ink, kept quiet. */}
+        <span className="settings-about-by">
+          by
+          <img className="settings-about-mark" src="/assets/heteronto-mark-white.svg" alt="" />
+          <img className="settings-about-wordmark" src="/assets/heteronto-wordmark-white.svg" alt="HETERONTO" />
+        </span>
+        <span className="settings-about-privacy">
+          <LockIcon />
+          {t("settings.aboutPrivacy")}
+        </span>
+      </footer>
     </div>
   );
 }

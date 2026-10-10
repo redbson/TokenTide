@@ -446,12 +446,33 @@ button:focus-visible {
   white-space: nowrap;
 }
 
+/* About: the maker and the privacy promise, centered under the settings (the name is in the
+   footer and the version in the Updates row). */
 .settings-about {
-  margin: 14px 0 0;
-  color: var(--faint);
-  font-size: 11.5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 18px 0 2px;
   text-align: center;
 }
+
+.settings-about-by { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; }
+/* Single white ink, half transparent, so the maker's mark stays as quiet as the text around it. */
+.settings-about-mark,
+.settings-about-wordmark { opacity: 0.45; }
+.settings-about-mark { width: 16px; height: 16px; }
+.settings-about-wordmark { height: 12px; width: auto; margin-left: -2px; }
+
+.settings-about-privacy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  color: var(--faint);
+  font-size: 11px;
+}
+.settings-about-privacy .icon { width: 11px; height: 11px; flex-basis: 11px; }
 
 .switch {
   width: 34px;

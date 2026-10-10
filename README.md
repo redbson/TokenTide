@@ -181,6 +181,9 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 
 ## Changelog
 
+### Unreleased
+- A new About section at the bottom of Settings.
+
 ### 0.6.5
 - Clearer 30-day and 7-day views in History, with a date under each bar.
 - The 7-day view shows this week's pace; Qoder shows credits per day.

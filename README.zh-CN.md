@@ -181,6 +181,9 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 
 ## 更新日志
 
+### 未发布
+- 设置页底部新增「关于」信息。
+
 ### 0.6.5
 - 历史中的 30 天和 7 天视图更清晰，每根柱子下标注日期。
 - 7 天视图显示本周用量趋势，Qoder 按天显示积分。

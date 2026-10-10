@@ -34,3 +34,6 @@ export const NotesIcon = () => (
 export const MenuBarIcon = () => (
   <Icon><rect x="3.5" y="5" width="17" height="14" rx="2.5" /><path d="M3.5 9h17" /><path d="M13 7h5" /></Icon>
 );
+export const LockIcon = () => (
+  <Icon><rect x="5.5" y="10.5" width="13" height="9.5" rx="2" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" /></Icon>
+);
