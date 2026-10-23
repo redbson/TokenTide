@@ -4,7 +4,7 @@
 
 [![Latest release](https://img.shields.io/github/v/release/redbson/TokenTide?label=%E6%9C%80%E6%96%B0%E7%89%88)](https://github.com/redbson/TokenTide/releases/latest) [![License](https://img.shields.io/github/license/redbson/TokenTide)](LICENSE)
 
-TokenTide 是一个 macOS 菜单栏小工具（也有 [Windows 托盘版](#windows-版预览)）：随时看 Codex、Claude Code 和 Qoder 还剩多少额度、每周额度用了多少，以及历史使用记录。数据全部来自你本机已登录的命令行工具，不需要账号或 API Key，也不会上传任何数据。界面支持中文和英文，默认跟随系统语言，也可以在设置里切换。
+TokenTide 是一个 macOS 菜单栏小工具（也有 [Windows 托盘版](#windows-版预览)）：随时看 Codex、Claude Code 和 Qoder 还剩多少额度、DeepSeek Harness 用了多少 token、每周额度用了多少，以及历史使用记录。数据全部来自你本机已登录的命令行工具，不需要账号或 API Key，也不会上传任何数据。界面支持中文和英文，默认跟随系统语言，也可以在设置里切换。
 
 **⬇ 下载：[macOS 版](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip) · [Windows 版](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe)** · [所有版本](https://github.com/redbson/TokenTide/releases)
 
@@ -17,7 +17,8 @@ TokenTide 是一个 macOS 菜单栏小工具（也有 [Windows 托盘版](#windo
 
 - **菜单栏读数**：两种样式。**详细**是几行小字——`CX` / `CC` 是 Codex 和 Claude Code 当前窗口的剩余百分比，旁边的 `QD` 是 Qoder 的剩余额度；**精简**是一个小仪表——每个工具一根竖条，从底部填充到剩余额度——宽度只有详细样式的五分之一左右。鼠标悬停可以看到具体数字。
 - **额度页**：Codex 和 Claude Code 的当前窗口和每周剩余额度、重置倒计时；Qoder 个人积分（套餐 + 加购额度）的剩余比例，团队资源包单独一行、不计入其中，每类都显示剩余积分；额度低于 20% 时提示；每 5 分钟自动刷新，打开面板时数据超过 1 分钟也会刷新。
-- **历史 · 概览 / 模型**（Codex、Claude Code 和 Qoder；Qoder 不记录 token，按积分统计）：参照 Claude Code 的 `/stats`，统计会话、消息、Token、活跃天数、连续天数、高峰时段、常用模型，附 26 周热力图。
+- **DeepSeek**（DeepSeek Harness 按量计费，没有额度）：今日、近 7 天、近 30 天的 token 和消息数，来自本机 Harness 的会话记录。不显示 API 余额，因为查余额需要你的 API Key。
+- **历史 · 概览 / 模型**（Codex、Claude Code、Qoder 和 DeepSeek；Qoder 不记录 token，按积分统计）：参照 Claude Code 的 `/stats`，统计会话、消息、Token、活跃天数、连续天数、高峰时段、常用模型，附 26 周热力图。
 - **历史 · 使用率**：每周额度实际用了多少——平均使用率、最高一周、用满次数、本周已用，以及每周柱状图。可以看过去 7 天、30 天、90 天和全部。Qoder 显示每周消耗的积分。
 - **额度趋势**：最近几次检查的当前窗口剩余曲线。
 - **设置页**：语言（中文 / English / 跟随系统）、开机时启动、自动更新、自动刷新、低额度提醒。
@@ -29,6 +30,7 @@ TokenTide 是一个 macOS 菜单栏小工具（也有 [Windows 托盘版](#windo
 - [Node.js](https://nodejs.org/) 20 或更新（TokenTide 的本机服务用 Node 运行）
 - 已安装并登录的 [Codex CLI](https://github.com/openai/codex)（`codex`）和/或 [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（`claude`）。Claude Code 需要用 claude.ai 订阅账号（Pro / Max）登录，API Key 账号没有套餐额度可读。只装了其中一个也能用，另一个会显示「不可用」。
 - 可选，查看 Qoder：已登录的 [Qoder CLI](https://docs.qoder.com/cli/installation)（`qodercli`）。装了 Qoder app 或 CLI 才会显示 Qoder；没装 CLI 时会提示安装方法。
+- 可选，查看 DeepSeek：DeepSeek Harness app。装了才会显示 DeepSeek。
 
 ## 安装
 
@@ -86,11 +88,11 @@ TokenTide 也能在 Windows 10 / 11（x64）上运行：同样的面板，从任
 - **左键**点菜单栏读数打开面板，点别处或按 Esc 关闭。
 - **右键**：显示额度 / 立即刷新 / 退出。面板底部也有「退出」。
 - **额度**标签：看各个服务的剩余额度和重置时间；右上角按钮立即刷新。
-- **历史**标签：顶部切换 Codex / Claude Code / Qoder（本机有 Qoder 会话记录时才出现 Qoder），再选「概览 / 模型 / 使用率」和时间范围（全部 / 90 天 / 30 天 / 7 天）。
+- **历史**标签：顶部切换 Codex / Claude Code / Qoder / DeepSeek（本机有 Qoder、DeepSeek 会话记录时才出现；DeepSeek 没有「使用率」），再选「概览 / 模型 / 使用率」和时间范围（全部 / 90 天 / 30 天 / 7 天）。
 - **设置**标签：
   - **语言**：中文、English 或跟随系统。跟随系统时，系统首选语言是中文就显示中文，否则显示英文；菜单栏右键菜单也会跟着切换。
   - **菜单栏样式**（macOS）：详细或精简，见上文。
-  - **显示的工具**：关闭 Codex、Claude Code 或 Qoder 后，额度页、菜单栏、低额度提醒和历史中都不再显示它；至少保留一个。
+  - **显示的工具**：关闭 Codex、Claude Code、Qoder 或 DeepSeek 后，额度页、菜单栏、低额度提醒和历史中都不再显示它；至少保留一个。
   - **开机时启动**：登录 Mac 后自动出现在菜单栏，用的是 macOS 的「登录项」，也可以在 系统设置 → 通用 → 登录项 里关闭。
   - **自动更新**：见上面的「自动更新」。
   - **自动刷新**：每 5 分钟读取一次额度。
@@ -115,7 +117,8 @@ TokenTide 也能在 Windows 10 / 11（x64）上运行：同样的面板，从任
 | Codex 额度 | `codex app-server` 的 `account/rateLimits/read` |
 | Claude Code 额度 | 短暂启动 `claude -p`，发送结构化的 `get_usage` 请求（和 `/usage` 同源）。不发送任何提示词，不消耗额度。该接口上游标注为实验性，失败时会退回读取 `/usage` 界面 |
 | Qoder 额度 | 短暂启动 `qodercli --print`，通过 stream-json 发送结构化的 `get_usage_info` 请求（和 Qoder CLI 的 `/usage` 同源）。不发送任何提示词，不消耗额度；账号的用户 ID 会被丢弃 |
-| 使用记录 | 本机转录文件：`~/.claude/projects/**/*.jsonl`、`~/.codex/sessions`、`~/.codex/archived_sessions`，以及 `~/.qoder/projects/**/*.jsonl`（Qoder 按每次回复的积分统计） |
+| DeepSeek 用量 | DeepSeek Harness 的会话记录 `~/.dsh/sessions`（Zstandard 压缩的 JSONL）中每次回复报告的 token 数。从不读取 Harness 保存的凭证 |
+| 使用记录 | 本机转录文件：`~/.claude/projects/**/*.jsonl`、`~/.codex/sessions`、`~/.codex/archived_sessions`、`~/.qoder/projects/**/*.jsonl`（Qoder 按每次回复的积分统计），以及 `~/.dsh/sessions` |
 | 每周使用率 | Codex 会话记录里的额度快照 + TokenTide 自己的记录；Claude Code 更早的周按本机转录估算 |
 
 - 转录文件只统计次数、Token 数、模型名和时间，**不读取、不返回对话内容**。
@@ -182,6 +185,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 ## 更新日志
 
 ### 未发布
+- 支持查看 DeepSeek Harness 的 token 用量。
 - Codex 和 Qoder 更不容易读取失败，Qoder 也读得更快。
 - 刷新失败时保留上次读数，并标出是几分钟前的。
 - 设置页底部新增「关于」信息。

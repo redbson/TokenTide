@@ -128,7 +128,7 @@ test("a failing Qoder CLI stays visible with its error", async () => {
     retryDelayMs: 1,
   });
   const { providers } = await service.read();
-  assert.deepEqual(providers.map((provider) => provider.id), ["codex", "claude", "qoder"]);
+  assert.deepEqual(providers.map((provider) => provider.id), ["codex", "claude", "qoder", "deepseek"]);
   assert.equal(providers[2].installed, true);
   assert.equal(providers[2].connected, false);
   assert.match(providers[2].error, /in time/);

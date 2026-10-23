@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { spawnCommand, stopCommand } from "./commands.mjs";
 import { weeklyReadingFromProvider } from "./quota-weeks.mjs";
+import { createDeepseekReader } from "./deepseek-usage.mjs";
 import { readQoderUsage } from "./qoder-usage.mjs";
 
 const CLAUDE_TIMEOUT_MS = 45_000;
@@ -624,6 +625,7 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
   let claudeSession = null;
   const readCodex = readers.codex ?? readCodexUsage;
   const readQoder = readers.qoder ?? (() => readQoderUsage());
+  const readDeepseek = readers.deepseek ?? createDeepseekReader();
   const readClaudeDirect = readers.claudeDirect ?? (() => readClaudeUsageDirect());
   const readClaudeFallback =
     readers.claudeFallback ?? (() => (claudeSession ??= new ClaudeUsageSession()).request());
@@ -668,10 +670,11 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
   }
 
   async function readAll() {
-    const [codex, claude, qoder] = await Promise.allSettled([
+    const [codex, claude, qoder, deepseek] = await Promise.allSettled([
       retryOnce(readCodex, readRetryDelayMs),
       readClaude(),
       retryOnce(readQoder, readRetryDelayMs),
+      readDeepseek(),
     ]);
     const updatedAt = Date.now();
     const providers = [
@@ -685,6 +688,10 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
       qoder.status === "fulfilled"
         ? qoder.value
         : { ...unavailableProvider("qoder", "Qoder", qoder.reason), installed: true },
+      // DeepSeek Harness usage comes from its local session logs (server/deepseek-usage.mjs).
+      deepseek.status === "fulfilled"
+        ? deepseek.value
+        : { ...unavailableProvider("deepseek", "DeepSeek", deepseek.reason), installed: true },
     ];
     for (const provider of providers) {
       if (provider.connected) lastReadings.set(provider.id, { provider, readAt: updatedAt });

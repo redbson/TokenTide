@@ -372,14 +372,17 @@ function CreditUsage({ days, range, today }) {
 export function UsageStats({ stats, error, provider: selected, range, view, hiddenProviders = [], onChange }) {
   const { t, language } = useI18n();
   const today = localDayKey();
-  // Tools turned off in Settings are left out; Qoder gets a tab only when this Mac has Qoder
-  // transcripts, unless it is the only tool shown.
+  // Tools turned off in Settings are left out; Qoder and DeepSeek get a tab only when this Mac
+  // has their transcripts, unless one is the only tool shown.
   const shownIds = STATS_PROVIDERS.filter((id) => !hiddenProviders.includes(id));
   const withRecords = shownIds.filter(
-    (id) => id !== "qoder" || stats?.providers.find((item) => item.id === "qoder")?.days?.length,
+    (id) => id === "codex" || id === "claude" || stats?.providers.find((item) => item.id === id)?.days?.length,
   );
   const providerIds = withRecords.length ? withRecords : shownIds.length ? shownIds : [STATS_PROVIDERS[0]];
   const provider = providerIds.includes(selected) ? selected : providerIds[0];
+  // DeepSeek is pay-as-you-go: no quota, so no Utilization view.
+  const views = provider === "deepseek" ? ["overview", "models"] : ["overview", "models", "quota"];
+  const activeView = views.includes(view) ? view : "overview";
   const measure = measureOf(provider);
   const providerStats = stats?.providers.find((item) => item.id === provider);
   const days = useMemo(() => providerStats?.days ?? [], [providerStats]);
@@ -391,13 +394,13 @@ export function UsageStats({ stats, error, provider: selected, range, view, hidd
     body = <p className="stats-empty">{error}</p>;
   } else if (!stats) {
     body = <p className="stats-empty">{t("stats.loading")}</p>;
-  } else if (view === "quota" && provider === "qoder") {
+  } else if (activeView === "quota" && provider === "qoder") {
     body = days.length ? <CreditUsage days={days} range={range} today={today} /> : <p className="stats-empty">{t("credits.empty")}</p>;
-  } else if (view === "quota") {
+  } else if (activeView === "quota") {
     body = <QuotaUsage windows={quotaWeeks} estimate={providerStats?.quotaEstimate} provider={provider} range={range} />;
   } else if (days.length === 0) {
     body = <p className="stats-empty">{t("stats.noRecords", { name: PROVIDER_META[provider].name })}</p>;
-  } else if (view === "models") {
+  } else if (activeView === "models") {
     body = <ModelList models={summary.models} measure={measure} />;
   } else {
     const fact = measure === "tokens" ? compareToBook(summary.io, `${today}:${provider}:${range}`, language) : null;
@@ -426,8 +429,9 @@ export function UsageStats({ stats, error, provider: selected, range, view, hidd
   return (
     <section className={`usage-stats stats-${provider}`} aria-label={t("stats.label")}>
       <div
-        className="stats-providers"
-        style={{ gridTemplateColumns: `repeat(${providerIds.length}, minmax(0, 1fr))` }}
+        className={`stats-providers ${providerIds.length > 3 ? "is-crowded" : ""}`}
+        // Four tools: columns follow their names so "Claude Code" keeps its space.
+        style={{ gridTemplateColumns: `repeat(${providerIds.length}, ${providerIds.length > 3 ? "auto" : "minmax(0, 1fr)"})` }}
         role="tablist"
         aria-label={t("stats.providers")}
       >
@@ -441,8 +445,8 @@ export function UsageStats({ stats, error, provider: selected, range, view, hidd
       <div className="stats-toolbar">
         <Segmented
           label={t("stats.view")}
-          options={["overview", "models", "quota"].map((id) => [id, t(`stats.${id}`)])}
-          value={view}
+          options={views.map((id) => [id, t(`stats.${id}`)])}
+          value={activeView}
           onChange={(value) => onChange("statsView", value)}
         />
         <Segmented label={t("stats.range")} options={STAT_RANGES.map((id) => [id, t(`range.${id}`)])} value={range} onChange={(value) => onChange("statsRange", value)} />

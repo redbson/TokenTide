@@ -7,6 +7,7 @@ import { mergeMigratedHistory, mergeMigratedSettings } from "./storage-migration
 import { ChangelogView, hasReleaseNotes } from "./Changelog.jsx";
 import { isNewerVersion } from "./changelog-parse.js";
 import { AlertIcon, CloseIcon, NotesIcon, PowerIcon } from "./icons.jsx";
+import { formatTokens } from "./stats-format.js";
 import {
   LOW_USAGE_THRESHOLD,
   PROVIDER_META,
@@ -20,6 +21,7 @@ import {
   STATS_PROVIDERS,
   isLow,
   isShownProvider,
+  isUsageOnly,
   limitLabel,
   makeSnapshot,
   timeAgo,
@@ -99,6 +101,7 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
   const primary = getPrimaryLimit(provider);
   const remaining = getPrimaryRemaining(provider);
   const low = isLow(provider);
+  const usage = provider.usage;
 
   return (
     <section className={`provider provider-${provider.id}`} aria-labelledby={`${provider.id}-title`}>
@@ -115,7 +118,9 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
           ) : (
             <div className="connection-line">
               <span className={`status-dot ${provider.connected ? "" : "is-offline"}`} />
-              <span>{t(provider.connected ? "provider.connected" : loading ? "provider.checking" : "provider.unavailable")}</span>
+              <span>
+                {t(usage ? "provider.localUsage" : provider.connected ? "provider.connected" : loading ? "provider.checking" : "provider.unavailable")}
+              </span>
               {provider.connected && provider.account ? (
                 <>
                   <span className="separator" aria-hidden="true">·</span>
@@ -126,21 +131,23 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
           )}
         </div>
         <div className={`primary-usage ${low ? "is-low" : ""} ${loading ? "is-loading" : ""}`}>
-          <strong>{loading ? "—" : formatPercent(remaining)}</strong>
-          <span>{t("provider.left")}</span>
+          <strong>{loading ? "—" : usage ? formatTokens(usage.today.tokens) : formatPercent(remaining)}</strong>
+          <span>{t(usage ? "usage.todayTokens" : "provider.left")}</span>
         </div>
       </div>
 
-      <div
-        className="progress-track"
-        role="progressbar"
-        aria-label={t("provider.progress", { name: meta.name })}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={remaining ?? undefined}
-      >
-        <div className="progress-value" style={{ width: `${remaining ?? 0}%` }} />
-      </div>
+      {usage ? null : (
+        <div
+          className="progress-track"
+          role="progressbar"
+          aria-label={t("provider.progress", { name: meta.name })}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={remaining ?? undefined}
+        >
+          <div className="progress-value" style={{ width: `${remaining ?? 0}%` }} />
+        </div>
+      )}
 
       {provider.errorCode in PROVIDER_ERRORS ? (
         <div className="provider-error">
@@ -158,6 +165,17 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
         </div>
       ) : provider.error ? (
         <p className="provider-error">{provider.error}</p>
+      ) : usage ? (
+        // No quota to fill a bar: tokens used today and over the last 7 and 30 days.
+        <dl className="limit-list">
+          {["today", "week", "month"].map((span) => (
+            <div className="limit-row" key={span}>
+              <dt>{t(`usage.${span}`)}</dt>
+              <dd className="limit-value">{formatTokens(usage[span].tokens)}</dd>
+              <dd className="limit-reset">{t("usage.messages", { count: usage[span].messages })}</dd>
+            </div>
+          ))}
+        </dl>
       ) : (
         <dl className="limit-list">
           {(provider.limits ?? []).map((limit) => (
@@ -238,9 +256,11 @@ function QuotaHistory({ history, hiddenProviders, onClear }) {
 
 function QuotaHistoryDetails({ history, hiddenProviders }) {
   const { t } = useI18n();
-  // Qoder joins the legend once it has readings; hidden tools are left out.
+  // Qoder joins the legend once it has readings (DeepSeek has no quota, so never); hidden tools are left out.
   const series = STATS_PROVIDERS.filter(
-    (id) => !hiddenProviders.includes(id) && (id !== "qoder" || history.some((item) => Number.isFinite(item.qoder))),
+    (id) =>
+      !hiddenProviders.includes(id) &&
+      (id === "codex" || id === "claude" || history.some((item) => Number.isFinite(item[id]))),
   );
   return (
     <>
@@ -488,7 +508,8 @@ export function App() {
   // The menu-bar readout lists the shown tools and follows the setting right away.
   useEffect(() => {
     if (!updatedAt) return;
-    const shown = providers.filter((provider) => isShownProvider(provider, settings.hiddenProviders));
+    // Tools without a quota (DeepSeek) have no percentage to show there.
+    const shown = providers.filter((provider) => isShownProvider(provider, settings.hiddenProviders) && !isUsageOnly(provider));
     postNative({
       type: "summary",
       items: shown.map((provider) => ({

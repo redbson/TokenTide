@@ -6,10 +6,13 @@ export const PROVIDER_META = {
   codex: { name: "Codex", short: "CX", icon: "/assets/openai.svg", iconAlt: "OpenAI" },
   claude: { name: "Claude Code", short: "CC", icon: "/assets/claude.svg", iconAlt: "Claude" },
   qoder: { name: "Qoder", short: "QD", icon: "/assets/qoder.png", iconAlt: "Qoder" },
+  deepseek: { name: "DeepSeek", short: "DS", icon: "/assets/deepseek.png", iconAlt: "DeepSeek" },
 };
 
 // Providers with local transcripts for the History tab (Qoder is measured in credits).
-export const STATS_PROVIDERS = ["codex", "claude", "qoder"];
+export const STATS_PROVIDERS = ["codex", "claude", "qoder", "deepseek"];
+// Pay-as-you-go tools with no quota: their card shows tokens used, not a percentage left.
+export const isUsageOnly = (provider) => Boolean(provider?.usage);
 const LIMIT_IDS = ["window", "weekly", "total", "plan", "org", "addon"];
 
 const pad = (value) => String(value).padStart(2, "0");
