@@ -17,7 +17,7 @@ TokenTide is a macOS menu-bar widget (with a [Windows tray version](#windows-pre
 
 - **Menu-bar readout**: two styles. **Detailed** shows small lines — `CX` / `CC` for the remaining current Codex and Claude Code window, and `QD` beside them for Qoder's credits. **Compact** is a small gauge — one vertical bar per tool, filled from the bottom to what's left — in about a fifth of the width. Hover either one for the exact numbers.
 - **Quota tab**: current-window and weekly quota left for Codex and Claude Code, with reset countdowns; Qoder's own credits left (plan plus add-on; the team's org package has its own row and is not counted), with a row and credit count for each pool; a notice when a window drops below 20%; refreshes every 5 minutes, and again when you open the panel if the data is more than a minute old.
-- **DeepSeek** (DeepSeek Harness is pay-as-you-go, so there is no quota): tokens and messages today and over the last 7 and 30 days, from Harness's session logs on this Mac. Add a DeepSeek API key in Settings to also see the API balance and what each period spent.
+- **DeepSeek** (DeepSeek Harness is pay-as-you-go, so there is no quota): tokens, messages, and an estimated cost today and over the last 7 and 30 days, from Harness's session logs on this Mac. The cost prices each reply at DeepSeek's published rates for its hour (peak or off-peak, cache hits included); DeepSeek's bill is what counts. Add a DeepSeek API key in Settings to also see the API balance and what each period spent.
 - **History · Overview / Models** (Codex, Claude Code, Qoder, and DeepSeek — Qoder is measured in credits, since it reports no tokens): sessions, messages, tokens, active days, streaks, peak hour, and top model, modeled on Claude Code's `/stats`, plus a 26-week heatmap.
 - **History · Utilization**: how much of each weekly quota you actually used — average, peak week, weeks that maxed out, this week so far — with a bar per week, over the last 7, 30, or 90 days or all time. For Qoder, credits used per week.
 - **Quota trend**: the current-window remaining quota across recent checks.
@@ -190,6 +190,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 - See DeepSeek Harness token usage, in Quota and History.
 - Add a DeepSeek API key to see your balance and daily spending.
 - A DeepSeek spending record, day by day.
+- The estimated cost of DeepSeek Harness usage, at DeepSeek's prices.
 - Codex and Qoder load more reliably, and Qoder loads faster.
 - If a refresh fails, the last reading stays, with its age.
 - A new About section at the bottom of Settings.

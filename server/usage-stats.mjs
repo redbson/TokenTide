@@ -2,6 +2,7 @@ import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { zstdDecompressSync } from "node:zlib";
+import { deepseekCost } from "./deepseek-pricing.mjs";
 import {
   buildWeeklyWindows,
   claudeUsageCost,
@@ -14,8 +15,9 @@ import {
 // activity for the history view.
 // Only counts, token totals, model names, and hours leave this module; never transcript content.
 
-// Version 2 added Codex weekly quota readings; version 3 adds Claude Code cost per hour.
-const CACHE_VERSION = 3;
+// Version 2 added Codex weekly quota readings; version 3 Claude Code cost per hour; version 4
+// DeepSeek Harness estimated cost.
+const CACHE_VERSION = 4;
 const STALE_MS = 30_000;
 
 export function dayKey(timestamp) {
@@ -322,14 +324,22 @@ export function aggregateDeepseekSession(text) {
       retries.set(step, (retries.get(step) ?? 0) + 1);
     } else if (entry.type === "assistant/message" || entry.type === "assistant/attempt") {
       const usage = deepseekUsageOf(data);
-      if (usage) attempts.set(`${step}:${retries.get(step) ?? 0}`, { day, model, usage });
+      if (usage) attempts.set(`${step}:${retries.get(step) ?? 0}`, { day, model, usage, at: entry.time });
     }
   }
 
-  for (const { day, model: name, usage } of attempts.values()) {
-    const input = count(usage.inputTokens);
-    const output = count(usage.outputTokens);
-    addTokens(aggregate, day, name, input + output + count(usage.cacheReadTokens) + count(usage.cacheWriteTokens), input + output);
+  for (const { day, model: name, usage, at } of attempts.values()) {
+    const tokens = {
+      input: count(usage.inputTokens),
+      output: count(usage.outputTokens),
+      cacheRead: count(usage.cacheReadTokens),
+      cacheWrite: count(usage.cacheWriteTokens),
+    };
+    addTokens(aggregate, day, name, tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite, tokens.input + tokens.output);
+    // Estimated yuan at DeepSeek's published price for the hour of the reply (deepseek-pricing.mjs).
+    const cost = deepseekCost(name, tokens, Number(at));
+    const bucket = aggregate.days[day]?.models[name];
+    if (bucket && cost !== null) bucket.cost = Math.round(((bucket.cost ?? 0) + cost) * 1_000_000) / 1_000_000;
   }
   return aggregate;
 }
@@ -339,7 +349,7 @@ export function summarizeAggregates(aggregates) {
   const days = new Map();
   const dayOf = (date) => {
     if (!days.has(date)) {
-      days.set(date, { date, sessions: 0, messages: 0, tokens: 0, io: 0, credits: 0, models: {}, modelCredits: {}, hours: {} });
+      days.set(date, { date, sessions: 0, messages: 0, tokens: 0, io: 0, credits: 0, cost: 0, models: {}, modelCredits: {}, hours: {} });
     }
     return days.get(date);
   };
@@ -357,6 +367,8 @@ export function summarizeAggregates(aggregates) {
         entry.tokens += tokens.total;
         entry.io += tokens.io;
         entry.models[model] = (entry.models[model] ?? 0) + tokens.total;
+        // DeepSeek's estimated cost in yuan.
+        if (tokens.cost > 0) entry.cost = Math.round((entry.cost + tokens.cost) * 1_000_000) / 1_000_000;
         if (tokens.credits > 0) {
           entry.credits += tokens.credits;
           entry.modelCredits[model] = (entry.modelCredits[model] ?? 0) + tokens.credits;

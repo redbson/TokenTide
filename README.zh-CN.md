@@ -17,7 +17,7 @@ TokenTide 是一个 macOS 菜单栏小工具（也有 [Windows 托盘版](#windo
 
 - **菜单栏读数**：两种样式。**详细**是几行小字——`CX` / `CC` 是 Codex 和 Claude Code 当前窗口的剩余百分比，旁边的 `QD` 是 Qoder 的剩余额度；**精简**是一个小仪表——每个工具一根竖条，从底部填充到剩余额度——宽度只有详细样式的五分之一左右。鼠标悬停可以看到具体数字。
 - **额度页**：Codex 和 Claude Code 的当前窗口和每周剩余额度、重置倒计时；Qoder 个人积分（套餐 + 加购额度）的剩余比例，团队资源包单独一行、不计入其中，每类都显示剩余积分；额度低于 20% 时提示；每 5 分钟自动刷新，打开面板时数据超过 1 分钟也会刷新。
-- **DeepSeek**（DeepSeek Harness 按量计费，没有额度）：今日、近 7 天、近 30 天的 token 和消息数，来自本机 Harness 的会话记录。在设置里填入 DeepSeek API Key 后，还会显示 API 余额和各时段的花费。
+- **DeepSeek**（DeepSeek Harness 按量计费，没有额度）：今日、近 7 天、近 30 天的 token、消息数和估算花费，来自本机 Harness 的会话记录。花费按 DeepSeek 公布的价格逐条计算（区分高峰和空闲时段，含缓存命中），实际以 DeepSeek 账单为准。在设置里填入 DeepSeek API Key 后，还会显示 API 余额和各时段的花费。
 - **历史 · 概览 / 模型**（Codex、Claude Code、Qoder 和 DeepSeek；Qoder 不记录 token，按积分统计）：参照 Claude Code 的 `/stats`，统计会话、消息、Token、活跃天数、连续天数、高峰时段、常用模型，附 26 周热力图。
 - **历史 · 使用率**：每周额度实际用了多少——平均使用率、最高一周、用满次数、本周已用，以及每周柱状图。可以看过去 7 天、30 天、90 天和全部。Qoder 显示每周消耗的积分。
 - **额度趋势**：最近几次检查的当前窗口剩余曲线。
@@ -190,6 +190,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 - 支持查看 DeepSeek Harness 的 token 用量。
 - 填入 DeepSeek API Key 后可查看余额和每天花费。
 - 新增 DeepSeek 花费记录，按天列出。
+- 按 DeepSeek 价格估算 Harness 的花费金额。
 - Codex 和 Qoder 更不容易读取失败，Qoder 也读得更快。
 - 刷新失败时保留上次读数，并标出是几分钟前的。
 - 设置页底部新增「关于」信息。

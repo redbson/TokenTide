@@ -105,7 +105,8 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
   // DeepSeek with a saved API key: the balance leads, and each period shows what it spent.
   const balance = usage ? provider.balance : null;
   const hasBalance = Number.isFinite(balance?.total);
-  const spent = (span) => (Number.isFinite(balance?.spending?.[span]) ? formatMoney(balance.spending[span], balance.currency ?? "CNY") : null);
+  // What Harness's replies cost at DeepSeek's published prices (an estimate; the bill decides).
+  const cost = (span) => (usage?.[span]?.cost > 0 ? formatMoney(usage[span].cost, "CNY") : null);
 
   return (
     <section className={`provider provider-${provider.id}`} aria-labelledby={`${provider.id}-title`}>
@@ -190,8 +191,8 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
               <div className="limit-row" key={span}>
                 <dt>{t(`usage.${span}`)}</dt>
                 <dd className="limit-value">{formatTokens(usage[span].tokens)}</dd>
-                <dd className="limit-reset">
-                  {spent(span) ? `${t("usage.spent", { amount: spent(span) })} · ` : ""}
+                <dd className="limit-reset" title={cost(span) ? t("usage.costHint") : undefined}>
+                  {cost(span) ? `${t("usage.cost", { amount: cost(span) })} · ` : ""}
                   {t("usage.messages", { count: usage[span].messages })}
                 </dd>
               </div>

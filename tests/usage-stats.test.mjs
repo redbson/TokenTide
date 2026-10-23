@@ -116,8 +116,8 @@ test("merges aggregates into a per-day series", () => {
     { sessions: [{ day: "2026-09-09", hour: 19 }, { day: "2026-09-08", hour: 9 }], days: { "2026-09-09": { messages: 1, models: { a: { total: 5, io: 1 }, b: { total: 7, io: 7 } } } } },
   ]);
   assert.deepEqual(days, [
-    { date: "2026-09-08", sessions: 1, messages: 0, tokens: 0, io: 0, credits: 0, models: {}, modelCredits: {}, hours: { 9: 1 } },
-    { date: "2026-09-09", sessions: 2, messages: 4, tokens: 22, io: 12, credits: 0, models: { a: 15, b: 7 }, modelCredits: {}, hours: { 19: 2 } },
+    { date: "2026-09-08", sessions: 1, messages: 0, tokens: 0, io: 0, credits: 0, cost: 0, models: {}, modelCredits: {}, hours: { 9: 1 } },
+    { date: "2026-09-09", sessions: 2, messages: 4, tokens: 22, io: 12, credits: 0, cost: 0, models: { a: 15, b: 7 }, modelCredits: {}, hours: { 19: 2 } },
   ]);
 });
 

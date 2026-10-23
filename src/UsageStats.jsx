@@ -378,7 +378,13 @@ const LEDGER_ROWS = 7;
 function SpendingRecord({ ledger, days, firstDate }) {
   const { t } = useI18n();
   const [showAll, setShowAll] = useState(false);
-  const tokensOn = useMemo(() => new Map(days.map((day) => [day.date, day.tokens])), [days]);
+  const harnessOn = useMemo(() => new Map(days.map((day) => [day.date, day])), [days]);
+  const harness = (date) => {
+    const day = harnessOn.get(date);
+    if (!day?.tokens) return "—";
+    const tokens = t("balance.recordTokens", { tokens: formatTokens(day.tokens) });
+    return day.cost > 0 ? `${tokens} · ${t("usage.cost", { amount: formatMoney(day.cost, "CNY") })}` : tokens;
+  };
   const rows = ledger.filter((entry) => entry.date >= firstDate);
   if (!rows.length) return null;
   const shown = showAll ? rows : rows.slice(0, LEDGER_ROWS);
@@ -391,7 +397,7 @@ function SpendingRecord({ ledger, days, firstDate }) {
           <li key={entry.date}>
             <div className="spending-day">
               <span>{formatDayKey(entry.date)}</span>
-              <small>{tokensOn.get(entry.date) ? t("balance.recordTokens", { tokens: formatTokens(tokensOn.get(entry.date)) }) : "—"}</small>
+              <small>{harness(entry.date)}</small>
             </div>
             <div className="spending-amounts">
               <strong className={entry.spent > 0 ? "" : "is-zero"}>{entry.spent > 0 ? `−${money(entry.spent, entry.currency)}` : money(0, entry.currency)}</strong>
@@ -502,7 +508,15 @@ export function UsageStats({ stats, error, provider: selected, range, view, hidd
           )}
           <StatCard label={t("stats.activeDays")} value={summary.activeDays} detail={`/${summary.totalDays}`} />
           <StatCard label={t("stats.currentStreak")} value={t("stats.days", { count: summary.currentStreak })} />
-          <StatCard label={t("stats.longestStreak")} value={t("stats.days", { count: summary.longestStreak })} />
+          {provider === "deepseek" ? (
+            // Pay-as-you-go: what the range cost at DeepSeek's published prices, instead of a streak.
+            <StatCard
+              label={t("stats.cost")}
+              value={formatMoney(days.reduce((sum, day) => (day.date >= summary.start ? sum + (day.cost ?? 0) : sum), 0), "CNY")}
+            />
+          ) : (
+            <StatCard label={t("stats.longestStreak")} value={t("stats.days", { count: summary.longestStreak })} />
+          )}
           <StatCard label={t("stats.peakHour")} value={formatHour(summary.peakHour)} />
           <StatCard label={t("stats.favoriteModel")} value={formatModelName(summary.favoriteModel)} compact />
         </div>

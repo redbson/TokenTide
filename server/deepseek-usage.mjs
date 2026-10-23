@@ -25,16 +25,18 @@ const DAY_MS = 86_400_000;
 export function summarizeDeepseekUsage(aggregates, now = Date.now()) {
   const spans = { today: 1, week: 7, month: 30 };
   const firstDay = Object.fromEntries(Object.entries(spans).map(([id, days]) => [id, dayKey(now - (days - 1) * DAY_MS)]));
-  const usage = Object.fromEntries(Object.keys(spans).map((id) => [id, { tokens: 0, messages: 0 }]));
+  const usage = Object.fromEntries(Object.keys(spans).map((id) => [id, { tokens: 0, messages: 0, cost: 0 }]));
   const today = dayKey(now);
   for (const aggregate of aggregates) {
     for (const [day, entry] of Object.entries(aggregate.days)) {
       if (day > today) continue;
       const tokens = Object.values(entry.models).reduce((sum, model) => sum + model.total, 0);
+      const cost = Object.values(entry.models).reduce((sum, model) => sum + (model.cost ?? 0), 0);
       for (const id of Object.keys(spans)) {
         if (day < firstDay[id]) continue;
         usage[id].tokens += tokens;
         usage[id].messages += entry.messages;
+        usage[id].cost = Math.round((usage[id].cost + cost) * 1_000_000) / 1_000_000;
       }
     }
   }
