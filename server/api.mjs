@@ -1,4 +1,5 @@
 import { createBalanceLog, DEEPSEEK_KEY_NAME, fetchDeepseekBalance } from "./deepseek-balance.mjs";
+import { createDeepseekPriceBook } from "./deepseek-price-book.mjs";
 import { createDeepseekReader } from "./deepseek-usage.mjs";
 import { createQuotaLog } from "./quota-weeks.mjs";
 import { createSecretStore, isStorableSecret, maskSecret } from "./secret-store.mjs";
@@ -35,18 +36,19 @@ async function readJsonBody(request) {
 /**
  * The local JSON API (`/api/usage`, `/api/stats`, `/api/deepseek-key`), shared by the Vite dev
  * server and the packaged app's server. `services` lets tests replace the real readers, the
- * secret store, the balance log, and `fetch`.
+ * secret store, the balance log, DeepSeek's price book, and `fetch`.
  */
 export function createLocalApi(services = {}, { migration = null } = {}) {
   const secrets = services.secrets ?? createSecretStore();
   const balanceLog = services.balanceLog ?? createBalanceLog();
   const fetchImpl = services.fetchImpl ?? fetch;
+  const priceBook = services.priceBook ?? createDeepseekPriceBook({ fetchImpl });
   let usageService = services.usageService;
   let statsService = services.statsService;
   if (!usageService || !statsService) {
     const quotaLog = createQuotaLog();
-    usageService ??= createUsageService({ deepseek: createDeepseekReader({ secrets, balanceLog, fetchImpl }) }, { quotaLog });
-    statsService ??= createStatsService({ quotaLog, balanceLog });
+    usageService ??= createUsageService({ deepseek: createDeepseekReader({ secrets, balanceLog, fetchImpl, priceBook }) }, { quotaLog });
+    statsService ??= createStatsService({ quotaLog, balanceLog, priceBook });
   }
 
   const keyState = async () => {
@@ -54,9 +56,20 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
     return { configured: Boolean(key), hint: maskSecret(key) };
   };
 
+  // The panel names the tools hidden in Settings (`?hidden=deepseek,qoder`). While DeepSeek is
+  // shown, its prices are checked against DeepSeek's page at most once a day; the request does
+  // not wait for it, and the next refresh uses the new prices.
+  async function readUsage(request) {
+    const payload = await usageService.read();
+    const hidden = (new URL(request.url ?? "/", "http://localhost").searchParams.get("hidden") ?? "").split(",");
+    const deepseek = payload?.providers?.find((provider) => provider.id === "deepseek");
+    if (deepseek && deepseek.installed !== false && !hidden.includes("deepseek")) priceBook.refreshIfDue().catch(() => {});
+    return payload;
+  }
+
   // Each route: a handler per method, and the message for an unexpected failure.
   const routes = {
-    "/api/usage": { GET: () => usageService.read(), error: "Local usage could not be read." },
+    "/api/usage": { GET: readUsage, error: "Local usage could not be read." },
     "/api/stats": { GET: () => statsService.read(), error: "Local history could not be read." },
     // Lets the native shells tell TokenTide's service apart from another program on the port,
     // and whether the old-port hand-over (server/storage-migration.mjs) is waiting.

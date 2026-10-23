@@ -95,6 +95,14 @@ export function formatReset(limit, now = Date.now(), language = "en") {
   return t("reset.unknown");
 }
 
+/** A day as the cost tooltip names it: "10/23" in Chinese, "Oct 23" in English. */
+export function formatShortDate(timestamp, language = "en") {
+  const date = new Date(timestamp);
+  if (!Number.isFinite(timestamp) || Number.isNaN(date.getTime())) return null;
+  if (language === "zh") return `${date.getMonth() + 1}/${date.getDate()}`;
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+}
+
 export function timeAgo(timestamp, now = Date.now(), language = "en") {
   const t = (key, params) => translate(language, key, params);
   if (!timestamp) return t("updated.never");

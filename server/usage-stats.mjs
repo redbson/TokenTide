@@ -2,7 +2,7 @@ import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { zstdDecompressSync } from "node:zlib";
-import { deepseekCost } from "./deepseek-pricing.mjs";
+import { BUILTIN_DEEPSEEK_PRICES, deepseekCost } from "./deepseek-pricing.mjs";
 import {
   buildWeeklyWindows,
   claudeUsageCost,
@@ -288,9 +288,10 @@ function deepseekUsageOf(data) {
  * replaces the earlier one, and `llm/retry-started` starts a new billed attempt. Tokens are
  * input + output + cache read + cache write. A session with a `parentSession` is a subagent's:
  * its tokens count, but it is not a separate session and its messages are not counted. A session
- * starts at its first message; one opened and never used is not counted.
+ * starts at its first message; one opened and never used is not counted. Costs use `prices`
+ * (a table from deepseek-pricing.mjs; the built-in one by default).
  */
-export function aggregateDeepseekSession(text) {
+export function aggregateDeepseekSession(text, prices) {
   const aggregate = createAggregate();
   const attempts = new Map();
   const retries = new Map();
@@ -337,7 +338,7 @@ export function aggregateDeepseekSession(text) {
     };
     addTokens(aggregate, day, name, tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite, tokens.input + tokens.output);
     // Estimated yuan at DeepSeek's published price for the hour of the reply (deepseek-pricing.mjs).
-    const cost = deepseekCost(name, tokens, Number(at));
+    const cost = deepseekCost(name, tokens, Number(at), prices);
     const bucket = aggregate.days[day]?.models[name];
     if (bucket && cost !== null) bucket.cost = Math.round(((bucket.cost ?? 0) + cost) * 1_000_000) / 1_000_000;
   }
@@ -432,6 +433,8 @@ export function createStatsService({
   quotaLog = null,
   // DeepSeek balance readings (server/deepseek-balance.mjs), for History's Balance view.
   balanceLog = null,
+  // DeepSeek's current prices (server/deepseek-price-book.mjs); the built-in table without one.
+  priceBook = null,
 } = {}) {
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   let files = null;
@@ -464,6 +467,7 @@ export function createStatsService({
 
   async function scan() {
     await loadCache();
+    const prices = (await priceBook?.table()) ?? BUILTIN_DEEPSEEK_PRICES;
     const transcriptFile = (file) => {
       const parts = file.split(path.sep);
       return (
@@ -493,7 +497,9 @@ export function createStatsService({
       const info = await stat(file).catch(() => null);
       if (!info) continue;
       const cached = files[file];
-      if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size) {
+      // A DeepSeek session's costs are worked out again when the prices change.
+      const priceVersion = kind === "deepseek" ? prices.version : undefined;
+      if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size && cached.priceVersion === priceVersion) {
         next[file] = cached;
         continue;
       }
@@ -503,11 +509,12 @@ export function createStatsService({
         kind,
         mtimeMs: info.mtimeMs,
         size: info.size,
+        ...(priceVersion ? { priceVersion } : {}),
         aggregate:
           kind === "codex"
             ? aggregateCodexRollout(text)
             : kind === "deepseek"
-              ? aggregateDeepseekSession(text)
+              ? aggregateDeepseekSession(text, prices)
               : aggregateClaudeTranscript(text, { subagent, pricing: kind === "claude" }),
       };
       changed = true;
@@ -527,6 +534,7 @@ export function createStatsService({
     ]);
     return {
       generatedAt: Date.now(),
+      priceVersion: prices.version,
       providers: [
         {
           id: "codex",
@@ -541,8 +549,10 @@ export function createStatsService({
   }
 
   return {
-    read() {
-      if (result && Date.now() - computedAt < STALE_MS) return Promise.resolve(result);
+    async read() {
+      const priceVersion = (await priceBook?.table())?.version;
+      const fresh = result && Date.now() - computedAt < STALE_MS && (!priceVersion || result.priceVersion === priceVersion);
+      if (fresh) return result;
       inFlight ??= scan()
         .then((value) => {
           result = value;

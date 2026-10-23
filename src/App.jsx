@@ -16,6 +16,7 @@ import {
   formatAccount,
   formatLimitDetail,
   formatPercent,
+  formatShortDate,
   getPrimaryLimit,
   getPrimaryRemaining,
   STATS_PROVIDERS,
@@ -107,6 +108,8 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
   const hasBalance = Number.isFinite(balance?.total);
   // What Harness's replies cost at DeepSeek's published prices (an estimate; the bill decides).
   const cost = (span) => (usage?.[span]?.cost > 0 ? formatMoney(usage[span].cost, "CNY") : null);
+  const pricesChecked = formatShortDate(provider.prices?.checkedAt, language);
+  const costHint = pricesChecked ? t("usage.costHintChecked", { date: pricesChecked }) : t("usage.costHint");
 
   return (
     <section className={`provider provider-${provider.id}`} aria-labelledby={`${provider.id}-title`}>
@@ -191,7 +194,7 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
               <div className="limit-row" key={span}>
                 <dt>{t(`usage.${span}`)}</dt>
                 <dd className="limit-value">{formatTokens(usage[span].tokens)}</dd>
-                <dd className="limit-reset" title={cost(span) ? t("usage.costHint") : undefined}>
+                <dd className="limit-reset" title={cost(span) ? costHint : undefined}>
                   {cost(span) ? `${t("usage.cost", { amount: cost(span) })} · ` : ""}
                   {t("usage.messages", { count: usage[span].messages })}
                 </dd>
@@ -374,7 +377,10 @@ export function App() {
     setLoading(true);
     const request = (async () => {
       try {
-        const response = await fetch("/api/usage", { cache: "no-store" });
+        // Hidden tools are named so the service skips work for them (DeepSeek's price check).
+        const hidden = settingsRef.current.hiddenProviders;
+        const query = hidden.length ? `?hidden=${encodeURIComponent(hidden.join(","))}` : "";
+        const response = await fetch(`/api/usage${query}`, { cache: "no-store" });
         if (!response.ok) {
           setBanner({ tone: "error", key: "error.serviceNoResponse" });
           return;

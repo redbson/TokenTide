@@ -4,7 +4,7 @@
 
 [![Latest release](https://img.shields.io/github/v/release/redbson/TokenTide?label=%E6%9C%80%E6%96%B0%E7%89%88)](https://github.com/redbson/TokenTide/releases/latest) [![License](https://img.shields.io/github/license/redbson/TokenTide)](LICENSE)
 
-TokenTide 是一个 macOS 菜单栏小工具（也有 [Windows 托盘版](#windows-版预览)）：随时看 Codex、Claude Code 和 Qoder 还剩多少额度、DeepSeek Harness 用了多少 token、每周额度用了多少，以及历史使用记录。数据全部来自你本机已登录的命令行工具，不需要账号或 API Key，也不会上传任何数据（唯一的例外是可选的：填了 DeepSeek API Key 后，会向 DeepSeek 查询余额）。界面支持中文和英文，默认跟随系统语言，也可以在设置里切换。
+TokenTide 是一个 macOS 菜单栏小工具（也有 [Windows 托盘版](#windows-版预览)）：随时看 Codex、Claude Code 和 Qoder 还剩多少额度、DeepSeek Harness 用了多少 token、每周额度用了多少，以及历史使用记录。数据全部来自你本机已登录的命令行工具，不需要账号或 API Key，也不会上传任何数据（例外只有两个，都和 DeepSeek 有关：填了 DeepSeek API Key 后，会向 DeepSeek 查询余额；显示 DeepSeek 时，每天读一次 DeepSeek 公开的价格页，让估算花费跟上价格变化，不会发送任何关于你的信息）。界面支持中文和英文，默认跟随系统语言，也可以在设置里切换。
 
 **⬇ 下载：[macOS 版](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip) · [Windows 版](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe)** · [所有版本](https://github.com/redbson/TokenTide/releases)
 
@@ -17,7 +17,7 @@ TokenTide 是一个 macOS 菜单栏小工具（也有 [Windows 托盘版](#windo
 
 - **菜单栏读数**：两种样式。**详细**是几行小字——`CX` / `CC` 是 Codex 和 Claude Code 当前窗口的剩余百分比，旁边的 `QD` 是 Qoder 的剩余额度；**精简**是一个小仪表——每个工具一根竖条，从底部填充到剩余额度——宽度只有详细样式的五分之一左右。鼠标悬停可以看到具体数字。
 - **额度页**：Codex 和 Claude Code 的当前窗口和每周剩余额度、重置倒计时；Qoder 个人积分（套餐 + 加购额度）的剩余比例，团队资源包单独一行、不计入其中，每类都显示剩余积分；额度低于 20% 时提示；每 5 分钟自动刷新，打开面板时数据超过 1 分钟也会刷新。
-- **DeepSeek**（DeepSeek Harness 按量计费，没有额度）：今日、近 7 天、近 30 天的 token、消息数和估算花费，来自本机 Harness 的会话记录。花费按 DeepSeek 公布的价格逐条计算（区分高峰和空闲时段，含缓存命中），实际以 DeepSeek 账单为准。在设置里填入 DeepSeek API Key 后，还会显示 API 余额和各时段的花费。
+- **DeepSeek**（DeepSeek Harness 按量计费，没有额度）：今日、近 7 天、近 30 天的 token、消息数和估算花费，来自本机 Harness 的会话记录。花费按 DeepSeek 公布的价格逐条计算（区分高峰和空闲时段，含缓存命中），价格每天从 DeepSeek 的价格页更新一次，实际以 DeepSeek 账单为准。在设置里填入 DeepSeek API Key 后，还会显示 API 余额和各时段的花费。
 - **历史 · 概览 / 模型**（Codex、Claude Code、Qoder 和 DeepSeek；Qoder 不记录 token，按积分统计）：参照 Claude Code 的 `/stats`，统计会话、消息、Token、活跃天数、连续天数、高峰时段、常用模型，附 26 周热力图。
 - **历史 · 使用率**：每周额度实际用了多少——平均使用率、最高一周、用满次数、本周已用，以及每周柱状图。可以看过去 7 天、30 天、90 天和全部。Qoder 显示每周消耗的积分。
 - **额度趋势**：最近几次检查的当前窗口剩余曲线。
@@ -120,6 +120,7 @@ TokenTide 也能在 Windows 10 / 11（x64）上运行：同样的面板，从任
 | Qoder 额度 | 短暂启动 `qodercli --print`，通过 stream-json 发送结构化的 `get_usage_info` 请求（和 Qoder CLI 的 `/usage` 同源）。不发送任何提示词，不消耗额度；账号的用户 ID 会被丢弃 |
 | DeepSeek 用量 | DeepSeek Harness 的会话记录 `~/.dsh/sessions`（Zstandard 压缩的 JSONL）中每次回复报告的 token 数。从不读取 Harness 保存的凭证 |
 | DeepSeek 余额 | 只在你于设置中保存了 API Key 时：每次刷新请求 `GET https://api.deepseek.com/user/balance`。余额读数保存在 TokenTide 数据目录的 `deepseek-balance.json`，用来算花费：余额下降算花费，充值不算。统计的是整个账号，不只是 Harness |
+| DeepSeek 价格 | 只在显示 DeepSeek 时（装了 Harness，且没有在设置里关掉），最多每天一次：直接请求 `GET https://api-docs.deepseek.com/zh-cn/quick_start/pricing/`（DeepSeek 公开的价格页，不带 Key、Cookie 或任何账号信息）。只有每个模型的价格都齐全、空闲时段恰好是高峰时段的一半时才采用，保存在 TokenTide 数据目录的 `deepseek-prices.json`。读不到或校验不通过时沿用上次的价格；还没成功读到过时，用 TokenTide 自带的价格。花费的提示里写着价格更新于哪天 |
 | 使用记录 | 本机转录文件：`~/.claude/projects/**/*.jsonl`、`~/.codex/sessions`、`~/.codex/archived_sessions`、`~/.qoder/projects/**/*.jsonl`（Qoder 按每次回复的积分统计），以及 `~/.dsh/sessions` |
 | 每周使用率 | Codex 会话记录里的额度快照 + TokenTide 自己的记录；Claude Code 更早的周按本机转录估算 |
 
@@ -134,6 +135,7 @@ TokenTide 在本机写入的文件：
 | `~/Library/Logs/TokenTide.log` | 本机服务日志 |
 | `~/Library/Caches/TokenTide/usage-stats-v3.json` | 使用记录的统计缓存（只重新读取变化过的转录文件） |
 | `~/Library/Application Support/TokenTide/quota-weeks.json` | 每周额度记录（Claude Code 的使用率历史全靠它） |
+| `~/Library/Application Support/TokenTide/deepseek-prices.json` | 从 DeepSeek 价格页读到的价格和检查时间 |
 
 ## 常见问题
 
@@ -185,6 +187,9 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 | `tests/` | `node --test` 测试 |
 
 ## 更新日志
+
+### 未发布
+- DeepSeek 估算花费会自动跟上官方调价。
 
 ### 0.6.6
 - 可查看 DeepSeek 用量和估算花费。

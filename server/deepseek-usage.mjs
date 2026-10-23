@@ -3,6 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { DEEPSEEK_KEY_NAME, fetchDeepseekBalance, summarizeSpending } from "./deepseek-balance.mjs";
+import { BUILTIN_DEEPSEEK_PRICES, priceInfo } from "./deepseek-pricing.mjs";
 import { aggregateDeepseekSession, dayKey, decodeDeepseekSessionLog, listDeepseekSessionLogs } from "./usage-stats.mjs";
 
 // DeepSeek Harness (DeepSeek's desktop agent app) bills by the token from a prepaid balance, so
@@ -45,8 +46,10 @@ export function summarizeDeepseekUsage(aggregates, now = Date.now()) {
 
 /**
  * Reads DeepSeek Harness usage for the quota view. Session logs are parsed again only when they
- * change. `installed: false` hides DeepSeek for people without Harness. `secrets` and
- * `balanceLog` add the balance; without a saved key there is none.
+ * change, or when the prices do. `installed: false` hides DeepSeek for people without Harness.
+ * `secrets` and `balanceLog` add the balance; without a saved key there is none. `priceBook`
+ * (server/deepseek-price-book.mjs) supplies DeepSeek's current prices; without one the built-in
+ * table applies.
  */
 export function createDeepseekReader({
   dshHome = defaultDshHome(),
@@ -54,6 +57,7 @@ export function createDeepseekReader({
   secrets = null,
   balanceLog = null,
   fetchImpl = fetch,
+  priceBook = null,
 } = {}) {
   const parsed = new Map();
   // The last balance DeepSeek returned, shown with its age while a later request fails.
@@ -86,19 +90,20 @@ export function createDeepseekReader({
     }
 
     const balanceRead = readBalance(now);
+    const prices = (await priceBook?.table()) ?? BUILTIN_DEEPSEEK_PRICES;
     const files = await listDeepseekSessionLogs(sessionsDir);
     const aggregates = [];
     for (const file of files) {
       const info = await stat(file).catch(() => null);
       if (!info) continue;
       const cached = parsed.get(file);
-      if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size) {
+      if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size && cached.priceVersion === prices.version) {
         aggregates.push(cached.aggregate);
         continue;
       }
       try {
-        const aggregate = aggregateDeepseekSession(decodeDeepseekSessionLog(await readFile(file), file));
-        parsed.set(file, { mtimeMs: info.mtimeMs, size: info.size, aggregate });
+        const aggregate = aggregateDeepseekSession(decodeDeepseekSessionLog(await readFile(file), file), prices);
+        parsed.set(file, { mtimeMs: info.mtimeMs, size: info.size, priceVersion: prices.version, aggregate });
         aggregates.push(aggregate);
       } catch {
         // Harness is still writing this log; its last reading (if any) stands until it settles.
@@ -116,6 +121,8 @@ export function createDeepseekReader({
       source: "DeepSeek Harness session logs",
       limits: [],
       usage: summarizeDeepseekUsage(aggregates, now),
+      // Where the cost estimate's prices come from and when they were last checked.
+      prices: priceInfo(prices),
       balance: await balanceRead,
     };
   };
