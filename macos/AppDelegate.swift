@@ -5,6 +5,28 @@ import WebKit
 /// Borderless panel that drops down from the menu-bar item, like a system status menu.
 final class DropdownPanel: NSPanel {
     override var canBecomeKey: Bool { true }
+
+    /// A menu-bar app has no Edit menu, so ⌘X / ⌘C / ⌘V / ⌘A / ⌘Z would never reach the page's
+    /// text fields (pasting the DeepSeek API key, for one). Send them down the responder chain.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard flags == .command || flags == [.command, .shift],
+              let key = event.charactersIgnoringModifiers?.lowercased() else {
+            return super.performKeyEquivalent(with: event)
+        }
+        let shift = flags.contains(.shift)
+        var action: Selector?
+        switch key {
+        case "x" where !shift: action = #selector(NSText.cut(_:))
+        case "c" where !shift: action = #selector(NSText.copy(_:))
+        case "v" where !shift: action = #selector(NSText.paste(_:))
+        case "a" where !shift: action = #selector(NSResponder.selectAll(_:))
+        case "z": action = shift ? Selector(("redo:")) : Selector(("undo:"))
+        default: action = nil
+        }
+        if let action, NSApp.sendAction(action, to: nil, from: self) { return true }
+        return super.performKeyEquivalent(with: event)
+    }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMessageHandler, WKNavigationDelegate {
