@@ -182,6 +182,8 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 ## Changelog
 
 ### Unreleased
+- Codex and Qoder load more reliably, and Qoder loads faster.
+- If a refresh fails, the last reading stays, with its age.
 - A new About section at the bottom of Settings.
 
 ### 0.6.5

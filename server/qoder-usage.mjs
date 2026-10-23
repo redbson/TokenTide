@@ -9,8 +9,12 @@ import { exchangeJsonLines, makeLimit } from "./usage-service.mjs";
 // Code's `get_usage`. Only quota numbers, the plan type, and reset times leave this module;
 // the response's user id is dropped.
 
-const QODER_TIMEOUT_MS = 20_000;
-const QODER_ARGS = ["--print", "--output-format", "stream-json", "--input-format", "stream-json"];
+// Started this way qodercli answers in 3–6 s. Most of its startup otherwise goes to connecting
+// the user's MCP servers (10–40 s), which a quota request never uses: `--strict-mcp-config`
+// without `--mcp-config` loads none. No session is saved for these reads either.
+const QODER_TIMEOUT_MS = 25_000;
+const QODER_PLAIN_ARGS = ["--print", "--output-format", "stream-json", "--input-format", "stream-json"];
+const QODER_ARGS = [...QODER_PLAIN_ARGS, "--strict-mcp-config", "--no-session-persistence"];
 const qoderAppPaths = (platform = process.platform, env = process.env, home = os.homedir()) =>
   platform === "win32"
     ? [
@@ -123,19 +127,29 @@ export async function readQoderUsage({ command = findQoderCli(), args = QODER_AR
     };
   }
 
-  const response = await exchangeJsonLines({
-    command,
-    args,
-    timeoutMs,
-    start: (send) =>
-      send({ type: "control_request", request_id: "usage", request: { subtype: "get_usage_info" } }),
-    handle: (message) => {
-      if (message.type !== "control_response" || message.response?.request_id !== "usage") return undefined;
-      if (message.response.subtype !== "success") {
-        throw new Error(`Qoder CLI rejected the usage request${message.response.error ? `: ${message.response.error}` : "."}`);
-      }
-      return message.response.response ?? {};
-    },
-  });
+  const request = (requestArgs) =>
+    exchangeJsonLines({
+      command,
+      args: requestArgs,
+      timeoutMs,
+      start: (send) =>
+        send({ type: "control_request", request_id: "usage", request: { subtype: "get_usage_info" } }),
+      handle: (message) => {
+        if (message.type !== "control_response" || message.response?.request_id !== "usage") return undefined;
+        if (message.response.subtype !== "success") {
+          throw new Error(`Qoder CLI rejected the usage request${message.response.error ? `: ${message.response.error}` : "."}`);
+        }
+        return message.response.response ?? {};
+      },
+    });
+
+  let response;
+  try {
+    response = await request(args);
+  } catch (error) {
+    // An older qodercli that does not know the lean startup flags exits at once; ask it plainly.
+    if (args !== QODER_ARGS || !/exited before/.test(error.message)) throw error;
+    response = await request(QODER_PLAIN_ARGS);
+  }
   return parseQoderUsage(response);
 }

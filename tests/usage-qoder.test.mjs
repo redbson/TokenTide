@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import { findQoderCli, parseQoderUsage, readQoderUsage } from "../server/qoder-usage.mjs";
@@ -76,6 +79,34 @@ test("reads usage through the get_usage_info control request", async () => {
   assert.equal(provider.limits[0].remainingPercent, 75);
 });
 
+test("asks without the lean startup flags when an older qodercli rejects them", async () => {
+  // Exits at once when it sees --strict-mcp-config, like a version that does not know it.
+  const source = `
+    if (process.argv.includes("--strict-mcp-config")) process.exit(1);
+    require("node:readline").createInterface({ input: process.stdin }).on("line", (line) => {
+      const message = JSON.parse(line);
+      process.stdout.write(JSON.stringify({
+        type: "control_response",
+        response: { subtype: "success", request_id: message.request_id, response: ${JSON.stringify(USAGE_INFO)} },
+      }) + "\\n");
+    });
+  `;
+  const script = path.join(await mkdtemp(path.join(os.tmpdir(), "qoder-old-")), "qodercli.cjs");
+  await writeFile(script, source);
+  const command = path.join(path.dirname(script), process.platform === "win32" ? "qodercli.cmd" : "qodercli");
+  await writeFile(
+    command,
+    process.platform === "win32" ? `@"${process.execPath}" "${script}" %*\r\n` : `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`,
+    { mode: 0o755 },
+  );
+  try {
+    const provider = await readQoderUsage({ command, timeoutMs: 5000 });
+    assert.equal(provider.limits[0].remainingPercent, 75);
+  } finally {
+    await rm(path.dirname(script), { recursive: true, force: true });
+  }
+});
+
 test("without the CLI Qoder is hidden unless the Qoder app is installed", async () => {
   const provider = await readQoderUsage({ command: null });
   assert.equal(provider.connected, false);
@@ -94,6 +125,7 @@ test("a failing Qoder CLI stays visible with its error", async () => {
     qoder: async () => {
       throw new Error("qodercli did not return usage data in time.");
     },
+    retryDelayMs: 1,
   });
   const { providers } = await service.read();
   assert.deepEqual(providers.map((provider) => provider.id), ["codex", "claude", "qoder"]);
@@ -127,9 +159,7 @@ test("the headline counts plan and add-on credits but not the org package", () =
 });
 
 test("finds the installer's versioned binary when PATH has no qodercli", async () => {
-  const { mkdtemp, mkdir, writeFile, chmod, rm } = await import("node:fs/promises");
-  const os = await import("node:os");
-  const path = await import("node:path");
+  const { mkdir, chmod } = await import("node:fs/promises");
   const home = await mkdtemp(path.join(os.tmpdir(), "qoder-home-"));
   try {
     const dir = path.join(home, ".qoder", "bin", "qodercli");

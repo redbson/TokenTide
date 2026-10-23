@@ -71,6 +71,11 @@ test("snapshots record only connected primary values", () => {
     makeSnapshot({ updatedAt: NOW, providers: [provider("codex", 41), provider("claude", 70, false)] }),
     { at: NOW, codex: 41, claude: null, qoder: null },
   );
+  // The last reading shown after a failed refresh is not a new trend point.
+  assert.deepEqual(
+    makeSnapshot({ updatedAt: NOW, providers: [{ ...provider("codex", 41), stale: true }] }),
+    { at: NOW, codex: null, claude: null, qoder: null },
+  );
 });
 
 test("tools turned off in Settings or not installed are not shown", () => {

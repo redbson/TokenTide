@@ -14,6 +14,7 @@ import {
   readClaudeUsageDirect,
   readJsonLineProcess,
   resolveResetLabel,
+  withLastReading,
 } from "../server/usage-service.mjs";
 
 // 2026-09-10 12:00 in Asia/Shanghai (UTC+8, no DST).
@@ -322,4 +323,81 @@ test("reads `claude auth status` JSON even though a signed-out CLI exits 1", asy
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("Codex and Qoder are read once more when a read fails", async () => {
+  let codexCalls = 0;
+  let qoderCalls = 0;
+  const service = createUsageService({
+    retryDelayMs: 1,
+    codex: async () => {
+      codexCalls += 1;
+      if (codexCalls === 1) throw new Error("Codex could not reach its server just now.");
+      return { id: "codex", name: "Codex", connected: true, limits: [] };
+    },
+    qoder: async () => {
+      qoderCalls += 1;
+      throw new Error("qodercli did not return usage data in time.");
+    },
+    claudeDirect: async () => ({ id: "claude", name: "Claude Code", connected: true, limits: [] }),
+  });
+  const { providers } = await service.read();
+  assert.equal(providers[0].connected, true);
+  assert.equal(codexCalls, 2);
+  assert.equal(qoderCalls, 2, "one retry, then the error is shown");
+  assert.equal(providers[2].connected, false);
+});
+
+test("a failed refresh keeps the last reading, marked with its age", async () => {
+  const resetsAt = Math.floor(Date.now() / 1000) + 3600;
+  let fail = false;
+  const service = createUsageService({
+    retryDelayMs: 1,
+    codex: async () => {
+      if (fail) throw new Error("Codex could not reach its server just now.");
+      return { id: "codex", name: "Codex", connected: true, limits: [makeLimit("window", "Current window", 40, resetsAt)] };
+    },
+    qoder: async () => ({ id: "qoder", connected: false, installed: false, limits: [] }),
+    claudeDirect: async () => ({ id: "claude", name: "Claude Code", connected: true, limits: [] }),
+  });
+  const first = (await service.read()).providers[0];
+  fail = true;
+  const second = (await service.read()).providers[0];
+  assert.equal(second.stale, true);
+  assert.equal(second.readAt <= Date.now(), true);
+  assert.equal(second.limits[0].remainingPercent, first.limits[0].remainingPercent);
+  assert.match(second.staleError, /reach its server/);
+});
+
+test("the last reading is not reused when it is old, a window reset, or the error is real", () => {
+  const now = Date.UTC(2026, 9, 23, 8, 0);
+  const failed = { id: "codex", connected: false, limits: [], error: "Codex could not reach its server just now." };
+  const reading = (resetsAt) => ({ id: "codex", connected: true, limits: [makeLimit("window", "Current window", 40, resetsAt)] });
+  const later = now / 1000 + 3600;
+
+  assert.equal(withLastReading(failed, { provider: reading(later), readAt: now - 10 * 60_000 }, now).stale, true);
+  assert.equal(withLastReading(failed, null, now), failed);
+  // Older than 30 minutes.
+  assert.equal(withLastReading(failed, { provider: reading(later), readAt: now - 31 * 60_000 }, now), failed);
+  // The window has reset since, so the old percentage would be wrong.
+  assert.equal(withLastReading(failed, { provider: reading(now / 1000 - 60), readAt: now - 10 * 60_000 }, now), failed);
+  // Signed out is a real state, not a hiccup.
+  const signedOut = { ...failed, errorCode: "claudeSignedOut" };
+  assert.equal(withLastReading(signedOut, { provider: reading(later), readAt: now - 60_000 }, now), signedOut);
+  // A fresh reading is shown as it is.
+  const fresh = reading(later);
+  assert.equal(withLastReading(fresh, { provider: reading(later), readAt: now - 60_000 }, now), fresh);
+});
+
+test("explains a Codex request that could not reach its server", async () => {
+  const [command, args] = [process.execPath, ["-e", `
+    require("node:readline").createInterface({ input: process.stdin }).on("line", (line) => {
+      const message = JSON.parse(line);
+      const reply = message.id === 1
+        ? { id: 1, result: {} }
+        : { id: message.id, error: { code: -32603, message: "failed to fetch codex rate limits: error sending request for url (https://chatgpt.com/backend-api/wham/usage)" } };
+      process.stdout.write(JSON.stringify(reply) + "\\n");
+    });
+  `]];
+  await assert.rejects(readJsonLineProcess(command, args, [{ method: "account/rateLimits/read", id: 2 }], 5000), /could not reach its server/);
 });

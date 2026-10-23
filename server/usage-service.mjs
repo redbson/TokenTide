@@ -19,7 +19,9 @@ const CLAUDE_DIRECT_ARGS = [
   "--permission-mode",
   "plan",
 ];
-const CODEX_TIMEOUT_MS = 10_000;
+// Codex answers in 3–6 s, but its own request to chatgpt.com sometimes stalls for a minute;
+// past this a fresh try is quicker than waiting.
+const CODEX_TIMEOUT_MS = 15_000;
 const CLAUDE_OUTPUT_LIMIT = 160_000;
 
 function clampPercent(value) {
@@ -255,7 +257,14 @@ export function readJsonLineProcess(command, args, requests, timeoutMs = CODEX_T
 
       const request = requests.find((item) => item.id === message.id);
       if (!request) return undefined;
-      if (message.error) throw new Error("Codex rejected the local usage request.");
+      if (message.error) {
+        // "failed to fetch codex rate limits: error sending request …": its server was unreachable.
+        throw new Error(
+          /fetch|sending request|timed? ?out|connect/i.test(message.error.message ?? "")
+            ? "Codex could not reach its server just now."
+            : "Codex rejected the local usage request.",
+        );
+      }
       replies.set(request.method, message.result);
       return replies.size === requests.length ? Object.fromEntries(replies) : undefined;
     },
@@ -424,6 +433,38 @@ export function explainMissingPlanLimits(status) {
 }
 
 const CLAUDE_RETRY_DELAY_MS = 3000;
+// Codex and Qoder are read once more after this pause when a read fails (network hiccups).
+const RETRY_DELAY_MS = 1500;
+// A failed refresh keeps a tool's last reading on screen, marked with its age, for this long.
+const LAST_READING_MAX_AGE_MS = 30 * 60 * 1000;
+
+/**
+ * Calls `read` again once after `delayMs` when it fails. Coded errors (a missing command,
+ * signed out) are real states, not hiccups, so they are reported at once.
+ */
+async function retryOnce(read, delayMs) {
+  try {
+    return await read();
+  } catch (error) {
+    if (error?.code) throw error;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    return read();
+  }
+}
+
+/**
+ * The provider entry to show after a refresh: a failed read that is likely temporary falls back
+ * to the tool's last successful reading (`stale: true`, `readAt`), unless that reading is older
+ * than LAST_READING_MAX_AGE_MS or one of its windows has reset since. Signed-out, no-plan and
+ * missing-CLI errors are shown as they are.
+ */
+export function withLastReading(provider, last, now) {
+  if (provider.connected || !last) return provider;
+  if (provider.errorCode && provider.errorCode !== "claudeTemporary") return provider;
+  if (now - last.readAt > LAST_READING_MAX_AGE_MS) return provider;
+  if (last.provider.limits?.some((limit) => Number.isFinite(limit.resetsAt) && limit.resetsAt * 1000 <= now)) return provider;
+  return { ...last.provider, stale: true, readAt: last.readAt, staleError: provider.error ?? null };
+}
 
 class ClaudeUsageSession {
   constructor() {
@@ -588,6 +629,9 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
     readers.claudeFallback ?? (() => (claudeSession ??= new ClaudeUsageSession()).request());
   const readClaudeAuth = readers.claudeAuth ?? (() => readClaudeAuthStatus());
   const retryDelayMs = readers.claudeRetryDelayMs ?? CLAUDE_RETRY_DELAY_MS;
+  const readRetryDelayMs = readers.retryDelayMs ?? RETRY_DELAY_MS;
+  // The last successful reading per tool: { provider, readAt }.
+  const lastReadings = new Map();
   let inFlight = null;
 
   async function readClaude() {
@@ -624,26 +668,36 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
   }
 
   async function readAll() {
-    const [codex, claude, qoder] = await Promise.allSettled([readCodex(), readClaude(), readQoder()]);
+    const [codex, claude, qoder] = await Promise.allSettled([
+      retryOnce(readCodex, readRetryDelayMs),
+      readClaude(),
+      retryOnce(readQoder, readRetryDelayMs),
+    ]);
+    const updatedAt = Date.now();
+    const providers = [
+      codex.status === "fulfilled"
+        ? codex.value
+        : unavailableProvider("codex", "Codex", codex.reason),
+      claude.status === "fulfilled"
+        ? claude.value
+        : unavailableProvider("claude", "Claude Code", claude.reason),
+      // The Qoder CLI exists when its read fails, so keep Qoder visible with the error.
+      qoder.status === "fulfilled"
+        ? qoder.value
+        : { ...unavailableProvider("qoder", "Qoder", qoder.reason), installed: true },
+    ];
+    for (const provider of providers) {
+      if (provider.connected) lastReadings.set(provider.id, { provider, readAt: updatedAt });
+    }
     const result = {
-      updatedAt: Date.now(),
-      providers: [
-        codex.status === "fulfilled"
-          ? codex.value
-          : unavailableProvider("codex", "Codex", codex.reason),
-        claude.status === "fulfilled"
-          ? claude.value
-          : unavailableProvider("claude", "Claude Code", claude.reason),
-        // The Qoder CLI exists when its read fails, so keep Qoder visible with the error.
-        qoder.status === "fulfilled"
-          ? qoder.value
-          : { ...unavailableProvider("qoder", "Qoder", qoder.reason), installed: true },
-      ],
+      updatedAt,
+      providers: providers.map((provider) => withLastReading(provider, lastReadings.get(provider.id), updatedAt)),
     };
 
     if (quotaLog) {
+      // Only fresh readings go into the weekly log.
       await Promise.all(
-        result.providers.map((provider) =>
+        providers.map((provider) =>
           quotaLog.record(provider.id, weeklyReadingFromProvider(provider, result.updatedAt)).catch(() => {}),
         ),
       );

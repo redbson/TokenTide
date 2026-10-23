@@ -123,7 +123,8 @@ export function describeLow(providers, language = "en") {
 }
 
 export function makeSnapshot(payload) {
-  const byId = Object.fromEntries(payload.providers.map((provider) => [provider.id, provider]));
+  // A last reading shown after a failed refresh is not a new point on the trend.
+  const byId = Object.fromEntries(payload.providers.filter((provider) => !provider.stale).map((provider) => [provider.id, provider]));
   return {
     at: payload.updatedAt,
     codex: getPrimaryRemaining(byId.codex),

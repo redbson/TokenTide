@@ -182,6 +182,8 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 ## 更新日志
 
 ### 未发布
+- Codex 和 Qoder 更不容易读取失败，Qoder 也读得更快。
+- 刷新失败时保留上次读数，并标出是几分钟前的。
 - 设置页底部新增「关于」信息。
 
 ### 0.6.5

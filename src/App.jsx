@@ -106,16 +106,24 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
         <img className="provider-icon" src={meta.icon} alt={meta.iconAlt} />
         <div className="provider-identity">
           <h2 id={`${provider.id}-title`}>{meta.name}</h2>
-          <div className="connection-line">
-            <span className={`status-dot ${provider.connected ? "" : "is-offline"}`} />
-            <span>{t(provider.connected ? "provider.connected" : loading ? "provider.checking" : "provider.unavailable")}</span>
-            {provider.connected && provider.account ? (
-              <>
-                <span className="separator" aria-hidden="true">·</span>
-                <span className="account-label">{formatAccount(provider.account, language)}</span>
-              </>
-            ) : null}
-          </div>
+          {provider.stale ? (
+            // The refresh failed, so this is the tool's last reading; the reason is in the tooltip.
+            <div className="connection-line" title={provider.staleError ?? undefined}>
+              <span className="status-dot is-warning" />
+              <span>{t("provider.stale", { count: Math.max(1, Math.floor((now - provider.readAt) / 60000)) })}</span>
+            </div>
+          ) : (
+            <div className="connection-line">
+              <span className={`status-dot ${provider.connected ? "" : "is-offline"}`} />
+              <span>{t(provider.connected ? "provider.connected" : loading ? "provider.checking" : "provider.unavailable")}</span>
+              {provider.connected && provider.account ? (
+                <>
+                  <span className="separator" aria-hidden="true">·</span>
+                  <span className="account-label">{formatAccount(provider.account, language)}</span>
+                </>
+              ) : null}
+            </div>
+          )}
         </div>
         <div className={`primary-usage ${low ? "is-low" : ""} ${loading ? "is-loading" : ""}`}>
           <strong>{loading ? "—" : formatPercent(remaining)}</strong>

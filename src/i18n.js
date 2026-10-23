@@ -36,6 +36,7 @@ export const MESSAGES = {
 
     "provider.connected": "已连接",
     "provider.checking": "检查中",
+    "provider.stale": "暂未刷新 · {count} 分钟前的数据",
     "provider.unavailable": "不可用",
     "provider.left": "剩余",
     "provider.progress": "{name} 当前窗口剩余额度",
@@ -243,6 +244,7 @@ export const MESSAGES = {
 
     "provider.connected": "Connected",
     "provider.checking": "Checking",
+    "provider.stale": "Not refreshed · data from {count} min ago",
     "provider.unavailable": "Unavailable",
     "provider.left": "left",
     "provider.progress": "{name} current window remaining",
