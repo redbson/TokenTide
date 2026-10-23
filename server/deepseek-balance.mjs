@@ -73,6 +73,31 @@ export function spendingByDay(readings) {
   return days;
 }
 
+/**
+ * The spending record: one entry per local day the balance moved (and the day readings start),
+ * newest first: what was spent, what was added (top-ups, grants), and the balance at day's end.
+ */
+export function dailyLedger(readings) {
+  const days = new Map();
+  const entry = (reading) => {
+    const date = dayKey(reading.at);
+    if (!days.has(date)) days.set(date, { date, currency: reading.currency, spent: 0, added: 0, balance: reading.total });
+    return days.get(date);
+  };
+  if (readings.length) entry(readings[0]);
+  for (let index = 1; index < readings.length; index += 1) {
+    const [before, after] = [readings[index - 1], readings[index]];
+    const day = entry(after);
+    day.balance = after.total;
+    day.currency = after.currency;
+    if (before.currency !== after.currency) continue;
+    const change = after.total - before.total;
+    if (change < 0) day.spent = Math.round((day.spent - change) * 10_000) / 10_000;
+    else day.added = Math.round((day.added + change) * 10_000) / 10_000;
+  }
+  return [...days.values()].reverse();
+}
+
 /** Spending today and over the last 7 and 30 days, plus when the readings start. */
 export function summarizeSpending(readings, now = Date.now()) {
   const byDay = spendingByDay(readings);
@@ -125,7 +150,14 @@ export function createBalanceLog({ logPath = path.join(defaultDataDir(), "deepse
       await load();
       const last = readings.at(-1);
       if (!last) return null;
-      return { currency: last.currency, total: last.total, at: last.at, since: readings[0].at, byDay: spendingByDay(readings) };
+      return {
+        currency: last.currency,
+        total: last.total,
+        at: last.at,
+        since: readings[0].at,
+        byDay: spendingByDay(readings),
+        ledger: dailyLedger(readings),
+      };
     },
     // A new key may belong to another account, so its readings start over.
     async clear() {

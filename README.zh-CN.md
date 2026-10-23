@@ -88,7 +88,7 @@ TokenTide 也能在 Windows 10 / 11（x64）上运行：同样的面板，从任
 - **左键**点菜单栏读数打开面板，点别处或按 Esc 关闭。
 - **右键**：显示额度 / 立即刷新 / 退出。面板底部也有「退出」。
 - **额度**标签：看各个服务的剩余额度和重置时间；右上角按钮立即刷新。
-- **历史**标签：顶部切换 Codex / Claude Code / Qoder / DeepSeek（本机有 Qoder、DeepSeek 会话记录时才出现；DeepSeek 没有「使用率」，换成「余额」：当前余额、每天花费、日均花费和预计还能用几天），再选「概览 / 模型 / 使用率」和时间范围（全部 / 90 天 / 30 天 / 7 天）。
+- **历史**标签：顶部切换 Codex / Claude Code / Qoder / DeepSeek（本机有 Qoder、DeepSeek 会话记录时才出现；DeepSeek 没有「使用率」，换成「余额」：当前余额、每天花费、日均花费、预计还能用几天，以及花费记录——每天花了多少、充值、Harness 用的 token 和当天余额），再选「概览 / 模型 / 使用率」和时间范围（全部 / 90 天 / 30 天 / 7 天）。
 - **设置**标签：
   - **语言**：中文、English 或跟随系统。跟随系统时，系统首选语言是中文就显示中文，否则显示英文；菜单栏右键菜单也会跟着切换。
   - **菜单栏样式**（macOS）：详细或精简，见上文。
@@ -189,6 +189,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 ### 未发布
 - 支持查看 DeepSeek Harness 的 token 用量。
 - 填入 DeepSeek API Key 后可查看余额和每天花费。
+- 新增 DeepSeek 花费记录，按天列出。
 - Codex 和 Qoder 更不容易读取失败，Qoder 也读得更快。
 - 刷新失败时保留上次读数，并标出是几分钟前的。
 - 设置页底部新增「关于」信息。

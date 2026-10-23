@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useI18n } from "./i18n-context.js";
 import { PROVIDER_META, STATS_PROVIDERS, formatPercent } from "./usage-format.js";
 import {
@@ -371,8 +371,47 @@ function CreditUsage({ days, range, today }) {
   );
 }
 
+const LEDGER_ROWS = 7;
+
+// The spending record: each day the balance moved, newest first, with that day's tokens from
+// DeepSeek Harness. Older days fold behind a button.
+function SpendingRecord({ ledger, days, firstDate }) {
+  const { t } = useI18n();
+  const [showAll, setShowAll] = useState(false);
+  const tokensOn = useMemo(() => new Map(days.map((day) => [day.date, day.tokens])), [days]);
+  const rows = ledger.filter((entry) => entry.date >= firstDate);
+  if (!rows.length) return null;
+  const shown = showAll ? rows : rows.slice(0, LEDGER_ROWS);
+  const money = (value, currency) => formatMoney(value, currency);
+  return (
+    <section className="spending-record" aria-labelledby="spending-record-title">
+      <h4 id="spending-record-title">{t("balance.record")}</h4>
+      <ol>
+        {shown.map((entry) => (
+          <li key={entry.date}>
+            <div className="spending-day">
+              <span>{formatDayKey(entry.date)}</span>
+              <small>{tokensOn.get(entry.date) ? t("balance.recordTokens", { tokens: formatTokens(tokensOn.get(entry.date)) }) : "—"}</small>
+            </div>
+            <div className="spending-amounts">
+              <strong className={entry.spent > 0 ? "" : "is-zero"}>{entry.spent > 0 ? `−${money(entry.spent, entry.currency)}` : money(0, entry.currency)}</strong>
+              {entry.added > 0 ? <span className="spending-added">{t("balance.recordAdded", { amount: money(entry.added, entry.currency) })}</span> : null}
+              <small>{t("balance.recordBalance", { amount: money(entry.balance, entry.currency) })}</small>
+            </div>
+          </li>
+        ))}
+      </ol>
+      {rows.length > shown.length ? (
+        <button className="link-button" type="button" onClick={() => setShowAll(true)}>
+          {t("balance.recordMore", { count: rows.length - shown.length })}
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
 // DeepSeek's balance: spending per day, worked out from the balance readings TokenTide keeps.
-function BalanceUsage({ balance, range, today }) {
+function BalanceUsage({ balance, days, range, today }) {
   const { t } = useI18n();
   const summary = useMemo(() => summarizeBalance(balance, range, today), [balance, range, today]);
   const money = (value) => formatMoney(value, balance.currency);
@@ -405,6 +444,7 @@ function BalanceUsage({ balance, range, today }) {
         axis={[formatDayKey(summary.days[0].date), t("credits.today")]}
       />
       <p className="quota-note">{t("balance.note", { date: formatDayKey(localDayKey(new Date(balance.since))) })}</p>
+      <SpendingRecord ledger={balance.ledger ?? []} days={days} firstDate={summary.days[0].date} />
     </>
   );
 }
@@ -436,7 +476,7 @@ export function UsageStats({ stats, error, provider: selected, range, view, hidd
     body = <p className="stats-empty">{t("stats.loading")}</p>;
   } else if (activeView === "balance") {
     body = providerStats?.balance ? (
-      <BalanceUsage balance={providerStats.balance} range={range} today={today} />
+      <BalanceUsage balance={providerStats.balance} days={days} range={range} today={today} />
     ) : (
       <p className="stats-empty">{t("balance.empty")}</p>
     );

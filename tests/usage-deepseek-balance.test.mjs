@@ -8,6 +8,7 @@ import test from "node:test";
 import { createLocalApi } from "../server/api.mjs";
 import {
   createBalanceLog,
+  dailyLedger,
   fetchDeepseekBalance,
   parseDeepseekBalance,
   spendingByDay,
@@ -105,7 +106,8 @@ test("History's balance view: spending per day, average over recorded days, and 
   assert.equal(summary.runway, 40);
   assert.equal(summarizeBalance({ ...balance, byDay: {} }, "all", "2026-10-23").runway, null);
   assert.equal(formatMoney(110.25, "CNY"), "¥110.25");
-  assert.equal(formatMoney(0.0123, "CNY"), "¥0.0123");
+  assert.equal(formatMoney(0.9356, "CNY"), "¥0.94");
+  assert.equal(formatMoney(0.0012, "CNY"), "¥0.0012");
   assert.equal(formatMoney(2, "USD"), "$2.00");
 });
 
@@ -195,4 +197,20 @@ test("the platform secret store keeps a value and forgets it", { skip: !["darwin
     await createSecretStore({ directory: dir }).delete(name);
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("the spending record lists each day's spending, top-ups, and closing balance, newest first", () => {
+  const readings = [
+    { at: day("2026-10-21", 9), currency: "CNY", total: 100 },
+    { at: day("2026-10-21", 18), currency: "CNY", total: 98.5 },
+    { at: day("2026-10-22", 9), currency: "CNY", total: 148.5 },
+    { at: day("2026-10-22", 20), currency: "CNY", total: 147.25 },
+    { at: day("2026-10-24", 10), currency: "CNY", total: 146 },
+  ];
+  assert.deepEqual(dailyLedger(readings), [
+    { date: "2026-10-24", currency: "CNY", spent: 1.25, added: 0, balance: 146 },
+    { date: "2026-10-22", currency: "CNY", spent: 1.25, added: 50, balance: 147.25 },
+    { date: "2026-10-21", currency: "CNY", spent: 1.5, added: 0, balance: 98.5 },
+  ]);
+  assert.deepEqual(dailyLedger([]), []);
 });

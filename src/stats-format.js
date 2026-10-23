@@ -298,10 +298,10 @@ export function summarizeBalance(balance, range, today = localDayKey()) {
 
 const CURRENCY_SIGNS = { CNY: "¥", USD: "$" };
 
-/** `¥110.00`; amounts under 1 keep up to 4 decimals so a few cents of spending still show. */
+/** `¥110.00`; amounts under 0.01 keep up to 4 decimals so a tiny charge doesn't read as zero. */
 export function formatMoney(value, currency = "CNY") {
   if (!Number.isFinite(value)) return "—";
-  const digits = Math.abs(value) > 0 && Math.abs(value) < 1 ? 4 : 2;
+  const digits = Math.abs(value) > 0 && Math.abs(value) < 0.01 ? 4 : 2;
   const text = value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: digits });
   return CURRENCY_SIGNS[currency] ? `${CURRENCY_SIGNS[currency]}${text}` : `${text} ${currency}`;
 }

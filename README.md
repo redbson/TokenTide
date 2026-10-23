@@ -88,7 +88,7 @@ TokenTide also runs on Windows 10 and 11 (x64) as a tray app: the same panel, op
 - **Left-click** the menu-bar readout to open the panel; click anywhere else or press Esc to close it.
 - **Right-click** for Show Quota, Refresh Now, and Quit. The panel footer also has Quit.
 - **Quota**: quota left and reset times for each tool; the button at the top right refreshes immediately.
-- **History**: switch between Codex, Claude Code, Qoder, and DeepSeek at the top (Qoder and DeepSeek appear once this Mac has their sessions; DeepSeek has a Balance view instead of Utilization: balance, spending per day, daily average, and how long the balance lasts), then pick Overview / Models / Utilization and a range (All / 90d / 30d / 7d).
+- **History**: switch between Codex, Claude Code, Qoder, and DeepSeek at the top (Qoder and DeepSeek appear once this Mac has their sessions; DeepSeek has a Balance view instead of Utilization: balance, spending per day, daily average, how long the balance lasts, and a spending record — each day's spending, top-ups, Harness tokens, and closing balance), then pick Overview / Models / Utilization and a range (All / 90d / 30d / 7d).
 - **Settings**:
   - **Language**: English, Chinese (中文), or follow the system — Chinese when your Mac's primary language is Chinese, English otherwise. The menu-bar menu follows it too.
   - **Menu bar** (macOS): Detailed or Compact, see above.
@@ -189,6 +189,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 ### Unreleased
 - See DeepSeek Harness token usage, in Quota and History.
 - Add a DeepSeek API key to see your balance and daily spending.
+- A DeepSeek spending record, day by day.
 - Codex and Qoder load more reliably, and Qoder loads faster.
 - If a refresh fails, the last reading stays, with its age.
 - A new About section at the bottom of Settings.
