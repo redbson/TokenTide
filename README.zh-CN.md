@@ -167,7 +167,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 2. 在 GitHub 上发布一个标签为 `vX.Y.Z` 的 Release，或者运行：
 
    ```bash
-   gh release create v0.6.6 --generate-notes
+   gh release create v0.6.7 --generate-notes
    ```
 
 3. [Release 工作流](.github/workflows/release.yml) 会自动跑测试、打包通用版 Mac app 和 Windows 安装包，并把 `TokenTide-X.Y.Z.zip`、`TokenTide-Setup-X.Y.Z.exe`、它们的 `.sha256` 校验文件，以及不带版本号的 `TokenTide.zip` / `TokenTide-Setup.exe`（供下载链接使用）附加到这个 Release 上。已安装的 TokenTide 会在下次检查时自动更新。
@@ -186,13 +186,10 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 
 ## 更新日志
 
-### 未发布
-- 支持查看 DeepSeek Harness 的 token 用量。
-- 填入 DeepSeek API Key 后可查看余额和每天花费。
-- 新增 DeepSeek 花费记录，按天列出。
-- 按 DeepSeek 价格估算 Harness 的花费金额。
-- Codex 和 Qoder 更不容易读取失败，Qoder 也读得更快。
-- 刷新失败时保留上次读数，并标出是几分钟前的。
+### 0.6.6
+- 可查看 DeepSeek 用量和估算花费。
+- 填入 API Key 后可查看余额和每日花费记录。
+- Codex、Qoder 读取更稳定，刷新失败保留上次读数。
 - 设置页底部新增「关于」信息。
 
 ### 0.6.5

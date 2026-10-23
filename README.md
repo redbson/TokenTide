@@ -167,7 +167,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 2. Publish a GitHub release tagged `vX.Y.Z`, or run:
 
    ```bash
-   gh release create v0.6.6 --generate-notes
+   gh release create v0.6.7 --generate-notes
    ```
 
 3. The [release workflow](.github/workflows/release.yml) runs the tests, builds the universal Mac app and the Windows installer, and attaches `TokenTide-X.Y.Z.zip` and `TokenTide-Setup-X.Y.Z.exe`, their `.sha256` checksums, and unversioned `TokenTide.zip` / `TokenTide-Setup.exe` copies (used by the download links). Installed copies update themselves at their next check.
@@ -186,13 +186,10 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 
 ## Changelog
 
-### Unreleased
-- See DeepSeek Harness token usage, in Quota and History.
-- Add a DeepSeek API key to see your balance and daily spending.
-- A DeepSeek spending record, day by day.
-- The estimated cost of DeepSeek Harness usage, at DeepSeek's prices.
-- Codex and Qoder load more reliably, and Qoder loads faster.
-- If a refresh fails, the last reading stays, with its age.
+### 0.6.6
+- See DeepSeek Harness usage and its estimated cost, in Quota and History.
+- Add a DeepSeek API key to see your balance and a daily spending record.
+- Codex and Qoder load more reliably, and failed refreshes keep the last reading.
 - A new About section at the bottom of Settings.
 
 ### 0.6.5
