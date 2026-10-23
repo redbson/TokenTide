@@ -1,6 +1,7 @@
 import { useI18n } from "./i18n-context.js";
 import { LANGUAGE_NAMES } from "./i18n.js";
-import { BellIcon, ClockIcon, DownloadIcon, GlobeIcon, LockIcon, LoginIcon, MenuBarIcon, NotesIcon } from "./icons.jsx";
+import { useEffect, useState } from "react";
+import { BellIcon, ClockIcon, DownloadIcon, GlobeIcon, KeyIcon, LockIcon, LoginIcon, MenuBarIcon, NotesIcon } from "./icons.jsx";
 import { LOW_USAGE_THRESHOLD, PROVIDER_META, STATS_PROVIDERS, formatAccount, isVisibleProvider } from "./usage-format.js";
 
 function Toggle({ checked, onChange, label, disabled = false }) {
@@ -166,6 +167,105 @@ function ShownTools({ providers, hiddenProviders, onChange }) {
   );
 }
 
+// Error codes from /api/deepseek-key that have their own message.
+const KEY_ERRORS = new Set(["deepseekKeyInvalid", "deepseekKeyMalformed", "deepseekBalanceUnavailable"]);
+
+async function sendKeyRequest(method, body) {
+  const response = await fetch("/api/deepseek-key", {
+    method,
+    cache: "no-store",
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error ?? "failed");
+  return payload;
+}
+
+// The DeepSeek API key for the balance. The service checks it with DeepSeek before saving it in
+// the Keychain (Windows: DPAPI) and only ever hands back a masked hint.
+function DeepseekKey({ onChanged }) {
+  const { t } = useI18n();
+  const [state, setState] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    sendKeyRequest("GET").then(setState, () => setState({ configured: false, hint: null }));
+  }, []);
+
+  const run = async (method, body) => {
+    setBusy(true);
+    setError(null);
+    try {
+      setState(await sendKeyRequest(method, body));
+      setEditing(false);
+      setValue("");
+      onChanged();
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const showForm = state && (!state.configured || editing);
+  return (
+    <section className="settings-group" aria-labelledby="settings-deepseek">
+      <h3 id="settings-deepseek">{t("settings.deepseek")}</h3>
+      <div className="settings-list">
+        <SettingRow
+          icon={<KeyIcon />}
+          title={t("deepseekKey.title")}
+          detail={state?.configured ? t("deepseekKey.on", { hint: state.hint }) : t("deepseekKey.off")}
+          action={
+            showForm ? (
+              <form
+                className="key-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (value.trim()) run("PUT", { key: value.trim() });
+                }}
+              >
+                <input
+                  className="key-input"
+                  type="password"
+                  value={value}
+                  onChange={(event) => setValue(event.target.value)}
+                  placeholder="sk-…"
+                  aria-label={t("deepseekKey.title")}
+                  autoComplete="off"
+                  spellCheck={false}
+                  disabled={busy}
+                />
+                <button className="key-button" type="submit" disabled={busy || !value.trim()}>
+                  {t(busy ? "deepseekKey.checking" : "deepseekKey.save")}
+                </button>
+                {editing ? (
+                  <button className="link-button" type="button" onClick={() => setEditing(false)} disabled={busy}>
+                    {t("deepseekKey.cancel")}
+                  </button>
+                ) : null}
+              </form>
+            ) : state?.configured ? (
+              <span className="settings-actions">
+                <button className="link-button" type="button" onClick={() => setEditing(true)}>{t("deepseekKey.replace")}</button>
+                <button className="link-button" type="button" onClick={() => run("DELETE")} disabled={busy}>
+                  {t("deepseekKey.remove")}
+                </button>
+              </span>
+            ) : null
+          }
+        />
+      </div>
+      {error ? <p className="settings-error">{t(KEY_ERRORS.has(error) ? `balanceError.${error}` : "balanceError.failed")}</p> : null}
+      <p className="settings-note" title={t("deepseekKey.note")}>{t("deepseekKey.note")}</p>
+    </section>
+  );
+}
+
 export function SettingsView({
   settings,
   providers,
@@ -177,6 +277,7 @@ export function SettingsView({
   onUpdateAction,
   onOpenChangelog,
   showMenuBarStyle = false,
+  onDeepseekKeyChange = () => {},
 }) {
   const { t } = useI18n();
   const loginEnabled = loginItem.status === "enabled" || loginItem.status === "requiresApproval";
@@ -227,6 +328,12 @@ export function SettingsView({
         hiddenProviders={settings.hiddenProviders}
         onChange={(value) => onSettingChange("hiddenProviders", value)}
       />
+
+      {/* Only with DeepSeek Harness installed and shown. */}
+      {isVisibleProvider(providers.find((provider) => provider.id === "deepseek") ?? { installed: false }) &&
+      !settings.hiddenProviders.includes("deepseek") ? (
+        <DeepseekKey onChanged={onDeepseekKeyChange} />
+      ) : null}
 
       <section className="settings-group" aria-labelledby="settings-update">
         <h3 id="settings-update">{t("settings.update")}</h3>

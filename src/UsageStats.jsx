@@ -10,11 +10,13 @@ import {
   formatDayKey,
   formatHour,
   formatModelName,
+  formatMoney,
   formatMonthDay,
   formatClock,
   formatShare,
   formatTokens,
   localDayKey,
+  summarizeBalance,
   summarizeCreditDays,
   summarizeCreditWeeks,
   summarizeQuotaWeeks,
@@ -369,6 +371,44 @@ function CreditUsage({ days, range, today }) {
   );
 }
 
+// DeepSeek's balance: spending per day, worked out from the balance readings TokenTide keeps.
+function BalanceUsage({ balance, range, today }) {
+  const { t } = useI18n();
+  const summary = useMemo(() => summarizeBalance(balance, range, today), [balance, range, today]);
+  const money = (value) => formatMoney(value, balance.currency);
+  const max = Math.max(summary.peak, 0.0001);
+  const bars = summary.days.map((day) => ({
+    key: day.date,
+    height: day.spent > 0 ? Math.max((day.spent / max) * 100, 1.5) : 0,
+    className: day.isToday ? "is-current" : "",
+    isCurrent: day.isToday,
+    label: day.isToday ? t("credits.today") : formatDayKey(day.date),
+    title: day.recorded
+      ? t("balance.dayBar", { date: formatDayKey(day.date), amount: money(day.spent) })
+      : t("balance.dayUnrecorded", { date: formatDayKey(day.date) }),
+  }));
+  return (
+    <>
+      <div className="stat-grid">
+        <StatCard label={t("balance.current")} value={money(balance.total)} />
+        <StatCard label={t("balance.spent")} value={money(summary.total)} />
+        <StatCard label={t("balance.average")} value={money(summary.average)} />
+        <StatCard
+          label={t("balance.runway")}
+          value={summary.runway === null ? "—" : t("stats.days", { count: Math.floor(summary.runway) })}
+        />
+      </div>
+      <BarChart
+        label={t("balance.chart")}
+        bars={bars}
+        average={summary.average ? { height: (summary.average / max) * 100, text: t("balance.averageLine", { amount: money(summary.average) }) } : null}
+        axis={[formatDayKey(summary.days[0].date), t("credits.today")]}
+      />
+      <p className="quota-note">{t("balance.note", { date: formatDayKey(localDayKey(new Date(balance.since))) })}</p>
+    </>
+  );
+}
+
 export function UsageStats({ stats, error, provider: selected, range, view, hiddenProviders = [], onChange }) {
   const { t, language } = useI18n();
   const today = localDayKey();
@@ -380,8 +420,8 @@ export function UsageStats({ stats, error, provider: selected, range, view, hidd
   );
   const providerIds = withRecords.length ? withRecords : shownIds.length ? shownIds : [STATS_PROVIDERS[0]];
   const provider = providerIds.includes(selected) ? selected : providerIds[0];
-  // DeepSeek is pay-as-you-go: no quota, so no Utilization view.
-  const views = provider === "deepseek" ? ["overview", "models"] : ["overview", "models", "quota"];
+  // DeepSeek is pay-as-you-go: a Balance view instead of Utilization.
+  const views = provider === "deepseek" ? ["overview", "models", "balance"] : ["overview", "models", "quota"];
   const activeView = views.includes(view) ? view : "overview";
   const measure = measureOf(provider);
   const providerStats = stats?.providers.find((item) => item.id === provider);
@@ -394,6 +434,12 @@ export function UsageStats({ stats, error, provider: selected, range, view, hidd
     body = <p className="stats-empty">{error}</p>;
   } else if (!stats) {
     body = <p className="stats-empty">{t("stats.loading")}</p>;
+  } else if (activeView === "balance") {
+    body = providerStats?.balance ? (
+      <BalanceUsage balance={providerStats.balance} range={range} today={today} />
+    ) : (
+      <p className="stats-empty">{t("balance.empty")}</p>
+    );
   } else if (activeView === "quota" && provider === "qoder") {
     body = days.length ? <CreditUsage days={days} range={range} today={today} /> : <p className="stats-empty">{t("credits.empty")}</p>;
   } else if (activeView === "quota") {

@@ -2,12 +2,15 @@ import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { DEEPSEEK_KEY_NAME, fetchDeepseekBalance, summarizeSpending } from "./deepseek-balance.mjs";
 import { aggregateDeepseekSession, dayKey, decodeDeepseekSessionLog, listDeepseekSessionLogs } from "./usage-stats.mjs";
 
 // DeepSeek Harness (DeepSeek's desktop agent app) bills by the token from a prepaid balance, so
 // it has no quota to show: its card shows how many tokens this computer's Harness sessions used,
-// read from the session logs under $DSH_HOME/sessions. The balance needs a credential, so it is
-// not read, and nothing from Harness's credential store (`.credentials.yaml`) is ever opened.
+// read from the session logs under $DSH_HOME/sessions. With an API key the user saved in
+// Settings (server/secret-store.mjs) it also shows the API balance and the spending worked out
+// from it (server/deepseek-balance.mjs). Harness's own credential store (`.credentials.yaml`)
+// is never opened.
 
 const harnessAppPaths = (platform = process.platform, env = process.env, home = os.homedir()) =>
   platform === "win32"
@@ -40,10 +43,38 @@ export function summarizeDeepseekUsage(aggregates, now = Date.now()) {
 
 /**
  * Reads DeepSeek Harness usage for the quota view. Session logs are parsed again only when they
- * change. `installed: false` hides DeepSeek for people without Harness.
+ * change. `installed: false` hides DeepSeek for people without Harness. `secrets` and
+ * `balanceLog` add the balance; without a saved key there is none.
  */
-export function createDeepseekReader({ dshHome = defaultDshHome(), appPaths = harnessAppPaths() } = {}) {
+export function createDeepseekReader({
+  dshHome = defaultDshHome(),
+  appPaths = harnessAppPaths(),
+  secrets = null,
+  balanceLog = null,
+  fetchImpl = fetch,
+} = {}) {
   const parsed = new Map();
+  // The last balance DeepSeek returned, shown with its age while a later request fails.
+  let lastBalance = null;
+
+  async function readBalance(now) {
+    const key = await secrets?.get(DEEPSEEK_KEY_NAME);
+    if (!key) {
+      lastBalance = null;
+      return undefined;
+    }
+    let error = null;
+    try {
+      const balance = await fetchDeepseekBalance(key, { fetchImpl });
+      lastBalance = { ...balance, readAt: now };
+      await balanceLog?.record(balance, now);
+    } catch (failure) {
+      error = failure.code ?? "deepseekBalanceUnavailable";
+      if (error === "deepseekKeyInvalid") lastBalance = null;
+    }
+    const spending = balanceLog ? summarizeSpending(await balanceLog.readings(), now) : null;
+    return { ...(lastBalance ?? {}), error, spending };
+  }
 
   return async function readDeepseekUsage(now = Date.now()) {
     const sessionsDir = path.join(dshHome, "sessions");
@@ -52,6 +83,7 @@ export function createDeepseekReader({ dshHome = defaultDshHome(), appPaths = ha
       return { id: "deepseek", name: "DeepSeek", connected: false, installed: false, account: null, source: null, limits: [] };
     }
 
+    const balanceRead = readBalance(now);
     const files = await listDeepseekSessionLogs(sessionsDir);
     const aggregates = [];
     for (const file of files) {
@@ -82,6 +114,7 @@ export function createDeepseekReader({ dshHome = defaultDshHome(), appPaths = ha
       source: "DeepSeek Harness session logs",
       limits: [],
       usage: summarizeDeepseekUsage(aggregates, now),
+      balance: await balanceRead,
     };
   };
 }

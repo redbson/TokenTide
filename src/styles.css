@@ -429,6 +429,34 @@ button:focus-visible {
 .settings-segmented { align-self: flex-start; margin: 5px 0 0 -8px; }
 .segmented button[aria-checked="true"] { background: rgba(255, 255, 255, 0.1); color: var(--text); }
 
+/* DeepSeek API key: a password field and its button on one line under the row's text. */
+.key-form { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.key-input {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg-chrome);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+.key-input:focus { outline: none; border-color: var(--link); }
+.key-button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--link);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+.key-button:disabled { opacity: 0.45; cursor: default; }
+.settings-error { margin: 6px 2px 0; color: var(--red); font-size: 11.5px; }
+
 .settings-provider-icon {
   width: 16px;
   height: 16px;

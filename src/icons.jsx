@@ -37,3 +37,6 @@ export const MenuBarIcon = () => (
 export const LockIcon = () => (
   <Icon><rect x="5.5" y="10.5" width="13" height="9.5" rx="2" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" /></Icon>
 );
+export const KeyIcon = () => (
+  <Icon><circle cx="8" cy="15" r="3.5" /><path d="m10.5 12.5 8-8" /><path d="m15.5 7.5 2.5 2.5" /><path d="m17.5 5.5 2 2" /></Icon>
+);

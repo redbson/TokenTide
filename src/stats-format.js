@@ -270,6 +270,42 @@ export function summarizeCreditDays(days, today = localDayKey(), count = 7) {
   return { days: list, total, average: total / count, peak: Math.max(...values), today: list.at(-1).credits };
 }
 
+/**
+ * DeepSeek's Balance view: spending per day over the range (all = since readings start, up to
+ * 90 days), its total and daily average over the recorded days, and how many days the balance
+ * lasts at the last 7 recorded days' pace (null without spending).
+ */
+export function summarizeBalance(balance, range, today = localDayKey()) {
+  const since = localDayKey(new Date(balance.since));
+  const count = RANGE_DAYS[range] ?? Math.min(90, daysBetween(since, today) + 1);
+  const days = [];
+  for (let offset = count - 1; offset >= 0; offset -= 1) {
+    const date = addDays(today, -offset);
+    days.push({ date, spent: balance.byDay?.[date] ?? 0, isToday: offset === 0, recorded: date >= since });
+  }
+  const recorded = days.filter((day) => day.recorded);
+  const total = recorded.reduce((sum, day) => sum + day.spent, 0);
+  const recent = recorded.slice(-7);
+  const recentAverage = recent.length ? recent.reduce((sum, day) => sum + day.spent, 0) / recent.length : 0;
+  return {
+    days,
+    total,
+    average: recorded.length ? total / recorded.length : 0,
+    peak: Math.max(0, ...days.map((day) => day.spent)),
+    runway: recentAverage > 0 ? balance.total / recentAverage : null,
+  };
+}
+
+const CURRENCY_SIGNS = { CNY: "¥", USD: "$" };
+
+/** `¥110.00`; amounts under 1 keep up to 4 decimals so a few cents of spending still show. */
+export function formatMoney(value, currency = "CNY") {
+  if (!Number.isFinite(value)) return "—";
+  const digits = Math.abs(value) > 0 && Math.abs(value) < 1 ? 4 : 2;
+  const text = value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: digits });
+  return CURRENCY_SIGNS[currency] ? `${CURRENCY_SIGNS[currency]}${text}` : `${text} ${currency}`;
+}
+
 /** `9/16` from a `2026-09-16` day key. */
 export const formatDayKey = (key) => `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}`;
 

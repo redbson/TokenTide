@@ -7,7 +7,7 @@ import { mergeMigratedHistory, mergeMigratedSettings } from "./storage-migration
 import { ChangelogView, hasReleaseNotes } from "./Changelog.jsx";
 import { isNewerVersion } from "./changelog-parse.js";
 import { AlertIcon, CloseIcon, NotesIcon, PowerIcon } from "./icons.jsx";
-import { formatTokens } from "./stats-format.js";
+import { formatMoney, formatTokens } from "./stats-format.js";
 import {
   LOW_USAGE_THRESHOLD,
   PROVIDER_META,
@@ -102,6 +102,10 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
   const remaining = getPrimaryRemaining(provider);
   const low = isLow(provider);
   const usage = provider.usage;
+  // DeepSeek with a saved API key: the balance leads, and each period shows what it spent.
+  const balance = usage ? provider.balance : null;
+  const hasBalance = Number.isFinite(balance?.total);
+  const spent = (span) => (Number.isFinite(balance?.spending?.[span]) ? formatMoney(balance.spending[span], balance.currency ?? "CNY") : null);
 
   return (
     <section className={`provider provider-${provider.id}`} aria-labelledby={`${provider.id}-title`}>
@@ -130,9 +134,22 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
             </div>
           )}
         </div>
-        <div className={`primary-usage ${low ? "is-low" : ""} ${loading ? "is-loading" : ""}`}>
-          <strong>{loading ? "—" : usage ? formatTokens(usage.today.tokens) : formatPercent(remaining)}</strong>
-          <span>{t(usage ? "usage.todayTokens" : "provider.left")}</span>
+        <div
+          className={`primary-usage ${low || balance?.available === false ? "is-low" : ""} ${loading ? "is-loading" : ""}`}
+          title={hasBalance && balance.error ? t(`balanceError.${balance.error}`) : undefined}
+        >
+          <strong>
+            {loading
+              ? "—"
+              : hasBalance
+                ? formatMoney(balance.total, balance.currency)
+                : usage
+                  ? formatTokens(usage.today.tokens)
+                  : formatPercent(remaining)}
+          </strong>
+          <span>
+            {t(hasBalance ? (balance.error ? "usage.balanceStale" : "usage.balance") : usage ? "usage.todayTokens" : "provider.left")}
+          </span>
         </div>
       </div>
 
@@ -167,15 +184,21 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
         <p className="provider-error">{provider.error}</p>
       ) : usage ? (
         // No quota to fill a bar: tokens used today and over the last 7 and 30 days.
-        <dl className="limit-list">
-          {["today", "week", "month"].map((span) => (
-            <div className="limit-row" key={span}>
-              <dt>{t(`usage.${span}`)}</dt>
-              <dd className="limit-value">{formatTokens(usage[span].tokens)}</dd>
-              <dd className="limit-reset">{t("usage.messages", { count: usage[span].messages })}</dd>
-            </div>
-          ))}
-        </dl>
+        <>
+          <dl className="limit-list">
+            {["today", "week", "month"].map((span) => (
+              <div className="limit-row" key={span}>
+                <dt>{t(`usage.${span}`)}</dt>
+                <dd className="limit-value">{formatTokens(usage[span].tokens)}</dd>
+                <dd className="limit-reset">
+                  {spent(span) ? `${t("usage.spent", { amount: spent(span) })} · ` : ""}
+                  {t("usage.messages", { count: usage[span].messages })}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          {balance?.error && !hasBalance ? <p className="provider-hint">{t(`balanceError.${balance.error}`)}</p> : null}
+        </>
       ) : (
         <dl className="limit-list">
           {(provider.limits ?? []).map((limit) => (
@@ -671,6 +694,7 @@ export function App() {
             onUpdateAction={updateAction}
             onOpenChangelog={openChangelog}
             showMenuBarStyle={Boolean(nativeBridge) && !IS_WINDOWS}
+            onDeepseekKeyChange={refresh}
           />
         )}
       </div>

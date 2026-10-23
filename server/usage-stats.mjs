@@ -418,6 +418,8 @@ export function createStatsService({
   dshHome = process.env.DSH_HOME || path.join(os.homedir(), ".dsh"),
   cachePath = defaultCachePath(),
   quotaLog = null,
+  // DeepSeek balance readings (server/deepseek-balance.mjs), for History's Balance view.
+  balanceLog = null,
 } = {}) {
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   let files = null;
@@ -506,9 +508,10 @@ export function createStatsService({
 
     const byKind = (kind) => Object.values(files).filter((item) => item.kind === kind).map((item) => item.aggregate);
     const codexAggregates = byKind("codex");
-    const [codexLogged, claudeLogged] = await Promise.all([
+    const [codexLogged, claudeLogged, balance] = await Promise.all([
       quotaLog?.readings("codex") ?? [],
       quotaLog?.readings("claude") ?? [],
+      balanceLog?.history() ?? null,
     ]);
     return {
       generatedAt: Date.now(),
@@ -520,7 +523,7 @@ export function createStatsService({
         },
         claudeProvider(byKind("claude"), claudeLogged),
         { id: "qoder", days: summarizeAggregates(byKind("qoder")) },
-        { id: "deepseek", days: summarizeAggregates(byKind("deepseek")) },
+        { id: "deepseek", days: summarizeAggregates(byKind("deepseek")), balance },
       ],
     };
   }

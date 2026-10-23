@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md)
 
 [![Latest release](https://img.shields.io/github/v/release/redbson/TokenTide?label=release)](https://github.com/redbson/TokenTide/releases/latest) [![License](https://img.shields.io/github/license/redbson/TokenTide)](LICENSE)
 
-TokenTide is a macOS menu-bar widget (with a [Windows tray version](#windows-preview)) that shows how much of your **Codex**, **Claude Code**, and **Qoder** quota is left, how many tokens **DeepSeek Harness** used, how much of each weekly quota you actually use, and your usage history. Everything is read locally from the command-line tools you are already signed in to: no account, no API key, and nothing leaves your Mac. The interface is in English and Chinese; it follows your Mac's language and can be switched in Settings.
+TokenTide is a macOS menu-bar widget (with a [Windows tray version](#windows-preview)) that shows how much of your **Codex**, **Claude Code**, and **Qoder** quota is left, how many tokens **DeepSeek Harness** used, how much of each weekly quota you actually use, and your usage history. Everything is read locally from the command-line tools you are already signed in to: no account, no API key, and nothing leaves your Mac. (The one exception is optional: if you add a DeepSeek API key, TokenTide asks DeepSeek for your balance.) The interface is in English and Chinese; it follows your Mac's language and can be switched in Settings.
 
 **⬇ Download: [macOS](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide.zip) · [Windows](https://github.com/redbson/TokenTide/releases/latest/download/TokenTide-Setup.exe)** · [All releases](https://github.com/redbson/TokenTide/releases)
 
@@ -17,7 +17,7 @@ TokenTide is a macOS menu-bar widget (with a [Windows tray version](#windows-pre
 
 - **Menu-bar readout**: two styles. **Detailed** shows small lines — `CX` / `CC` for the remaining current Codex and Claude Code window, and `QD` beside them for Qoder's credits. **Compact** is a small gauge — one vertical bar per tool, filled from the bottom to what's left — in about a fifth of the width. Hover either one for the exact numbers.
 - **Quota tab**: current-window and weekly quota left for Codex and Claude Code, with reset countdowns; Qoder's own credits left (plan plus add-on; the team's org package has its own row and is not counted), with a row and credit count for each pool; a notice when a window drops below 20%; refreshes every 5 minutes, and again when you open the panel if the data is more than a minute old.
-- **DeepSeek** (DeepSeek Harness is pay-as-you-go, so there is no quota): tokens and messages today and over the last 7 and 30 days, from Harness's session logs on this Mac. The API balance is not shown, because reading it needs your API key.
+- **DeepSeek** (DeepSeek Harness is pay-as-you-go, so there is no quota): tokens and messages today and over the last 7 and 30 days, from Harness's session logs on this Mac. Add a DeepSeek API key in Settings to also see the API balance and what each period spent.
 - **History · Overview / Models** (Codex, Claude Code, Qoder, and DeepSeek — Qoder is measured in credits, since it reports no tokens): sessions, messages, tokens, active days, streaks, peak hour, and top model, modeled on Claude Code's `/stats`, plus a 26-week heatmap.
 - **History · Utilization**: how much of each weekly quota you actually used — average, peak week, weeks that maxed out, this week so far — with a bar per week, over the last 7, 30, or 90 days or all time. For Qoder, credits used per week.
 - **Quota trend**: the current-window remaining quota across recent checks.
@@ -88,10 +88,11 @@ TokenTide also runs on Windows 10 and 11 (x64) as a tray app: the same panel, op
 - **Left-click** the menu-bar readout to open the panel; click anywhere else or press Esc to close it.
 - **Right-click** for Show Quota, Refresh Now, and Quit. The panel footer also has Quit.
 - **Quota**: quota left and reset times for each tool; the button at the top right refreshes immediately.
-- **History**: switch between Codex, Claude Code, Qoder, and DeepSeek at the top (Qoder and DeepSeek appear once this Mac has their sessions; DeepSeek has no Utilization view), then pick Overview / Models / Utilization and a range (All / 90d / 30d / 7d).
+- **History**: switch between Codex, Claude Code, Qoder, and DeepSeek at the top (Qoder and DeepSeek appear once this Mac has their sessions; DeepSeek has a Balance view instead of Utilization: balance, spending per day, daily average, and how long the balance lasts), then pick Overview / Models / Utilization and a range (All / 90d / 30d / 7d).
 - **Settings**:
   - **Language**: English, Chinese (中文), or follow the system — Chinese when your Mac's primary language is Chinese, English otherwise. The menu-bar menu follows it too.
   - **Menu bar** (macOS): Detailed or Compact, see above.
+  - **DeepSeek balance**: paste a DeepSeek API key. TokenTide checks it with DeepSeek before saving it in the macOS Keychain (on Windows, encrypted for your account), and only ever shows it masked. Remove it any time.
   - **Shown tools**: turn Codex, Claude Code, Qoder, or DeepSeek off to leave it out of the Quota tab, the menu bar, low-quota notices, and History. At least one tool stays on.
   - **Launch at login**: shows TokenTide in the menu bar after you log in. It uses macOS Login Items, so you can also turn it off in System Settings → General → Login Items.
   - **Automatic updates**: see [Automatic updates](#automatic-updates).
@@ -118,6 +119,7 @@ TokenTide also runs on Windows 10 and 11 (x64) as a tray app: the same panel, op
 | Claude Code quota | A short-lived `claude -p` process sends the structured `get_usage` request (the same source as `/usage`). No prompt is sent, so it uses no quota. The request is marked experimental upstream; if it fails, TokenTide falls back to reading the `/usage` screen |
 | Qoder credits | A short-lived `qodercli --print` process receives the structured `get_usage_info` request over stream-json (the data behind Qoder CLI's `/usage`). No prompt is sent, so it uses no credits; the account's user id is dropped |
 | DeepSeek usage | DeepSeek Harness session logs, `~/.dsh/sessions` (Zstandard-compressed JSONL): the token counts each reply reports. Harness's credential store is never read |
+| DeepSeek balance | Only with an API key you saved in Settings: `GET https://api.deepseek.com/user/balance`, every refresh. Balance readings are kept in `deepseek-balance.json` (TokenTide's data folder) to work out spending; drops count as spending, top-ups don't. They cover the whole account, not just Harness |
 | Usage history | Local transcripts: `~/.claude/projects/**/*.jsonl`, `~/.codex/sessions`, `~/.codex/archived_sessions`, `~/.qoder/projects/**/*.jsonl` (credits per reply for Qoder), and `~/.dsh/sessions` |
 | Weekly utilization | Quota snapshots in Codex session files plus TokenTide's own records; earlier Claude Code weeks are estimated from local transcripts |
 
@@ -186,6 +188,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 
 ### Unreleased
 - See DeepSeek Harness token usage, in Quota and History.
+- Add a DeepSeek API key to see your balance and daily spending.
 - Codex and Qoder load more reliably, and Qoder loads faster.
 - If a refresh fails, the last reading stays, with its age.
 - A new About section at the bottom of Settings.
