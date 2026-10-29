@@ -549,9 +549,10 @@ export function createStatsService({
   }
 
   return {
-    async read() {
+    /** The history, rescanned when the last scan is older than `maxAgeMs` (or the prices changed). */
+    async read({ maxAgeMs = STALE_MS } = {}) {
       const priceVersion = (await priceBook?.table())?.version;
-      const fresh = result && Date.now() - computedAt < STALE_MS && (!priceVersion || result.priceVersion === priceVersion);
+      const fresh = result && Date.now() - computedAt < maxAgeMs && (!priceVersion || result.priceVersion === priceVersion);
       if (fresh) return result;
       inFlight ??= scan()
         .then((value) => {

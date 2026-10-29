@@ -16,7 +16,7 @@ TokenTide is a macOS menu-bar widget (with a [Windows tray version](#windows-pre
 ## Features
 
 - **Menu-bar readout**: two styles. **Detailed** shows small lines — `CX` / `CC` for the remaining current Codex and Claude Code window, and `QD` beside them for Qoder's credits. **Compact** is a small gauge — one vertical bar per tool, filled from the bottom to what's left — in about a fifth of the width. Hover either one for the exact numbers.
-- **Quota tab**: current-window and weekly quota left for Codex and Claude Code, with reset countdowns; Qoder's own credits left (plan plus add-on; the team's org package has its own row and is not counted), with a row and credit count for each pool; a notice when a window drops below 20%; refreshes every 5 minutes, and again when you open the panel if the data is more than a minute old.
+- **Quota tab**: current-window and weekly quota left for Codex and Claude Code, with reset countdowns; Qoder's own credits left (plan plus add-on; the team's org package has its own row and is not counted), with a row and credit count for each pool; a notice when a window drops below 20%; refreshes every minute while the panel is open (and on opening if older than 30 seconds), and every 1, 2, 5, or 10 minutes while only the menu bar shows it.
 - **DeepSeek** (DeepSeek Harness is pay-as-you-go, so there is no quota): tokens, messages, and an estimated cost today and over the last 7 and 30 days, from Harness's session logs on this Mac. The cost prices each reply at DeepSeek's published rates for its hour (peak or off-peak, cache hits included), which TokenTide refreshes from DeepSeek's pricing page once a day; DeepSeek's bill is what counts. Add a DeepSeek API key in Settings to also see the API balance and what each period spent.
 - **History · Overview / Models** (Codex, Claude Code, Qoder, and DeepSeek — Qoder is measured in credits, since it reports no tokens): sessions, messages, tokens, active days, streaks, peak hour, and top model, modeled on Claude Code's `/stats`, plus a 26-week heatmap.
 - **History · Utilization**: how much of each weekly quota you actually used — average, peak week, weeks that maxed out, this week so far — with a bar per week, over the last 7, 30, or 90 days or all time. For Qoder, credits used per week.
@@ -96,7 +96,8 @@ TokenTide also runs on Windows 10 and 11 (x64) as a tray app: the same panel, op
   - **Shown tools**: turn Codex, Claude Code, Qoder, or DeepSeek off to leave it out of the Quota tab, the menu bar, low-quota notices, and History. At least one tool stays on.
   - **Launch at login**: shows TokenTide in the menu bar after you log in. It uses macOS Login Items, so you can also turn it off in System Settings → General → Login Items.
   - **Automatic updates**: see [Automatic updates](#automatic-updates).
-  - **Auto-refresh**: reads your quota every 5 minutes.
+  - **Auto-refresh**: quota is read every minute while the panel is open; choose 1, 2, 5, or 10 minutes for while it is closed. Turn it off to read only when you open the panel or press refresh.
+  - **History**: history and stats are counted again only when you open History and the last count is older than 15, 30, or 60 minutes; **Recount** under History, or the refresh button, counts now. The DeepSeek balance is asked for at most every 5 minutes, and DeepSeek's prices once a day.
   - **Low-quota notice**: shows a notice in the panel when the current window drops below 20%.
 
 ### How utilization is calculated
@@ -187,6 +188,9 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 | `tests/` | `node --test` tests |
 
 ## Changelog
+
+### Unreleased
+- Quota refreshes every minute while the panel is open; History updates less often.
 
 ### 0.6.7
 - DeepSeek cost estimates follow DeepSeek's price changes on their own.

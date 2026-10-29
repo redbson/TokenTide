@@ -11,6 +11,8 @@ import { formatMoney, formatTokens } from "./stats-format.js";
 import {
   LOW_USAGE_THRESHOLD,
   PROVIDER_META,
+  QUOTA_INTERVALS,
+  STATS_INTERVALS,
   describeLow,
   findNewlyLow,
   formatAccount,
@@ -28,19 +30,28 @@ import {
   timeAgo,
 } from "./usage-format.js";
 
-const AUTO_REFRESH_MS = 5 * 60 * 1000;
-const STALE_ON_SHOW_MS = 60 * 1000;
+// Each kind of data has its own pace (see AGENTS.md, "Refresh tiers"):
+// - quota left and current usage: every minute while the panel is open, at the chosen interval
+//   (settings.quotaInterval, minutes) while only the menu bar shows it, and on opening if older
+//   than 30 s;
+// - history and stats: at most every settings.statsInterval minutes, checked when History is
+//   open, or on demand.
+const OPEN_REFRESH_MS = 60 * 1000;
+const STALE_ON_SHOW_MS = 30 * 1000;
 const CLOCK_TICK_MS = 30 * 1000;
 const HISTORY_LIMIT = 72;
 const HISTORY_KEY = "usage-monitor-history-v1";
 const SETTINGS_KEY = "usage-monitor-settings-v1";
 // Set once the storage from TokenTide's old port (4173) has been carried over.
 const MIGRATION_KEY = "tokentide-port-migration-v1";
-const STATS_STALE_MS = 60 * 1000;
 // Injected by vite.config.mjs from package.json.
 const APP_VERSION = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "";
 const DEFAULT_SETTINGS = {
   autoRefresh: true,
+  // Minutes between quota reads while the panel is closed (QUOTA_INTERVALS).
+  quotaInterval: 2,
+  // Minutes a history scan stays current (STATS_INTERVALS).
+  statsInterval: 30,
   lowUsageAlert: true,
   statsProvider: "codex",
   statsRange: "all",
@@ -70,6 +81,9 @@ const PROVIDER_ERRORS = {
   claudeNoPlan: {},
   claudeTemporary: {},
 };
+
+/** A saved interval in minutes, if it is one of `choices`; otherwise the default. */
+const intervalMinutes = (value, choices, fallback) => (choices.includes(Number(value)) ? Number(value) : fallback);
 
 function postNative(message) {
   try {
@@ -329,6 +343,9 @@ export function App() {
   });
   const [stats, setStats] = useState(null);
   const [statsError, setStatsError] = useState(null);
+  // Whether the panel is on screen. Inside the native shells it starts hidden (the menu bar or
+  // tray icon opens it); in a normal browser tab it is open.
+  const [panelOpen, setPanelOpen] = useState(!nativeBridge);
   const statsRequestRef = useRef(null);
   const statsLoadedAtRef = useRef(0);
   const [now, setNow] = useState(() => Date.now());
@@ -372,14 +389,19 @@ export function App() {
   }, []);
 
   // Concurrent callers (StrictMode, auto-refresh, the refresh button) share one request.
-  const refresh = useCallback(() => {
+  // `force` (the refresh button, a new DeepSeek key) also rereads what the service caches between
+  // refreshes, such as the DeepSeek balance.
+  const refresh = useCallback(({ force = false } = {}) => {
     if (inFlightRef.current) return inFlightRef.current;
     setLoading(true);
     const request = (async () => {
       try {
         // Hidden tools are named so the service skips work for them (DeepSeek's price check).
         const hidden = settingsRef.current.hiddenProviders;
-        const query = hidden.length ? `?hidden=${encodeURIComponent(hidden.join(","))}` : "";
+        const params = new URLSearchParams();
+        if (hidden.length) params.set("hidden", hidden.join(","));
+        if (force) params.set("force", "1");
+        const query = params.toString() ? `?${params}` : "";
         const response = await fetch(`/api/usage${query}`, { cache: "no-store" });
         if (!response.ok) {
           setBanner({ tone: "error", key: "error.serviceNoResponse" });
@@ -407,11 +429,13 @@ export function App() {
     refresh();
   }, [refresh]);
 
+  // Quota: every minute while the panel is open, at the chosen interval while it is closed.
+  const quotaEvery = panelOpen ? OPEN_REFRESH_MS : intervalMinutes(settings.quotaInterval, QUOTA_INTERVALS, 2) * 60_000;
   useEffect(() => {
     if (!settings.autoRefresh) return undefined;
-    const timer = window.setInterval(refresh, AUTO_REFRESH_MS);
+    const timer = window.setInterval(() => refresh(), quotaEvery);
     return () => window.clearInterval(timer);
-  }, [refresh, settings.autoRefresh]);
+  }, [refresh, settings.autoRefresh, quotaEvery]);
 
   // Keep relative times ("Updated 3 min ago", "Resets in 2 h") current between refreshes.
   useEffect(() => {
@@ -422,6 +446,7 @@ export function App() {
   // Refresh stale data when the panel is opened again.
   useEffect(() => {
     const onShow = () => {
+      setPanelOpen(true);
       // WebKit focuses the first control when the panel becomes key; don't show a focus ring for that.
       window.setTimeout(() => document.activeElement?.blur?.(), 0);
       setNow(Date.now());
@@ -432,27 +457,33 @@ export function App() {
         refresh();
       }
     };
+    const onHide = () => setPanelOpen(false);
     const onVisibility = () => {
       if (document.visibilityState === "visible") onShow();
+      else onHide();
     };
     const onKeyDown = (event) => {
       if (event.key === "Escape") postNative({ type: "hide" });
     };
     window.addEventListener("usage-monitor:show", onShow);
+    window.addEventListener("usage-monitor:hide", onHide);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("keydown", onKeyDown);
     return () => {
       window.removeEventListener("usage-monitor:show", onShow);
+      window.removeEventListener("usage-monitor:hide", onHide);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [refresh]);
 
-  const loadStats = useCallback(() => {
-    if (statsRequestRef.current || Date.now() - statsLoadedAtRef.current < STATS_STALE_MS) return;
+  // History: a scan is current for the chosen interval; `force` (its refresh link) rescans now.
+  const loadStats = useCallback(({ force = false } = {}) => {
+    const maxAgeMs = intervalMinutes(settingsRef.current.statsInterval, STATS_INTERVALS, 30) * 60_000;
+    if (statsRequestRef.current || (!force && Date.now() - statsLoadedAtRef.current < maxAgeMs)) return;
     statsRequestRef.current = (async () => {
       try {
-        const response = await fetch("/api/stats", { cache: "no-store" });
+        const response = await fetch(`/api/stats?maxAge=${force ? 0 : maxAgeMs / 1000}`, { cache: "no-store" });
         if (!response.ok) {
           setStatsError({ key: "error.statsFailed" });
           return;
@@ -629,7 +660,10 @@ export function App() {
           <button
             className={`icon-button ${loading ? "is-spinning" : ""}`}
             type="button"
-            onClick={refresh}
+            onClick={() => {
+              refresh({ force: true });
+              if (tab === "history") loadStats({ force: true });
+            }}
             disabled={loading}
             title={t("header.refresh")}
             aria-label={t("header.refresh")}
@@ -686,6 +720,9 @@ export function App() {
               view={settings.statsView}
               hiddenProviders={hiddenProviders}
               onChange={(key, value) => updateSetting(key)(value)}
+              now={now}
+              onReload={() => loadStats({ force: true })}
+              reloadInterval={intervalMinutes(settings.statsInterval, STATS_INTERVALS, 30)}
             />
             <QuotaHistory history={history} hiddenProviders={hiddenProviders} onClear={() => setHistory([])} />
           </div>
@@ -701,7 +738,7 @@ export function App() {
             onUpdateAction={updateAction}
             onOpenChangelog={openChangelog}
             showMenuBarStyle={Boolean(nativeBridge) && !IS_WINDOWS}
-            onDeepseekKeyChange={refresh}
+            onDeepseekKeyChange={() => refresh({ force: true })}
           />
         )}
       </div>

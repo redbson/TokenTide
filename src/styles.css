@@ -1032,3 +1032,7 @@ button:focus-visible {
 .spending-amounts strong.is-zero { color: var(--faint); font-weight: 500; }
 .spending-added { color: var(--green); font-size: 11.5px; }
 .spending-record .link-button { margin-top: 4px; }
+
+/* Under History: when it was counted, how often it updates, and "Recount". */
+.stats-freshness { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 0; color: var(--faint); font-size: 11.5px; }
+.stats-freshness .link-button { font-size: 11.5px; }

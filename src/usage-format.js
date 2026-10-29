@@ -1,6 +1,9 @@
 import { translate } from "./i18n.js";
 
 export const LOW_USAGE_THRESHOLD = 20;
+// Minutes between quota reads while the panel is closed, and how long a history scan stays current.
+export const QUOTA_INTERVALS = [1, 2, 5, 10];
+export const STATS_INTERVALS = [15, 30, 60];
 
 export const PROVIDER_META = {
   codex: { name: "Codex", short: "CX", icon: "/assets/openai.svg", iconAlt: "OpenAI" },

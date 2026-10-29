@@ -669,12 +669,12 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
     }
   }
 
-  async function readAll() {
+  async function readAll(force) {
     const [codex, claude, qoder, deepseek] = await Promise.allSettled([
       retryOnce(readCodex, readRetryDelayMs),
       readClaude(),
       retryOnce(readQoder, readRetryDelayMs),
-      readDeepseek(),
+      readDeepseek(Date.now(), { force }),
     ]);
     const updatedAt = Date.now();
     const providers = [
@@ -714,8 +714,9 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
 
   return {
     // Concurrent callers share one read so each refresh spawns at most one Codex process.
-    read() {
-      inFlight ??= readAll().finally(() => {
+    // `force` (the refresh button) also rereads what is cached between refreshes.
+    read({ force = false } = {}) {
+      inFlight ??= readAll(force).finally(() => {
         inFlight = null;
       });
       return inFlight;

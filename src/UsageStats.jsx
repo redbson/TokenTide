@@ -455,7 +455,33 @@ function BalanceUsage({ balance, days, range, today }) {
   );
 }
 
-export function UsageStats({ stats, error, provider: selected, range, view, hiddenProviders = [], onChange }) {
+// When the history was counted, how often it updates, and a link to count it again now.
+function StatsFreshness({ generatedAt, now, every, onReload }) {
+  const { t } = useI18n();
+  if (!generatedAt) return null;
+  const minutes = Math.max(0, Math.floor((now - generatedAt) / 60_000));
+  const counted =
+    minutes < 1 ? t("stats.countedNow") : minutes < 60 ? t("stats.countedMinutes", { count: minutes }) : t("stats.countedHours", { count: Math.floor(minutes / 60) });
+  return (
+    <p className="stats-freshness">
+      <span>{`${counted} · ${t("stats.everyMinutes", { count: every })}`}</span>
+      <button className="link-button" type="button" onClick={onReload}>{t("stats.reload")}</button>
+    </p>
+  );
+}
+
+export function UsageStats({
+  stats,
+  error,
+  provider: selected,
+  range,
+  view,
+  hiddenProviders = [],
+  onChange,
+  now = Date.now(),
+  onReload = () => {},
+  reloadInterval = 30,
+}) {
   const { t, language } = useI18n();
   const today = localDayKey();
   // Tools turned off in Settings are left out; Qoder and DeepSeek get a tab only when this Mac
@@ -552,6 +578,7 @@ export function UsageStats({ stats, error, provider: selected, range, view, hidd
         <Segmented label={t("stats.range")} options={STAT_RANGES.map((id) => [id, t(`range.${id}`)])} value={range} onChange={(value) => onChange("statsRange", value)} />
       </div>
       {body}
+      <StatsFreshness generatedAt={stats?.generatedAt} now={now} every={reloadInterval} onReload={onReload} />
     </section>
   );
 }

@@ -33,6 +33,13 @@ async function readJsonBody(request) {
   }
 }
 
+/** `?maxAge=<seconds>` in milliseconds, at most a day; undefined keeps the service's default. */
+function maxAgeOf(request) {
+  const value = new URL(request.url ?? "/", "http://localhost").searchParams.get("maxAge");
+  if (value === null || value === "" || !Number.isFinite(Number(value))) return undefined;
+  return Math.min(Math.max(Number(value), 0), 86_400) * 1000;
+}
+
 /**
  * The local JSON API (`/api/usage`, `/api/stats`, `/api/deepseek-key`), shared by the Vite dev
  * server and the packaged app's server. `services` lets tests replace the real readers, the
@@ -58,10 +65,12 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
 
   // The panel names the tools hidden in Settings (`?hidden=deepseek,qoder`). While DeepSeek is
   // shown, its prices are checked against DeepSeek's page at most once a day; the request does
-  // not wait for it, and the next refresh uses the new prices.
+  // not wait for it, and the next refresh uses the new prices. `?force=1` (the refresh button)
+  // also reads what is normally cached between refreshes, such as the DeepSeek balance.
   async function readUsage(request) {
-    const payload = await usageService.read();
-    const hidden = (new URL(request.url ?? "/", "http://localhost").searchParams.get("hidden") ?? "").split(",");
+    const query = new URL(request.url ?? "/", "http://localhost").searchParams;
+    const payload = await usageService.read({ force: query.get("force") === "1" });
+    const hidden = (query.get("hidden") ?? "").split(",");
     const deepseek = payload?.providers?.find((provider) => provider.id === "deepseek");
     if (deepseek && deepseek.installed !== false && !hidden.includes("deepseek")) priceBook.refreshIfDue().catch(() => {});
     return payload;
@@ -70,7 +79,8 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
   // Each route: a handler per method, and the message for an unexpected failure.
   const routes = {
     "/api/usage": { GET: readUsage, error: "Local usage could not be read." },
-    "/api/stats": { GET: () => statsService.read(), error: "Local history could not be read." },
+    // `?maxAge=<seconds>`: how old a cached history may be (the panel's History interval); 0 rescans.
+    "/api/stats": { GET: (request) => statsService.read({ maxAgeMs: maxAgeOf(request) }), error: "Local history could not be read." },
     // Lets the native shells tell TokenTide's service apart from another program on the port,
     // and whether the old-port hand-over (server/storage-migration.mjs) is waiting.
     "/api/health": { GET: async () => ({ app: "tokentide", migrationPending: Boolean(migration?.pending) }), error: "Unavailable." },

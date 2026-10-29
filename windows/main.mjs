@@ -214,6 +214,8 @@ function showPanel() {
 function hidePanel() {
   if (!panel?.isVisible()) return;
   panel.hide();
+  // The page reads quota less often while only the tray icon shows it.
+  dispatch("usage-monitor:hide");
   lastHidden = Date.now();
   updater?.panelDidHide();
 }

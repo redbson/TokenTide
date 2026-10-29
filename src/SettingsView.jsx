@@ -1,8 +1,16 @@
 import { useI18n } from "./i18n-context.js";
 import { LANGUAGE_NAMES } from "./i18n.js";
 import { useEffect, useState } from "react";
-import { BellIcon, ClockIcon, DownloadIcon, GlobeIcon, KeyIcon, LockIcon, LoginIcon, MenuBarIcon, NotesIcon } from "./icons.jsx";
-import { LOW_USAGE_THRESHOLD, PROVIDER_META, STATS_PROVIDERS, formatAccount, isVisibleProvider } from "./usage-format.js";
+import { BellIcon, ChartIcon, ClockIcon, DownloadIcon, GlobeIcon, KeyIcon, LockIcon, LoginIcon, MenuBarIcon, NotesIcon } from "./icons.jsx";
+import {
+  LOW_USAGE_THRESHOLD,
+  PROVIDER_META,
+  QUOTA_INTERVALS,
+  STATS_INTERVALS,
+  STATS_PROVIDERS,
+  formatAccount,
+  isVisibleProvider,
+} from "./usage-format.js";
 
 function Toggle({ checked, onChange, label, disabled = false }) {
   return (
@@ -113,6 +121,22 @@ function LanguagePicker({ value, onChange }) {
     </div>
   );
 }
+
+// A choice of minutes, e.g. how often quota is read while the panel is closed.
+function IntervalPicker({ label, choices, value, onChange }) {
+  const { t } = useI18n();
+  return (
+    <div className="segmented settings-segmented" role="radiogroup" aria-label={label}>
+      {choices.map((minutes) => (
+        <button key={minutes} type="button" role="radio" aria-checked={value === minutes} onClick={() => onChange(minutes)}>
+          {t("settings.minutes", { count: minutes })}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const pick = (value, choices, fallback) => (choices.includes(Number(value)) ? Number(value) : fallback);
 
 // The macOS menu-bar readout: labeled percentages, or one thin bar per tool.
 function MenuBarStylePicker({ value, onChange }) {
@@ -373,9 +397,36 @@ export function SettingsView({
           <SettingRow
             icon={<ClockIcon />}
             title={t("settings.autoRefresh")}
-            detail={t("settings.autoRefreshDetail")}
+            detail={
+              settings.autoRefresh
+                ? t("settings.autoRefreshDetail", { minutes: pick(settings.quotaInterval, QUOTA_INTERVALS, 2) })
+                : t("settings.autoRefreshOff")
+            }
             checked={settings.autoRefresh}
             onChange={(value) => onSettingChange("autoRefresh", value)}
+            action={
+              settings.autoRefresh ? (
+                <IntervalPicker
+                  label={t("settings.quotaInterval")}
+                  choices={QUOTA_INTERVALS}
+                  value={pick(settings.quotaInterval, QUOTA_INTERVALS, 2)}
+                  onChange={(value) => onSettingChange("quotaInterval", value)}
+                />
+              ) : null
+            }
+          />
+          <SettingRow
+            icon={<ChartIcon />}
+            title={t("settings.statsInterval")}
+            detail={t("settings.statsIntervalDetail", { minutes: pick(settings.statsInterval, STATS_INTERVALS, 30) })}
+            action={
+              <IntervalPicker
+                label={t("settings.statsInterval")}
+                choices={STATS_INTERVALS}
+                value={pick(settings.statsInterval, STATS_INTERVALS, 30)}
+                onChange={(value) => onSettingChange("statsInterval", value)}
+              />
+            }
           />
           <SettingRow
             icon={<BellIcon />}

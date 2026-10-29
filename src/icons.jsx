@@ -40,3 +40,6 @@ export const LockIcon = () => (
 export const KeyIcon = () => (
   <Icon><circle cx="8" cy="15" r="3.5" /><path d="m10.5 12.5 8-8" /><path d="m15.5 7.5 2.5 2.5" /><path d="m17.5 5.5 2 2" /></Icon>
 );
+export const ChartIcon = () => (
+  <Icon><path d="M4.5 19.5h15" /><path d="M7.5 16v-4" /><path d="M12 16V8" /><path d="M16.5 16v-6" /></Icon>
+);

@@ -21,6 +21,8 @@ const harnessAppPaths = (platform = process.platform, env = process.env, home = 
 export const defaultDshHome = (env = process.env, home = os.homedir()) => env.DSH_HOME || path.join(home, ".dsh");
 
 const DAY_MS = 86_400_000;
+// How long a balance reading is reused before DeepSeek is asked again (the refresh button asks now).
+const BALANCE_TTL_MS = 5 * 60_000;
 
 /** Token and message totals for today and the last 7 and 30 days (today included). */
 export function summarizeDeepseekUsage(aggregates, now = Date.now()) {
@@ -62,14 +64,22 @@ export function createDeepseekReader({
   const parsed = new Map();
   // The last balance DeepSeek returned, shown with its age while a later request fails.
   let lastBalance = null;
+  let lastKey = null;
 
-  async function readBalance(now) {
+  async function readBalance(now, force) {
     const key = await secrets?.get(DEEPSEEK_KEY_NAME);
     if (!key) {
       lastBalance = null;
       return undefined;
     }
     let error = null;
+    // The balance is a network request: a recent one is reused unless the refresh was forced.
+    const recent = lastBalance && lastKey === key && now - lastBalance.readAt < BALANCE_TTL_MS;
+    if (recent && !force) {
+      const spending = balanceLog ? summarizeSpending(await balanceLog.readings(), now) : null;
+      return { ...lastBalance, error, spending };
+    }
+    lastKey = key;
     try {
       const balance = await fetchDeepseekBalance(key, { fetchImpl });
       lastBalance = { ...balance, readAt: now };
@@ -82,14 +92,14 @@ export function createDeepseekReader({
     return { ...(lastBalance ?? {}), error, spending };
   }
 
-  return async function readDeepseekUsage(now = Date.now()) {
+  return async function readDeepseekUsage(now = Date.now(), { force = false } = {}) {
     const sessionsDir = path.join(dshHome, "sessions");
     const installed = appPaths.some((app) => existsSync(app)) || existsSync(sessionsDir);
     if (!installed) {
       return { id: "deepseek", name: "DeepSeek", connected: false, installed: false, account: null, source: null, limits: [] };
     }
 
-    const balanceRead = readBalance(now);
+    const balanceRead = readBalance(now, force);
     const prices = (await priceBook?.table()) ?? BUILTIN_DEEPSEEK_PRICES;
     const files = await listDeepseekSessionLogs(sessionsDir);
     const aggregates = [];

@@ -290,6 +290,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
         guard panel.isVisible else { return }
         panel.orderOut(nil)
+        // The page reads quota less often while only the menu bar shows it.
+        webView.evaluateJavaScript("window.dispatchEvent(new Event('usage-monitor:hide'))")
         lastHidden = Date()
         updater.panelDidHide()
     }
