@@ -25,6 +25,7 @@ import {
   isLow,
   isShownProvider,
   isUsageOnly,
+  isWeeklyPrimary,
   limitLabel,
   makeSnapshot,
   timeAgo,
@@ -166,7 +167,17 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
                   : formatPercent(remaining)}
           </strong>
           <span>
-            {t(hasBalance ? (balance.error ? "usage.balanceStale" : "usage.balance") : usage ? "usage.todayTokens" : "provider.left")}
+            {t(
+              hasBalance
+                ? balance.error
+                  ? "usage.balanceStale"
+                  : "usage.balance"
+                : usage
+                  ? "usage.todayTokens"
+                  : isWeeklyPrimary(provider)
+                    ? "provider.leftWeekly"
+                    : "provider.left",
+            )}
           </span>
         </div>
       </div>

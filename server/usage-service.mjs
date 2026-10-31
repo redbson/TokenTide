@@ -141,25 +141,25 @@ export function resolveResetLabel(label, now = Date.now()) {
 
 export function parseClaudeUsage(rawOutput, now = Date.now()) {
   const usageView = stripTerminalCodes(rawOutput);
-  const currentIndex = usageView.search(/Current session/i);
   const weeklyIndex = usageView.search(/Current week \(all models\)/i);
-  if (currentIndex < 0 || weeklyIndex <= currentIndex) return null;
-
-  const currentSection = usageView.slice(currentIndex, weeklyIndex);
+  if (weeklyIndex < 0) return null;
   const weeklySection = usageView.slice(weeklyIndex);
-  const currentPercent = readUsedPercent(currentSection);
   const weeklyPercent = readUsedPercent(weeklySection);
-  const currentReset = currentSection.match(/Resets\s+([^\n]+)/i);
   const weeklyReset = weeklySection.match(/Resets\s+([^\n]+)/i);
-  if (!currentPercent || !weeklyPercent || !currentReset || !weeklyReset) return null;
-
-  const currentLabel = currentReset[1].trim();
+  if (!weeklyPercent || !weeklyReset) return null;
   const weeklyLabel = weeklyReset[1].trim();
+  const weekly = makeLimit("weekly", "Weekly", weeklyPercent, resolveResetLabel(weeklyLabel, now), weeklyLabel);
+
+  // Some accounts have no session (five-hour) section in the view.
+  const currentIndex = usageView.search(/Current session/i);
+  if (currentIndex < 0 || currentIndex > weeklyIndex) return { limits: [weekly] };
+  const currentSection = usageView.slice(currentIndex, weeklyIndex);
+  const currentPercent = readUsedPercent(currentSection);
+  const currentReset = currentSection.match(/Resets\s+([^\n]+)/i);
+  if (!currentPercent || !currentReset) return null;
+  const currentLabel = currentReset[1].trim();
   return {
-    limits: [
-      makeLimit("window", "Current window", currentPercent, resolveResetLabel(currentLabel, now), currentLabel),
-      makeLimit("weekly", "Weekly", weeklyPercent, resolveResetLabel(weeklyLabel, now), weeklyLabel),
-    ],
+    limits: [makeLimit("window", "Current window", currentPercent, resolveResetLabel(currentLabel, now), currentLabel), weekly],
   };
 }
 
@@ -325,8 +325,10 @@ function toEpochSeconds(value) {
 
 /** Maps a Claude Code `get_usage` control response to a provider entry. */
 export function parseClaudeDirectUsage(usage) {
-  const limits = usage?.rate_limits;
-  if (!usage?.rate_limits_available || !limits?.five_hour || !limits?.seven_day) {
+  const fiveHour = usage?.rate_limits?.five_hour;
+  const sevenDay = usage?.rate_limits?.seven_day;
+  // Either window can be absent (some accounts report no five-hour window): show what there is.
+  if (!usage?.rate_limits_available || (!fiveHour && !sevenDay)) {
     throw new Error("Claude Code did not report plan limits for this account.");
   }
 
@@ -337,9 +339,9 @@ export function parseClaudeDirectUsage(usage) {
     account: usage.subscription_type ? `${usage.subscription_type} plan` : "Local account",
     source: "Claude Code get_usage",
     limits: [
-      makeLimit("window", "Current window", limits.five_hour.utilization, toEpochSeconds(limits.five_hour.resets_at)),
-      makeLimit("weekly", "Weekly", limits.seven_day.utilization, toEpochSeconds(limits.seven_day.resets_at)),
-    ],
+      fiveHour && makeLimit("window", "Current window", fiveHour.utilization, toEpochSeconds(fiveHour.resets_at)),
+      sevenDay && makeLimit("weekly", "Weekly", sevenDay.utilization, toEpochSeconds(sevenDay.resets_at)),
+    ].filter(Boolean),
   };
 }
 

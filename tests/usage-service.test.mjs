@@ -401,3 +401,51 @@ test("explains a Codex request that could not reach its server", async () => {
   `]];
   await assert.rejects(readJsonLineProcess(command, args, [{ method: "account/rateLimits/read", id: 2 }], 5000), /could not reach its server/);
 });
+
+test("an account with no five-hour window still shows its weekly quota", async () => {
+  // Claude Code's get_usage answer as of 2026-10-31 for a Max account: five_hour is null.
+  const usage = {
+    subscription_type: "max",
+    rate_limits_available: true,
+    rate_limits: {
+      five_hour: null,
+      seven_day: { utilization: 77, resets_at: "2026-11-03T08:00:00.568376+00:00" },
+      limits: [{ kind: "weekly_all", group: "weekly", percent: 77 }],
+    },
+  };
+  const provider = parseClaudeDirectUsage(usage);
+  assert.equal(provider.connected, true);
+  assert.equal(provider.account, "max plan");
+  assert.deepEqual(provider.limits.map((limit) => [limit.id, limit.remainingPercent]), [["weekly", 23]]);
+
+  // No retry or /usage fallback when the structured read worked.
+  let directCalls = 0;
+  let fallbackCalls = 0;
+  const service = createUsageService({
+    codex: async () => ({ id: "codex", name: "Codex", connected: true, limits: [] }),
+    qoder: async () => ({ id: "qoder", connected: false, installed: false, limits: [] }),
+    deepseek: async () => ({ id: "deepseek", connected: false, installed: false, limits: [] }),
+    claudeDirect: async () => {
+      directCalls += 1;
+      return parseClaudeDirectUsage(usage);
+    },
+    claudeFallback: async () => {
+      fallbackCalls += 1;
+      throw new Error("unused");
+    },
+  });
+  assert.equal((await service.read()).providers[1].connected, true);
+  assert.deepEqual([directCalls, fallbackCalls], [1, 0]);
+
+  // No window at all is still "no plan limits".
+  assert.throws(() => parseClaudeDirectUsage({ rate_limits_available: true, rate_limits: { five_hour: null, seven_day: null } }), /plan limits/);
+});
+
+test("the /usage view without a session section still gives the weekly quota", () => {
+  const output = ["Current week (all models)", "77% used", "Resets Nov 3 at 4pm (Asia/Shanghai)", "Current week (Fable)", "64% used", "Resets Nov 3 at 3:59pm"].join("\n");
+  const { limits } = parseClaudeUsage(output, NOON_SHANGHAI);
+  assert.deepEqual(limits.map((limit) => [limit.id, limit.remainingPercent]), [["weekly", 23]]);
+  assert.match(limits[0].resetLabel, /Nov 3/);
+  // Only a session section and no weekly one is not a usable view.
+  assert.equal(parseClaudeUsage("Current session\n10% used\nResets 5pm"), null);
+});

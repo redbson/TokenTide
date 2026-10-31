@@ -67,6 +67,9 @@ export const isVisibleProvider = (provider) => provider?.installed !== false;
 export const isShownProvider = (provider, hiddenProviders = []) =>
   isVisibleProvider(provider) && !hiddenProviders.includes(provider?.id);
 
+/** No current window, so the weekly quota leads (Claude Code accounts without a five-hour one). */
+export const isWeeklyPrimary = (provider) => getPrimaryLimit(provider)?.id === "weekly";
+
 export function getPrimaryRemaining(provider) {
   const remaining = getPrimaryLimit(provider)?.remainingPercent;
   return provider?.connected && Number.isFinite(remaining) ? remaining : null;
@@ -130,19 +133,22 @@ export function describeLow(providers, language = "en") {
       const remaining = getPrimaryRemaining(provider);
       const name = PROVIDER_META[provider.id]?.name ?? provider.id;
       return remaining <= 0
-        ? translate(language, "low.exhausted", { name })
+        ? translate(language, isWeeklyPrimary(provider) ? "low.exhaustedWeekly" : "low.exhausted", { name })
         : translate(language, "low.remaining", { name, percent: Math.round(remaining) });
     })
     .join(translate(language, "low.separator"));
 }
+
+// The trend charts current windows: a weekly percentage on the same line would look like a sudden drop.
+const trendValue = (provider) => (isWeeklyPrimary(provider) ? null : getPrimaryRemaining(provider));
 
 export function makeSnapshot(payload) {
   // A last reading shown after a failed refresh is not a new point on the trend.
   const byId = Object.fromEntries(payload.providers.filter((provider) => !provider.stale).map((provider) => [provider.id, provider]));
   return {
     at: payload.updatedAt,
-    codex: getPrimaryRemaining(byId.codex),
-    claude: getPrimaryRemaining(byId.claude),
-    qoder: getPrimaryRemaining(byId.qoder),
+    codex: trendValue(byId.codex),
+    claude: trendValue(byId.claude),
+    qoder: trendValue(byId.qoder),
   };
 }

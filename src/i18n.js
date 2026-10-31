@@ -82,6 +82,7 @@ export const MESSAGES = {
     "balance.recordMore": "显示更早的 {count} 天",
     "provider.unavailable": "不可用",
     "provider.left": "剩余",
+    "provider.leftWeekly": "本周剩余",
     "provider.progress": "{name} 当前窗口剩余额度",
     "provider.noData": "暂无额度数据",
     "limit.window": "当前窗口",
@@ -114,6 +115,7 @@ export const MESSAGES = {
     "account.local": "本机账户",
     "account.plan": "{plan} 套餐",
     "low.exhausted": "{name} 当前窗口额度已用尽",
+    "low.exhaustedWeekly": "{name} 本周额度已用尽",
     "low.remaining": "{name} 仅剩 {percent}%",
     "low.separator": "，",
 
@@ -345,6 +347,7 @@ export const MESSAGES = {
     "balance.recordMore.one": "Show 1 earlier day",
     "provider.unavailable": "Unavailable",
     "provider.left": "left",
+    "provider.leftWeekly": "left this week",
     "provider.progress": "{name} current window remaining",
     "provider.noData": "No quota data",
     "limit.window": "Window",
@@ -377,6 +380,7 @@ export const MESSAGES = {
     "account.local": "Local account",
     "account.plan": "{plan} plan",
     "low.exhausted": "{name} has used up its current window",
+    "low.exhaustedWeekly": "{name} has used up this week's quota",
     "low.remaining": "{name} has only {percent}% left",
     "low.separator": "; ",
 

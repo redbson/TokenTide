@@ -9,6 +9,8 @@ spawn claude --ax-screen-reader --no-chrome --safe-mode --permission-mode plan -
 expect {
   -re {plan mode on} {}
   -re {Context.*%} {}
+  # Only the user may trust a folder: give up at once instead of waiting out the timeout.
+  -re {I trust this folder} { puts "@@ERROR:untrusted-folder@@"; flush stdout; exit 1 }
   timeout { puts "@@ERROR:startup-timeout@@"; exit 1 }
   eof { puts "@@ERROR:startup-closed@@"; exit 1 }
 }
@@ -25,16 +27,7 @@ while {1} {
       send -- "/usage\r"
       set timeout 20
 
-      expect {
-        -re {Current session} {}
-        timeout { puts "@@ERROR:current-timeout@@"; flush stdout; send -- "\033"; set timeout -1; continue }
-        eof { puts "@@ERROR:session-closed@@"; exit 1 }
-      }
-      expect {
-        -re {Resets[^\r\n]*} {}
-        timeout { puts "@@ERROR:current-reset-timeout@@"; flush stdout; send -- "\033"; set timeout -1; continue }
-        eof { puts "@@ERROR:session-closed@@"; exit 1 }
-      }
+      # A "Current session" section, when the account has one, comes first and is captured too.
       expect {
         -re {Current week \(all models\)} {}
         timeout { puts "@@ERROR:weekly-timeout@@"; flush stdout; send -- "\033"; set timeout -1; continue }

@@ -6,6 +6,8 @@ import {
   findNewlyLow,
   formatAccount,
   formatReset,
+  getPrimaryRemaining,
+  isLow,
   isShownProvider,
   makeSnapshot,
   timeAgo,
@@ -83,4 +85,12 @@ test("tools turned off in Settings or not installed are not shown", () => {
   assert.equal(isShownProvider(provider("codex", 50), ["codex"]), false);
   assert.equal(isShownProvider(provider("claude", 50), ["codex"]), true);
   assert.equal(isShownProvider({ id: "qoder", installed: false, limits: [] }), false);
+});
+
+test("with no current window the weekly quota leads, but stays off the window trend", () => {
+  const claude = { id: "claude", connected: true, limits: [{ id: "weekly", remainingPercent: 0 }] };
+  assert.equal(getPrimaryRemaining(claude), 0);
+  assert.equal(isLow(claude), true);
+  assert.equal(describeLow([claude], "zh"), "Claude Code 本周额度已用尽");
+  assert.equal(makeSnapshot({ updatedAt: NOW, providers: [claude] }).claude, null);
 });

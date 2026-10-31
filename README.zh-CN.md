@@ -170,7 +170,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 2. 在 GitHub 上发布一个标签为 `vX.Y.Z` 的 Release，或者运行：
 
    ```bash
-   gh release create v0.6.9 --generate-notes
+   gh release create v0.6.10 --generate-notes
    ```
 
 3. [Release 工作流](.github/workflows/release.yml) 会自动跑测试、打包通用版 Mac app 和 Windows 安装包，并把 `TokenTide-X.Y.Z.zip`、`TokenTide-Setup-X.Y.Z.exe`、它们的 `.sha256` 校验文件，以及不带版本号的 `TokenTide.zip` / `TokenTide-Setup.exe`（供下载链接使用）附加到这个 Release 上。已安装的 TokenTide 会在下次检查时自动更新。
@@ -188,6 +188,9 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 | `tests/` | `node --test` 测试 |
 
 ## 更新日志
+
+### 0.6.9
+- 没有 5 小时窗口的 Claude 账号也能显示每周额度。
 
 ### 0.6.8
 - 面板打开时额度每分钟刷新，历史统计降低频率。
