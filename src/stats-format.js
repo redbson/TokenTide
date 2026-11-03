@@ -296,6 +296,32 @@ export function summarizeBalance(balance, range, today = localDayKey()) {
   };
 }
 
+/**
+ * An API account's Spend view: spend per day over the range (all = from the first recorded day,
+ * up to 90), its total, the daily average over the range (a day without calls is a $0 day, not
+ * a gap), the peak day, and this calendar month. `days` are UTC day keys, as the providers bill.
+ */
+export function summarizeSpendDays(byDay, range, today = localDayKey()) {
+  const recordedDays = Object.keys(byDay).sort();
+  const first = recordedDays[0] ?? today;
+  const count = RANGE_DAYS[range] ?? Math.min(90, daysBetween(first, today) + 1);
+  const days = [];
+  for (let offset = count - 1; offset >= 0; offset -= 1) {
+    const date = addDays(today, -offset);
+    days.push({ date, spent: byDay[date] ?? 0, isToday: offset === 0, recorded: date >= first });
+  }
+  const cents = (value) => Math.round(value * 100) / 100;
+  const total = cents(days.reduce((sum, day) => sum + day.spent, 0));
+  const monthStart = `${today.slice(0, 7)}-01`;
+  return {
+    days,
+    total,
+    average: days.length ? total / days.length : 0,
+    peak: Math.max(0, ...days.map((day) => day.spent)),
+    calendarMonth: cents(Object.entries(byDay).reduce((sum, [date, spent]) => (date >= monthStart && date <= today ? sum + spent : sum), 0)),
+  };
+}
+
 const CURRENCY_SIGNS = { CNY: "¥", USD: "$" };
 
 /** `¥110.00`; amounts under 0.01 keep up to 4 decimals so a tiny charge doesn't read as zero. */

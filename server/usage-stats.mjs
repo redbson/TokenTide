@@ -2,6 +2,7 @@ import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { zstdDecompressSync } from "node:zlib";
+import { API_ACCOUNT_IDS } from "./api-accounts.mjs";
 import { BUILTIN_DEEPSEEK_PRICES, deepseekCost } from "./deepseek-pricing.mjs";
 import {
   buildWeeklyWindows,
@@ -433,6 +434,8 @@ export function createStatsService({
   quotaLog = null,
   // DeepSeek balance readings (server/deepseek-balance.mjs), for History's Balance view.
   balanceLog = null,
+  // API accounts' spend per day (server/api-accounts.mjs), for their Spend view.
+  spendLog = null,
   // DeepSeek's current prices (server/deepseek-price-book.mjs); the built-in table without one.
   priceBook = null,
 } = {}) {
@@ -527,10 +530,11 @@ export function createStatsService({
 
     const byKind = (kind) => Object.values(files).filter((item) => item.kind === kind).map((item) => item.aggregate);
     const codexAggregates = byKind("codex");
-    const [codexLogged, claudeLogged, balance] = await Promise.all([
+    const [codexLogged, claudeLogged, balance, ...spends] = await Promise.all([
       quotaLog?.readings("codex") ?? [],
       quotaLog?.readings("claude") ?? [],
       balanceLog?.history() ?? null,
+      ...API_ACCOUNT_IDS.map((id) => spendLog?.get(id) ?? null),
     ]);
     return {
       generatedAt: Date.now(),
@@ -544,6 +548,8 @@ export function createStatsService({
         claudeProvider(byKind("claude"), claudeLogged),
         { id: "qoder", days: summarizeAggregates(byKind("qoder")) },
         { id: "deepseek", days: summarizeAggregates(byKind("deepseek")), balance },
+        // API accounts have no local transcripts: only spend per day, once a read has been made.
+        ...API_ACCOUNT_IDS.map((id, index) => ({ id, days: [], spend: spends[index] })),
       ],
     };
   }

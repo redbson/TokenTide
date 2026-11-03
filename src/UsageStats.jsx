@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useI18n } from "./i18n-context.js";
-import { PROVIDER_META, STATS_PROVIDERS, formatPercent } from "./usage-format.js";
+import { ACCOUNT_PROVIDERS, PROVIDER_META, STATS_PROVIDERS, formatPercent } from "./usage-format.js";
 import {
   FULL_WEEK_PERCENT,
   STAT_RANGES,
@@ -18,6 +18,7 @@ import {
   localDayKey,
   summarizeBalance,
   summarizeCreditDays,
+  summarizeSpendDays,
   summarizeCreditWeeks,
   summarizeQuotaWeeks,
   summarizeStats,
@@ -455,6 +456,39 @@ function BalanceUsage({ balance, days, range, today }) {
   );
 }
 
+// An API account's spend per day, from the provider's cost records TokenTide has kept.
+function SpendUsage({ spend, range, today, delayed }) {
+  const { t } = useI18n();
+  const summary = useMemo(() => summarizeSpendDays(spend.days, range, today), [spend, range, today]);
+  const money = (value) => formatMoney(value, spend.currency);
+  const max = Math.max(summary.peak, 0.0001);
+  const bars = summary.days.map((day) => ({
+    key: day.date,
+    height: day.spent > 0 ? Math.max((day.spent / max) * 100, 1.5) : 0,
+    className: day.isToday ? "is-current" : "",
+    isCurrent: day.isToday,
+    label: day.isToday ? t("credits.today") : formatDayKey(day.date),
+    title: t("spend.dayBar", { date: formatDayKey(day.date), amount: money(day.spent) }),
+  }));
+  return (
+    <>
+      <div className="stat-grid">
+        <StatCard label={t("spend.total")} value={money(summary.total)} />
+        <StatCard label={t("spend.average")} value={money(summary.average)} />
+        <StatCard label={t("spend.peak")} value={money(summary.peak)} />
+        <StatCard label={t("spend.calendarMonth")} value={money(summary.calendarMonth)} />
+      </div>
+      <BarChart
+        label={t("spend.chart")}
+        bars={bars}
+        average={summary.average ? { height: (summary.average / max) * 100, text: t("spend.averageLine", { amount: money(summary.average) }) } : null}
+        axis={[formatDayKey(summary.days[0].date), t("credits.today")]}
+      />
+      <p className="quota-note">{t(delayed ? "spend.noteDelayed" : "spend.note")}</p>
+    </>
+  );
+}
+
 // When the history was counted, how often it updates, and a link to count it again now.
 function StatsFreshness({ generatedAt, now, every, onReload }) {
   const { t } = useI18n();
@@ -486,15 +520,20 @@ export function UsageStats({
   const today = localDayKey();
   // Tools turned off in Settings are left out; Qoder and DeepSeek get a tab only when this Mac
   // has their transcripts, unless one is the only tool shown.
-  const shownIds = STATS_PROVIDERS.filter((id) => !hiddenProviders.includes(id));
-  const withRecords = shownIds.filter(
-    (id) => id === "codex" || id === "claude" || stats?.providers.find((item) => item.id === id)?.days?.length,
-  );
+  // API accounts join once they have spend records.
+  const shownIds = [...STATS_PROVIDERS, ...ACCOUNT_PROVIDERS].filter((id) => !hiddenProviders.includes(id));
+  const withRecords = shownIds.filter((id) => {
+    if (id === "codex" || id === "claude") return true;
+    const entry = stats?.providers.find((item) => item.id === id);
+    return ACCOUNT_PROVIDERS.includes(id) ? Boolean(entry?.spend) : Boolean(entry?.days?.length);
+  });
   const providerIds = withRecords.length ? withRecords : shownIds.length ? shownIds : [STATS_PROVIDERS[0]];
   const provider = providerIds.includes(selected) ? selected : providerIds[0];
-  // DeepSeek is pay-as-you-go: a Balance view instead of Utilization.
-  const views = provider === "deepseek" ? ["overview", "models", "balance"] : ["overview", "models", "quota"];
-  const activeView = views.includes(view) ? view : "overview";
+  // DeepSeek is pay-as-you-go: a Balance view instead of Utilization. API accounts have no local
+  // transcripts, only spend.
+  const isAccount = ACCOUNT_PROVIDERS.includes(provider);
+  const views = isAccount ? ["spend"] : provider === "deepseek" ? ["overview", "models", "balance"] : ["overview", "models", "quota"];
+  const activeView = views.includes(view) ? view : views[0];
   const measure = measureOf(provider);
   const providerStats = stats?.providers.find((item) => item.id === provider);
   const days = useMemo(() => providerStats?.days ?? [], [providerStats]);
@@ -506,6 +545,12 @@ export function UsageStats({
     body = <p className="stats-empty">{error}</p>;
   } else if (!stats) {
     body = <p className="stats-empty">{t("stats.loading")}</p>;
+  } else if (activeView === "spend") {
+    body = providerStats?.spend ? (
+      <SpendUsage spend={providerStats.spend} range={range} today={today} delayed={provider === "azure-openai"} />
+    ) : (
+      <p className="stats-empty">{t("spend.empty")}</p>
+    );
   } else if (activeView === "balance") {
     body = providerStats?.balance ? (
       <BalanceUsage balance={providerStats.balance} days={days} range={range} today={today} />
@@ -555,9 +600,9 @@ export function UsageStats({
   return (
     <section className={`usage-stats stats-${provider}`} aria-label={t("stats.label")}>
       <div
-        className={`stats-providers ${providerIds.length > 3 ? "is-crowded" : ""}`}
+        className={`stats-providers ${providerIds.length > 3 ? "is-crowded" : ""} ${providerIds.length > 4 ? "is-wrapping" : ""}`}
         // Four tools: columns follow their names so "Claude Code" keeps its space.
-        style={{ gridTemplateColumns: `repeat(${providerIds.length}, ${providerIds.length > 3 ? "auto" : "minmax(0, 1fr)"})` }}
+        style={{ gridTemplateColumns: providerIds.length > 4 ? "repeat(auto-fill, minmax(84px, 1fr))" : `repeat(${providerIds.length}, ${providerIds.length > 3 ? "auto" : "minmax(0, 1fr)"})` }}
         role="tablist"
         aria-label={t("stats.providers")}
       >

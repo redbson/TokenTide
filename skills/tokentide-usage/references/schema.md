@@ -37,13 +37,13 @@
 
 ```json
 "spend": {
-  "currency": "USD", "today": 0.75, "month": 4.5,
+  "currency": "USD", "today": 0.75, "week": 4.5, "month": 4.5, "calendarMonth": 4.5,
   "limit": { "amount": 50, "currency": "USD", "enforced": true },
   "readAt": "2026-11-03T15:00:00.000Z", "delayed": false
 }
 ```
 
-`month` is this UTC calendar month. `limit` is OpenAI's monthly spend limit (null elsewhere); with one, `remainingPercent` / `headline: "monthly"` give what is left of it. `delayed: true` for Azure, whose cost data lags by hours. Error codes: `accountKeyInvalid`, `accountUnreachable`, `accountUnavailable`, `azureNoAccess`, `azureNoSubscription`, `azureThrottled`.
+`today`, `week` (last 7 days), and `month` (last 30 days) are by UTC day; `calendarMonth` is this UTC calendar month. `limit` is OpenAI's monthly spend limit (null elsewhere); with one, `remainingPercent` / `headline: "monthly"` give what is left of it. `delayed: true` for Azure, whose cost data lags by hours. Error codes: `accountKeyInvalid`, `accountUnreachable`, `accountUnavailable`, `azureNoAccess`, `azureNoSubscription`, `azureThrottled`.
 
 ## DeepSeek extras
 

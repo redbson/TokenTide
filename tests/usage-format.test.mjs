@@ -94,3 +94,16 @@ test("with no current window the weekly quota leads, but stays off the window tr
   assert.equal(describeLow([claude], "zh"), "Claude Code 本周额度已用尽");
   assert.equal(makeSnapshot({ updatedAt: NOW, providers: [claude] }).claude, null);
 });
+
+test("an API account's spend view averages over the whole range, treating quiet days as $0", async () => {
+  const { summarizeSpendDays } = await import("../src/stats-format.js");
+  const byDay = { "2026-10-30": 0.12, "2026-11-02": 0.94, "2026-11-03": 0.09 };
+  const week = summarizeSpendDays(byDay, "7d", "2026-11-03");
+  assert.equal(week.days.length, 7);
+  assert.equal(week.total, 1.15);
+  assert.equal(Math.round(week.average * 1000) / 1000, 0.164);
+  assert.equal(week.peak, 0.94);
+  assert.equal(week.calendarMonth, 1.03);
+  // "All" starts at the first recorded day.
+  assert.equal(summarizeSpendDays(byDay, "all", "2026-11-03").days[0].date, "2026-10-30");
+});

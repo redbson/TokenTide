@@ -1,4 +1,7 @@
 import { spawn } from "node:child_process";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { defaultDataDir } from "./secret-store.mjs";
 import { makeLimit } from "./usage-service.mjs";
 import { resolveCommand } from "./commands.mjs";
 
@@ -19,6 +22,8 @@ const SPEND_TTL_MS = 5 * 60_000;
 const AZURE_TTL_MS = 6 * 3_600_000;
 const AZURE_FORCED_TTL_MS = 3_600_000;
 const AZURE_API_VERSION = "2026-06-01";
+// How far back each read asks for daily costs; the spend log keeps the rest.
+const HISTORY_DAYS = 90;
 // "Not set up" and failures are checked again sooner: a new sign-in should show up quickly,
 // but a throttled or failing Azure must not be asked every minute.
 const ABSENT_TTL_MS = 10 * 60_000;
@@ -39,6 +44,25 @@ export function billingPeriod(now = Date.now()) {
 }
 
 const round = (value) => Math.round(value * 100) / 100;
+const DAY_MS = 86_400_000;
+/** A day key (`2026-11-03`) for a timestamp, in UTC: providers bill by UTC day. */
+export const utcDay = (timestamp) => new Date(timestamp).toISOString().slice(0, 10);
+
+/**
+ * Totals per UTC day (`{ "2026-11-03": 0.75 }`) summarized: today, the last 7 and 30 days,
+ * and this calendar month. `days` may hold more history than the periods need.
+ */
+export function summarizeSpend(days, now = Date.now()) {
+  const { monthStart } = billingPeriod(now);
+  const today = utcDay(now);
+  const since = (count) => utcDay(now - (count - 1) * DAY_MS);
+  const sum = (from) => round(Object.entries(days).reduce((total, [day, amount]) => (day >= from && day <= today ? total + amount : total), 0));
+  return { today: sum(today), week: sum(since(7)), month: sum(since(30)), calendarMonth: sum(utcDay(monthStart)) };
+}
+
+const addDay = (days, day, amount) => {
+  days[day] = round((days[day] ?? 0) + amount);
+};
 
 async function getJson(fetchImpl, url, headers, label) {
   let response;
@@ -52,32 +76,30 @@ async function getJson(fetchImpl, url, headers, label) {
   return response.json();
 }
 
-/** Sums daily cost buckets into this month's and today's spend (`amountOf` reads one result). */
-function sumBuckets(buckets, amountOf, startOf, dayStart) {
-  let month = 0;
-  let today = 0;
+/** Daily cost buckets as totals per UTC day (`amountOf` reads one result, `startOf` a bucket). */
+function bucketsByDay(buckets, amountOf, startOf) {
+  const days = {};
   for (const bucket of buckets) {
     const total = (bucket.results ?? []).reduce((sum, result) => sum + amountOf(result), 0);
-    month += total;
-    if (startOf(bucket) >= dayStart) today += total;
+    if (total) addDay(days, utcDay(startOf(bucket)), total);
   }
-  return { month: round(month), today: round(today) };
+  return days;
 }
 
-/** OpenAI: this month's costs, and the monthly spend limit if one is set. */
+/** OpenAI: daily costs for the last HISTORY_DAYS, and the monthly spend limit if one is set. */
 export async function readOpenAiSpend(key, { fetchImpl = fetch, now = Date.now() } = {}) {
-  const { monthStart, dayStart } = billingPeriod(now);
   const headers = { Authorization: `Bearer ${key}` };
+  const start = Date.parse(utcDay(now - (HISTORY_DAYS - 1) * DAY_MS));
   const buckets = [];
   let page = null;
   do {
-    const query = new URLSearchParams({ start_time: String(monthStart / 1000), bucket_width: "1d", limit: "31" });
+    const query = new URLSearchParams({ start_time: String(start / 1000), bucket_width: "1d", limit: "180" });
     if (page) query.set("page", page);
     const body = await getJson(fetchImpl, `https://api.openai.com/v1/organization/costs?${query}`, headers, "OpenAI");
     buckets.push(...(body.data ?? []));
     page = body.has_more ? body.next_page : null;
-  } while (page && buckets.length < 62);
-  const spend = sumBuckets(buckets, (result) => Number(result.amount?.value) || 0, (bucket) => bucket.start_time * 1000, dayStart);
+  } while (page && buckets.length < 400);
+  const days = bucketsByDay(buckets, (result) => Number(result.amount?.value) || 0, (bucket) => bucket.start_time * 1000);
   const currency = (buckets.flatMap((bucket) => bucket.results ?? [])[0]?.amount?.currency ?? "usd").toUpperCase();
 
   // The spend limit is optional; an organization without one (or a key without access) has none.
@@ -91,25 +113,26 @@ export async function readOpenAiSpend(key, { fetchImpl = fetch, now = Date.now()
   } catch {
     // No limit to show.
   }
-  return { currency, ...spend, limit };
+  return { currency, days, limit };
 }
 
-/** Anthropic: this month's costs from the cost report (amounts are cents, as decimal strings). */
+/** Anthropic: daily costs for the last HISTORY_DAYS from the cost report (amounts are cents). */
 export async function readAnthropicSpend(key, { fetchImpl = fetch, now = Date.now() } = {}) {
-  const { monthStart, dayStart } = billingPeriod(now);
   const headers = { "x-api-key": key, "anthropic-version": "2023-06-01" };
   const buckets = [];
+  const start = Date.parse(utcDay(now - (HISTORY_DAYS - 1) * DAY_MS));
   let page = null;
   do {
-    const query = new URLSearchParams({ starting_at: new Date(monthStart).toISOString(), bucket_width: "1d", limit: "31" });
+    // The report returns at most 31 buckets per request; `page` continues it.
+    const query = new URLSearchParams({ starting_at: new Date(start).toISOString(), bucket_width: "1d", limit: "31" });
     if (page) query.set("page", page);
     const body = await getJson(fetchImpl, `https://api.anthropic.com/v1/organizations/cost_report?${query}`, headers, "Anthropic");
     buckets.push(...(body.data ?? []));
     page = body.has_more ? body.next_page : null;
-  } while (page && buckets.length < 62);
-  const spend = sumBuckets(buckets, (result) => (Number(result.amount) || 0) / 100, (bucket) => Date.parse(bucket.starting_at), dayStart);
+  } while (page && buckets.length < 400);
+  const days = bucketsByDay(buckets, (result) => (Number(result.amount) || 0) / 100, (bucket) => Date.parse(bucket.starting_at));
   const currency = buckets.flatMap((bucket) => bucket.results ?? [])[0]?.currency ?? "USD";
-  return { currency, ...spend, limit: null };
+  return { currency, days, limit: null };
 }
 
 /** Runs the Azure CLI and parses its JSON output; null when it isn't installed or signed in. */
@@ -170,7 +193,7 @@ export async function azureToken({ envCredentials, fetchImpl = fetch, az = runAz
 
 /** Azure: this month's Azure OpenAI (Cognitive Services) cost for the subscription, by day. */
 export async function readAzureSpend({ token, subscription }, { fetchImpl = fetch, now = Date.now() } = {}) {
-  const { dayStart } = billingPeriod(now);
+  const from = utcDay(now - (HISTORY_DAYS - 1) * DAY_MS);
   const url = `https://management.azure.com/subscriptions/${encodeURIComponent(subscription)}/providers/Microsoft.CostManagement/query?api-version=${AZURE_API_VERSION}`;
   let response;
   try {
@@ -179,7 +202,8 @@ export async function readAzureSpend({ token, subscription }, { fetchImpl = fetc
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
         type: "ActualCost",
-        timeframe: "MonthToDate",
+        timeframe: "Custom",
+        timePeriod: { from: `${from}T00:00:00Z`, to: `${utcDay(now)}T23:59:59Z` },
         dataset: {
           granularity: "Daily",
           aggregation: { totalCost: { name: "PreTaxCost", function: "Sum" } },
@@ -199,17 +223,61 @@ export async function readAzureSpend({ token, subscription }, { fetchImpl = fetc
   const costAt = columns.findIndex((name) => /cost/i.test(name));
   const dateAt = columns.indexOf("UsageDate");
   const currencyAt = columns.indexOf("Currency");
-  let month = 0;
-  let today = 0;
+  const days = {};
   let currency = "USD";
-  const todayKey = Number(new Date(dayStart).toISOString().slice(0, 10).replaceAll("-", ""));
   for (const row of properties.rows ?? []) {
     const cost = Number(row[costAt]) || 0;
-    month += cost;
-    if (dateAt >= 0 && Number(row[dateAt]) === todayKey) today += cost;
+    // UsageDate comes as 20261103.
+    const date = dateAt >= 0 ? String(row[dateAt]).replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3") : utcDay(now);
+    if (cost) addDay(days, date, cost);
     if (currencyAt >= 0 && row[currencyAt]) currency = row[currencyAt];
   }
-  return { currency, month: round(month), today: round(today), limit: null };
+  return { currency, days, limit: null };
+}
+
+/**
+ * Spend per day per account, kept in spend-history.json so History reaches further back than
+ * the providers' own windows. Each read merges its days in (a provider's later figure for a day
+ * replaces the earlier one); nothing is ever dropped.
+ */
+export function createSpendLog({ file = path.join(defaultDataDir(), "spend-history.json") } = {}) {
+  let accounts = null;
+
+  async function load() {
+    if (accounts) return;
+    try {
+      const stored = JSON.parse(await readFile(file, "utf8"));
+      accounts = stored.version === 1 && stored.accounts ? stored.accounts : {};
+    } catch {
+      accounts = {};
+    }
+  }
+
+  async function persist() {
+    try {
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFile(`${file}.tmp`, JSON.stringify({ version: 1, accounts }), { mode: 0o600 });
+      await rename(`${file}.tmp`, file);
+    } catch {
+      // Best effort: the next read records again.
+    }
+  }
+
+  return {
+    async record(id, currency, days) {
+      await load();
+      const entry = (accounts[id] ??= { currency, days: {} });
+      const before = JSON.stringify(entry);
+      entry.currency = currency;
+      Object.assign(entry.days, days);
+      if (JSON.stringify(entry) !== before) await persist();
+      return entry;
+    },
+    async get(id) {
+      await load();
+      return accounts[id] ?? null;
+    },
+  };
 }
 
 const META = {
@@ -220,8 +288,9 @@ const META = {
 
 /** A provider entry for the quota view from a spend reading. */
 function accountProvider(id, spend, readAt, extra = {}) {
+  const totals = summarizeSpend(spend.days, readAt);
   const limits = spend.limit
-    ? [makeLimit("monthly", "Monthly limit", Math.min(100, (spend.month / spend.limit.amount) * 100), Math.floor(billingPeriod(readAt).monthEnd / 1000))]
+    ? [makeLimit("monthly", "Monthly limit", Math.min(100, (totals.calendarMonth / spend.limit.amount) * 100), Math.floor(billingPeriod(readAt).monthEnd / 1000))]
     : [];
   return {
     id,
@@ -231,7 +300,7 @@ function accountProvider(id, spend, readAt, extra = {}) {
     account: extra.account ?? "API account",
     source: extra.source ?? null,
     limits,
-    spend: { currency: spend.currency, today: spend.today, month: spend.month, limit: spend.limit, readAt },
+    spend: { currency: spend.currency, ...totals, limit: spend.limit, readAt },
     ...extra,
   };
 }
@@ -240,7 +309,7 @@ function accountProvider(id, spend, readAt, extra = {}) {
  * Reads every configured API account. Unconfigured ones come back `installed: false`, so the
  * panel hides them. Readings are cached (SPEND_TTL_MS; Azure AZURE_TTL_MS) unless forced.
  */
-export function createApiAccountsReader({ keys, envCredentials, fetchImpl = fetch, az = runAz } = {}) {
+export function createApiAccountsReader({ keys, envCredentials, fetchImpl = fetch, az = runAz, spendLog = null } = {}) {
   const cache = new Map();
 
   async function cached(id, ttlMs, read) {
@@ -271,9 +340,11 @@ export function createApiAccountsReader({ keys, envCredentials, fetchImpl = fetc
     if (!key) return absent(id);
     const extra = { keySource: key.source, keyVariable: key.variable ?? null };
     try {
-      return await cached(`${id}:${key.value.slice(-6)}`, force ? 0 : SPEND_TTL_MS, async () =>
-        accountProvider(id, await readSpend(key.value, { fetchImpl }), Date.now(), { ...extra, account: "Organization" }),
-      );
+      return await cached(`${id}:${key.value.slice(-6)}`, force ? 0 : SPEND_TTL_MS, async () => {
+        const spend = await readSpend(key.value, { fetchImpl });
+        const logged = await spendLog?.record(id, spend.currency, spend.days);
+        return accountProvider(id, { ...spend, days: logged?.days ?? spend.days }, Date.now(), { ...extra, account: "Organization" });
+      });
     } catch (error) {
       return failed(id, error, extra);
     }
@@ -285,8 +356,9 @@ export function createApiAccountsReader({ keys, envCredentials, fetchImpl = fetc
         const credentials = await azureToken({ envCredentials, fetchImpl, az });
         if (!credentials) return absent("azure-openai");
         const spend = await readAzureSpend(credentials, { fetchImpl });
+        const logged = await spendLog?.record("azure-openai", spend.currency, spend.days);
         // Azure's cost data lags by hours (up to three days on pay-as-you-go).
-        return accountProvider("azure-openai", spend, Date.now(), { account: credentials.via === "cli" ? "Azure CLI" : "Service principal", delayed: true });
+        return accountProvider("azure-openai", { ...spend, days: logged?.days ?? spend.days }, Date.now(), { account: credentials.via === "cli" ? "Azure CLI" : "Service principal", delayed: true });
       } catch (error) {
         return failed("azure-openai", error);
       }

@@ -140,13 +140,13 @@ Files TokenTide writes on your Mac:
 
 ## API accounts
 
-TokenTide can also show what your API accounts cost this month (UTC calendar month). None of these providers offers a way to read a prepaid balance, so the cards show spend; with an OpenAI monthly spend limit they also show how much of it is left. Set them up in **Settings → More settings → API accounts**:
+TokenTide can also show what your API accounts cost: today, the last 7 days, and the last 30 days on the card (like the DeepSeek card), and spend per day under History. None of these providers offers a way to read a prepaid balance, so the cards show spend; with an OpenAI monthly spend limit they also show how much of it is left. Each reading asks the provider for the last 90 days by UTC date and keeps every day in `spend-history.json`, so History reaches further back the longer TokenTide runs. Set them up in **Settings → More settings → API accounts**:
 
 | Account | What it needs | Shown |
 |---|---|---|
-| OpenAI API | An organization **admin key** (`sk-admin-…`, created by an organization owner) | Spend today and this month; % left of the monthly spend limit, if one is set |
-| Claude API | An organization **admin key** (`sk-ant-admin…`); not available for individual accounts | Spend today and this month |
-| Azure OpenAI | The Azure CLI signed in (`az login`), or a service principal; the **Cost Management Reader** role on the subscription | Month-to-date Cognitive Services / Azure OpenAI cost. Azure's cost data lags by hours (up to 3 days on pay-as-you-go), so it is checked every few hours |
+| OpenAI API | An organization **admin key** (`sk-admin-…`, created by an organization owner) | Spend today, 7 days, 30 days; % left of the monthly spend limit, if one is set |
+| Claude API | An organization **admin key** (`sk-ant-admin…`); not available for individual accounts | Spend today, 7 days, 30 days |
+| Azure OpenAI | The Azure CLI signed in (`az login`), or a service principal; the **Cost Management Reader** role on the subscription | Cognitive Services / Azure OpenAI cost today, 7 days, 30 days. Azure's cost data lags by hours (up to 3 days on pay-as-you-go), so it is checked every few hours |
 
 **Keys from the environment**: TokenTide picks keys up from environment variables when none is saved in Settings: `DEEPSEEK_API_KEY`, `OPENAI_ADMIN_KEY` (or `OPENAI_API_KEY` if it is an admin key), `ANTHROPIC_ADMIN_KEY` (or `ANTHROPIC_API_KEY` if it is an admin key), and for Azure `AZURE_SUBSCRIPTION_ID`, or `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` + `AZURE_CLIENT_SECRET` for a service principal. On macOS it also looks in your interactive shell (`~/.zshrc`), as editors do. A key saved in Settings wins. Admin keys are only used to read spend, and never leave this computer except to the provider they belong to.
 
@@ -247,6 +247,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 - API accounts work through your system proxy.
 - The DeepSeek API key sits with the other API accounts.
 - Spend headlines look different from balance ones.
+- API account cards show today, 7 and 30 days, and History shows their spend per day.
 
 ### 0.7.2
 - See this month's spend for OpenAI API, Claude API, and Azure OpenAI.

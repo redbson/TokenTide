@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createApiAccountsReader, azureToken, readAnthropicSpend, readAzureSpend, readOpenAiSpend } from "../server/api-accounts.mjs";
+import { createApiAccountsReader, createSpendLog, summarizeSpend, azureToken, readAnthropicSpend, readAzureSpend, readOpenAiSpend } from "../server/api-accounts.mjs";
 import { createLocalApi } from "../server/api.mjs";
 import { createEnvCredentials, createKeyResolver, readShellEnv } from "../server/env-credentials.mjs";
 import { publicUsage } from "../server/local-api.mjs";
@@ -49,7 +49,7 @@ function fakeProviders({ openaiLimit = 5000 } = {}) {
     }
     if (url.startsWith("https://api.anthropic.com/v1/organizations/cost_report")) {
       if (init.headers["x-api-key"] !== ANTHROPIC_ADMIN) return new Response("{}", { status: 401 });
-      assert.equal(searchParams.get("starting_at"), "2026-11-01T00:00:00.000Z");
+      assert.equal(searchParams.get("starting_at"), "2026-08-06T00:00:00.000Z", "90 days back");
       return Response.json({
         data: [
           { starting_at: "2026-11-01T00:00:00Z", results: [{ amount: "123.45", currency: "USD" }] },
@@ -61,7 +61,8 @@ function fakeProviders({ openaiLimit = 5000 } = {}) {
     if (pathname.endsWith("/providers/Microsoft.CostManagement/query")) {
       assert.equal(init.headers.Authorization, "Bearer azure-token");
       const body = JSON.parse(init.body);
-      assert.equal(body.timeframe, "MonthToDate");
+      assert.equal(body.timeframe, "Custom");
+      assert.equal(body.timePeriod.from, "2026-08-06T00:00:00Z");
       return Response.json({
         properties: {
           columns: [{ name: "PreTaxCost" }, { name: "UsageDate" }, { name: "Currency" }],
@@ -77,17 +78,18 @@ function fakeProviders({ openaiLimit = 5000 } = {}) {
   return { fetchImpl, calls };
 }
 
-test("OpenAI: this month's costs across pages, today's share, and the monthly limit", async () => {
+test("OpenAI: costs per day across pages, and the monthly spend limit", async () => {
   const { fetchImpl } = fakeProviders();
   const spend = await readOpenAiSpend(OPENAI_ADMIN, { fetchImpl, now: NOW });
-  assert.deepEqual(spend, { currency: "USD", month: 4.5, today: 0.75, limit: { amount: 50, currency: "USD", enforced: true } });
+  assert.deepEqual(spend, { currency: "USD", days: { "2026-11-01": 1.25, "2026-11-02": 2.5, "2026-11-03": 0.75 }, limit: { amount: 50, currency: "USD", enforced: true } });
+  assert.deepEqual(summarizeSpend(spend.days, NOW), { today: 0.75, week: 4.5, month: 4.5, calendarMonth: 4.5 });
   await assert.rejects(readOpenAiSpend("sk-admin-wrong", { fetchImpl, now: NOW }), { code: "accountKeyInvalid" });
   assert.equal((await readOpenAiSpend(OPENAI_ADMIN, { fetchImpl: fakeProviders({ openaiLimit: 0 }).fetchImpl, now: NOW })).limit, null);
 });
 
 test("Anthropic: the cost report's cents become dollars", async () => {
   const { fetchImpl } = fakeProviders();
-  assert.deepEqual(await readAnthropicSpend(ANTHROPIC_ADMIN, { fetchImpl, now: NOW }), { currency: "USD", month: 1.73, today: 0.5, limit: null });
+  assert.deepEqual(await readAnthropicSpend(ANTHROPIC_ADMIN, { fetchImpl, now: NOW }), { currency: "USD", days: { "2026-11-01": 1.23, "2026-11-03": 0.5 }, limit: null });
 });
 
 test("Azure: a token from the CLI or a service principal, and month-to-date cost by day", async () => {
@@ -104,7 +106,7 @@ test("Azure: a token from the CLI or a service principal, and month-to-date cost
   });
   assert.deepEqual(servicePrincipal, { token: "sp-token", subscription: "sub-2", via: "servicePrincipal" });
 
-  assert.deepEqual(await readAzureSpend({ token: "azure-token", subscription: "sub-1" }, { fetchImpl, now: NOW }), { currency: "USD", month: 4.75, today: 1.25, limit: null });
+  assert.deepEqual(await readAzureSpend({ token: "azure-token", subscription: "sub-1" }, { fetchImpl, now: NOW }), { currency: "USD", days: { "2026-11-01": 3.5, "2026-11-03": 1.25 }, limit: null });
 });
 
 test("the API accounts reader: hidden until set up, keys from Settings or the environment, Azure asked rarely", async () => {
@@ -122,6 +124,7 @@ test("the API accounts reader: hidden until set up, keys from Settings or the en
   assert.equal(anthropic.keySource, "env");
   assert.equal(anthropic.keyVariable, "ANTHROPIC_ADMIN_KEY");
   assert.equal(azure.spend.month, 4.75);
+  assert.equal(azure.spend.today, 1.25);
   assert.equal(azure.delayed, true);
 
   secrets.values.set("openai-admin-key", OPENAI_ADMIN);
@@ -193,5 +196,23 @@ test("/api/keys saves only an admin key the provider accepts, and shows where a 
   } finally {
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("the spend log keeps every day a provider ever reported, so History outlasts their windows", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "tt-spend-log-"));
+  try {
+    const file = path.join(dir, "spend-history.json");
+    const log = createSpendLog({ file });
+    await log.record("openai-api", "USD", { "2026-08-01": 1, "2026-08-02": 2 });
+    // A later read no longer includes August 1, and reports a revised August 2.
+    const entry = await log.record("openai-api", "USD", { "2026-08-02": 2.5, "2026-11-03": 0.75 });
+    assert.deepEqual(entry, { currency: "USD", days: { "2026-08-01": 1, "2026-08-02": 2.5, "2026-11-03": 0.75 } });
+    assert.deepEqual(await createSpendLog({ file }).get("openai-api"), entry, "kept on disk");
+    assert.equal(await log.get("azure-openai"), null);
+    // Summaries count only the periods asked for.
+    assert.deepEqual(summarizeSpend(entry.days, NOW), { today: 0.75, week: 0.75, month: 0.75, calendarMonth: 0.75 });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
   }
 });

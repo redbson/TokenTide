@@ -70,7 +70,9 @@ export function publicTool(provider, updatedAt) {
     tool.spend = {
       currency: provider.spend.currency,
       today: number(provider.spend.today),
+      week: number(provider.spend.week),
       month: number(provider.spend.month),
+      calendarMonth: number(provider.spend.calendarMonth),
       limit: provider.spend.limit ? { amount: provider.spend.limit.amount, currency: provider.spend.limit.currency, enforced: Boolean(provider.spend.limit.enforced) } : null,
       readAt: isoMs(provider.spend.readAt),
       // Azure's cost data lags by hours.

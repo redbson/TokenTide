@@ -140,13 +140,13 @@ TokenTide 在本机写入的文件：
 
 ## API 账户
 
-TokenTide 也可以显示 API 账户本月（按 UTC 自然月）的花费。这几家都没有查询预付余额的接口，所以卡片显示的是花费；OpenAI 设了每月花费上限时，还会显示上限剩余多少。在 **设置 → 更多设置 → API 账户** 里设置：
+TokenTide 也可以显示 API 账户的花费：卡片上是今日、近 7 天、近 30 天（和 DeepSeek 卡片一致），历史页里是每天的花费。这几家都没有查询预付余额的接口，所以卡片显示的是花费；OpenAI 设了每月花费上限时，还会显示上限剩余多少。每次读取会向服务商要最近 90 天（按 UTC 日期）的数据，并把每一天都记在 `spend-history.json` 里，所以 TokenTide 用得越久，历史能看得越远。在 **设置 → 更多设置 → API 账户** 里设置：
 
 | 账户 | 需要什么 | 显示 |
 |---|---|---|
-| OpenAI API | 组织**管理员 Key**（`sk-admin-…`，由组织所有者创建） | 今日、本月花费；设了每月上限时显示剩余百分比 |
-| Claude API | 组织**管理员 Key**（`sk-ant-admin…`）；个人账户没有 | 今日、本月花费 |
-| Azure OpenAI | 已登录的 Azure CLI（`az login`）或服务主体；订阅上的「成本管理读者」权限 | 本月 Cognitive Services / Azure OpenAI 花费。Azure 的花费数据有数小时延迟（按量付费最长 3 天），所以每几小时才查一次 |
+| OpenAI API | 组织**管理员 Key**（`sk-admin-…`，由组织所有者创建） | 今日、近 7 天、近 30 天花费；设了每月上限时显示剩余百分比 |
+| Claude API | 组织**管理员 Key**（`sk-ant-admin…`）；个人账户没有 | 今日、近 7 天、近 30 天花费 |
+| Azure OpenAI | 已登录的 Azure CLI（`az login`）或服务主体；订阅上的「成本管理读者」权限 | Cognitive Services / Azure OpenAI 今日、近 7 天、近 30 天花费。Azure 的花费数据有数小时延迟（按量付费最长 3 天），所以每几小时才查一次 |
 
 **从环境变量读取 Key**：设置里没有保存 Key 时，TokenTide 会读取这些环境变量：`DEEPSEEK_API_KEY`、`OPENAI_ADMIN_KEY`（或是管理员 Key 的 `OPENAI_API_KEY`）、`ANTHROPIC_ADMIN_KEY`（或是管理员 Key 的 `ANTHROPIC_API_KEY`），Azure 用 `AZURE_SUBSCRIPTION_ID`，服务主体用 `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` + `AZURE_CLIENT_SECRET`。在 macOS 上还会像编辑器一样读取交互式 shell（`~/.zshrc`）里的变量。设置里保存的 Key 优先。管理员 Key 只用来读取花费，除了发给对应的服务商，不会离开这台电脑。
 
@@ -234,6 +234,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 - API 账户会自动使用系统代理。
 - DeepSeek API Key 并入「API 账户」。
 - 花费和余额的大数字样式区分开。
+- API 账户卡片统一显示今日、7 天、30 天，历史页可看每天花费。
 
 ### 0.7.2
 - 可查看 OpenAI、Claude、Azure 本月花费。

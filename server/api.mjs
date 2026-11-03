@@ -1,4 +1,4 @@
-import { createApiAccountsReader, readAnthropicSpend, readOpenAiSpend } from "./api-accounts.mjs";
+import { createApiAccountsReader, createSpendLog, readAnthropicSpend, readOpenAiSpend } from "./api-accounts.mjs";
 import { createBalanceLog, DEEPSEEK_KEY_NAME, fetchDeepseekBalance } from "./deepseek-balance.mjs";
 import { KEY_SOURCES, KEY_VARIABLES, createEnvCredentials, createKeyResolver } from "./env-credentials.mjs";
 import { createDeepseekPriceBook } from "./deepseek-price-book.mjs";
@@ -61,6 +61,8 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
   // Keys saved in Settings win; otherwise they come from the environment (DEEPSEEK_API_KEY …).
   const envCredentials = services.envCredentials ?? createEnvCredentials({ names: KEY_VARIABLES });
   const keys = createKeyResolver({ secrets, envCredentials });
+  // Spend per day per API account, for the cards and History (server/api-accounts.mjs).
+  const spendLog = services.spendLog ?? createSpendLog();
   // The DeepSeek reader asks the store for its key; answer with the resolved one.
   const deepseekSecrets = {
     get: async (name) => (name === DEEPSEEK_KEY_NAME ? ((await keys.resolve("deepseek"))?.value ?? null) : secrets.get(name)),
@@ -72,11 +74,11 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
     usageService ??= createUsageService(
       {
         deepseek: createDeepseekReader({ secrets: deepseekSecrets, balanceLog, fetchImpl, priceBook }),
-        apiAccounts: createApiAccountsReader({ keys, envCredentials, fetchImpl }),
+        apiAccounts: createApiAccountsReader({ keys, envCredentials, fetchImpl, spendLog }),
       },
       { quotaLog },
     );
-    statsService ??= createStatsService({ quotaLog, balanceLog, priceBook });
+    statsService ??= createStatsService({ quotaLog, balanceLog, priceBook, spendLog });
   }
 
   // What Settings shows about a key: whether there is one, a masked hint, and where it came from

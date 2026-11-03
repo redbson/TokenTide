@@ -229,24 +229,23 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
       ) : provider.error ? (
         <p className="provider-error">{provider.error}</p>
       ) : spend ? (
-        // Spend today and this month (UTC calendar month), with the limit or Azure's delay.
+        // The same periods as the DeepSeek card: today, 7 days, 30 days.
         <dl className="limit-list">
-          <div className="limit-row">
-            <dt>{t("usage.today")}</dt>
-            <dd className="limit-value is-spent">{money(spend.today)}</dd>
-            <dd className="limit-reset">{t("account.readAgo", { count: Math.max(0, Math.floor((now - spend.readAt) / 60000)) })}</dd>
-          </div>
-          <div className="limit-row">
-            <dt>{t("account.thisMonth")}</dt>
-            <dd className="limit-value is-spent">{money(spend.month)}</dd>
-            <dd className="limit-reset">
-              {spend.limit
-                ? t("account.limitOf", { amount: formatMoney(spend.limit.amount, spend.limit.currency) })
-                : provider.delayed
-                  ? t("account.delayed")
-                  : t("account.noLimit")}
-            </dd>
-          </div>
+          {["today", "week", "month"].map((span) => (
+            <div className="limit-row" key={span}>
+              <dt>{t(`usage.${span}`)}</dt>
+              <dd className="limit-value is-spent">{money(spend[span])}</dd>
+              <dd className="limit-reset">
+                {span === "today"
+                  ? t("account.readAgo", { count: Math.max(0, Math.floor((now - spend.readAt) / 60000)) })
+                  : span === "month" && spend.limit
+                    ? t("account.limitOf", { amount: formatMoney(spend.limit.amount, spend.limit.currency) })
+                    : span === "month" && provider.delayed
+                      ? t("account.delayed")
+                      : ""}
+              </dd>
+            </div>
+          ))}
         </dl>
       ) : usage ? (
         // No quota to fill a bar: tokens used today and over the last 7 and 30 days.
