@@ -1,5 +1,8 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { readFile, stat } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnCommand, stopCommand } from "./commands.mjs";
 import { weeklyReadingFromProvider } from "./quota-weeks.mjs";
@@ -292,21 +295,56 @@ async function readCodexUsage() {
         ? `${snapshot.planType.replaceAll("_", " ")} plan`
         : "Local account",
     source: "Codex app server",
-    limits: [
-      makeLimit(
-        "window",
-        "Current window",
-        snapshot.primary?.usedPercent,
-        snapshot.primary?.resetsAt,
-      ),
-      makeLimit(
-        "weekly",
-        "Weekly",
-        snapshot.secondary?.usedPercent,
-        snapshot.secondary?.resetsAt,
-      ),
-    ],
+    limits: codexLimits(snapshot),
   };
+}
+
+const SIX_DAYS_MINUTES = 6 * 24 * 60;
+
+/**
+ * Codex's rate-limit windows as limit rows. A window's id comes from its length
+ * (`windowDurationMins`), not its slot: a plan may have no five-hour window, and then its weekly
+ * one can be the `primary`. Without a length, primary is the current window and secondary the
+ * week, as Codex has always sent them. Missing windows are left out rather than shown empty.
+ */
+export function codexLimits(snapshot) {
+  const rows = [];
+  for (const [slot, window] of [["primary", snapshot?.primary], ["secondary", snapshot?.secondary]]) {
+    if (!window || window.usedPercent == null || !Number.isFinite(Number(window.usedPercent))) continue;
+    const minutes = Number(window.windowDurationMins);
+    const weekly = Number.isFinite(minutes) && minutes > 0 ? minutes >= SIX_DAYS_MINUTES : slot === "secondary";
+    const id = weekly ? "weekly" : "window";
+    if (rows.some((row) => row.id === id)) continue;
+    rows.push(makeLimit(id, weekly ? "Weekly" : "Current window", window.usedPercent, window.resetsAt));
+  }
+  if (!rows.length) throw new Error("Codex is signed in, but no quota windows were returned.");
+  return rows.sort((a, b) => (a.id === "window" ? -1 : b.id === "window" ? 1 : 0));
+}
+
+/** Claude Code's config file: `.claude.json` in CLAUDE_CONFIG_DIR, or in the home folder. */
+const claudeConfigFile = (env = process.env, home = os.homedir()) =>
+  path.join(env.CLAUDE_CONFIG_DIR || home, ".claude.json");
+
+let planNameCache = null;
+
+/**
+ * The plan's name as Claude itself shows it (`oauthAccount.planDisplayName`, e.g. "Ultra"), from
+ * Claude Code's config file; get_usage only says "max". Only that one field is kept: the file
+ * also holds the account's email and ids, which never leave this function. Null when absent.
+ */
+export async function readClaudePlanName(file = claudeConfigFile()) {
+  const info = await stat(file).catch(() => null);
+  if (!info) return null;
+  if (planNameCache?.file === file && planNameCache.mtimeMs === info.mtimeMs) return planNameCache.name;
+  let name = null;
+  try {
+    const value = JSON.parse(await readFile(file, "utf8"))?.oauthAccount?.planDisplayName;
+    if (typeof value === "string" && /^[\p{L}\p{N} ._+-]{1,40}$/u.test(value.trim())) name = value.trim();
+  } catch {
+    // Unreadable or mid-write: fall back to get_usage's subscription type.
+  }
+  planNameCache = { file, mtimeMs: info.mtimeMs, name };
+  return name;
 }
 
 function claudeEnv() {
@@ -628,7 +666,14 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
   const readCodex = readers.codex ?? readCodexUsage;
   const readQoder = readers.qoder ?? (() => readQoderUsage());
   const readDeepseek = readers.deepseek ?? createDeepseekReader();
-  const readClaudeDirect = readers.claudeDirect ?? (() => readClaudeUsageDirect());
+  const readClaudeDirectUsage = readers.claudeDirect ?? (() => readClaudeUsageDirect());
+  const readPlanName = readers.claudePlanName ?? (() => readClaudePlanName());
+  // Claude's own plan name ("Ultra") when its config has one; get_usage only knows "max".
+  const readClaudeDirect = async () => {
+    const provider = await readClaudeDirectUsage();
+    const name = await readPlanName().catch(() => null);
+    return name ? { ...provider, account: `${name} plan` } : provider;
+  };
   const readClaudeFallback =
     readers.claudeFallback ?? (() => (claudeSession ??= new ClaudeUsageSession()).request());
   const readClaudeAuth = readers.claudeAuth ?? (() => readClaudeAuthStatus());

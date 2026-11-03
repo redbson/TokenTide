@@ -15,6 +15,8 @@ import {
   readJsonLineProcess,
   resolveResetLabel,
   withLastReading,
+  codexLimits,
+  readClaudePlanName,
 } from "../server/usage-service.mjs";
 
 // 2026-09-10 12:00 in Asia/Shanghai (UTC+8, no DST).
@@ -206,7 +208,7 @@ test("falls back to the /usage view only when the structured request fails", asy
   };
   const codex = async () => ({ id: "codex", name: "Codex", connected: true, limits: [] });
 
-  const direct = createUsageService({ codex, qoder: async () => ({ id: "qoder", connected: false, installed: false, limits: [] }), claudeDirect: async () => parseClaudeDirectUsage(DIRECT_USAGE), claudeFallback: fallback });
+  const direct = createUsageService({ codex, qoder: async () => ({ id: "qoder", connected: false, installed: false, limits: [] }), claudeDirect: async () => parseClaudeDirectUsage(DIRECT_USAGE), claudeFallback: fallback, claudePlanName: async () => null });
   assert.equal((await direct.read()).providers[1].account, "max plan");
   assert.equal(fallbackCalls, 0);
 
@@ -448,4 +450,44 @@ test("the /usage view without a session section still gives the weekly quota", (
   assert.match(limits[0].resetLabel, /Nov 3/);
   // Only a session section and no weekly one is not a usable view.
   assert.equal(parseClaudeUsage("Current session\n10% used\nResets 5pm"), null);
+});
+
+test("Codex windows are named by their length, so a plan with no five-hour window shows its week", () => {
+  const ids = (snapshot) => codexLimits(snapshot).map((limit) => [limit.id, limit.remainingPercent]);
+  // Today's plans: a five-hour primary and a weekly secondary.
+  assert.deepEqual(
+    ids({ primary: { usedPercent: 20, windowDurationMins: 300, resetsAt: 1 }, secondary: { usedPercent: 31, windowDurationMins: 10080, resetsAt: 2 } }),
+    [["window", 80], ["weekly", 69]],
+  );
+  // A plan with only a weekly limit, sent as the primary.
+  assert.deepEqual(ids({ primary: { usedPercent: 10, windowDurationMins: 10080, resetsAt: 2 }, secondary: null }), [["weekly", 90]]);
+  // Only the weekly secondary is left.
+  assert.deepEqual(ids({ primary: null, secondary: { usedPercent: 40, windowDurationMins: 10080 } }), [["weekly", 60]]);
+  // Without lengths the slots decide, as before.
+  assert.deepEqual(ids({ primary: { usedPercent: 0 }, secondary: { usedPercent: 50 } }), [["window", 100], ["weekly", 50]]);
+  assert.throws(() => codexLimits({ primary: null, secondary: null }), /no quota windows/);
+});
+
+test("Claude's plan is named as Claude shows it, without reading anything else from its config", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "claude-config-"));
+  try {
+    const file = path.join(dir, ".claude.json");
+    await writeFile(file, JSON.stringify({ oauthAccount: { planDisplayName: "Ultra", emailAddress: "someone@example.com", organizationRateLimitTier: "default_claude_max_20x" } }));
+    assert.equal(await readClaudePlanName(file), "Ultra");
+    await writeFile(file, JSON.stringify({ oauthAccount: { emailAddress: "someone@example.com" } }));
+    assert.equal(await readClaudePlanName(path.join(dir, "missing.json")), null);
+
+    const service = createUsageService({
+      codex: async () => ({ id: "codex", name: "Codex", connected: true, limits: [] }),
+      qoder: async () => ({ id: "qoder", connected: false, installed: false, limits: [] }),
+      deepseek: async () => ({ id: "deepseek", connected: false, installed: false, limits: [] }),
+      claudeDirect: async () => parseClaudeDirectUsage(DIRECT_USAGE),
+      claudePlanName: async () => "Ultra",
+    });
+    const claude = (await service.read()).providers[1];
+    assert.equal(claude.account, "Ultra plan");
+    assert.equal(JSON.stringify(claude).includes("example.com"), false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

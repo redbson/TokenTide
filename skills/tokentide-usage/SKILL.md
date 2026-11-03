@@ -25,7 +25,7 @@ The script's exit codes tell you what happened, so you can branch on them: `0` o
 Each tool has:
 
 - `status`: `ok`; `stale` (a refresh failed, so this is the last good reading, from `readAt`); `unavailable` (`error` says why).
-- `remainingPercent`: the number the user sees in TokenTide. `headline` says which limit it is: `window` (the current short window, e.g. Codex's 5 hours), `weekly` (Claude Code accounts with no 5-hour window), or `total` (Qoder credits). It is `null` for DeepSeek, which has no quota.
+- `remainingPercent`: the number the user sees in TokenTide. `headline` says which limit it is: `window` (the current short window, e.g. Codex's 5 hours), `weekly` (plans with no 5-hour window, on Claude Code or Codex), or `total` (Qoder credits). It is `null` for DeepSeek, which has no quota.
 - `limits`: every limit with `remainingPercent`, `usedPercent`, and `resetsAt` (ISO time). A tool can have plenty in its window and little in its weekly limit; the lower one is what will stop it.
 - DeepSeek only: `usage.today|week|month` with `tokens`, `messages`, and `estimatedCost` (CNY at DeepSeek's published prices, an estimate, not the bill), and `balance` (`total`, `currency`, `available`) once the user has saved an API key in TokenTide.
 

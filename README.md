@@ -204,7 +204,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 2. Publish a GitHub release tagged `vX.Y.Z`, or run:
 
    ```bash
-   gh release create v0.6.10 --generate-notes
+   gh release create v0.7.1 --generate-notes
    ```
 
 3. The [release workflow](.github/workflows/release.yml) runs the tests, builds the universal Mac app and the Windows installer, and attaches `TokenTide-X.Y.Z.zip` and `TokenTide-Setup-X.Y.Z.exe`, their `.sha256` checksums, and unversioned `TokenTide.zip` / `TokenTide-Setup.exe` copies (used by the download links). Installed copies update themselves at their next check.
@@ -223,8 +223,10 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 
 ## Changelog
 
-### Unreleased
-- Other apps can read your usage from a local API.
+### 0.7.0
+- Other apps and coding agents can read your usage from a local API.
+- Claude Code shows your plan by Claude's own name, such as Ultra.
+- Codex plans without a 5-hour window show their weekly quota.
 
 ### 0.6.9
 - Claude Code shows its weekly quota for accounts with no 5-hour window.
