@@ -76,6 +76,12 @@ function fakeGitHub(files) {
   };
 }
 
+/** Resolves once `check()` is true, polling for up to `timeoutMs`. */
+async function waitFor(check, timeoutMs = 5000) {
+  const start = Date.now();
+  while (!check() && Date.now() - start < timeoutMs) await new Promise((resolve) => setTimeout(resolve, 10));
+}
+
 test("updater: downloads, verifies, and launches the installer while the panel is closed", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "tokentide-updater-"));
   try {
@@ -111,7 +117,8 @@ test("updater: downloads, verifies, and launches the installer while the panel i
 
     panelOpen = false;
     updater.panelDidHide();
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // The download runs in the background; a slow CI machine can take longer than a fixed pause.
+    await waitFor(() => updater.snapshot().status !== "downloading" && updater.snapshot().status !== "available");
     assert.equal(updater.snapshot().status, "installing");
     assert.deepEqual(launched, installer);
 
@@ -129,7 +136,7 @@ test("updater: downloads, verifies, and launches the installer while the panel i
       tempDir,
     });
     await tampered.check();
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await waitFor(() => tampered.snapshot().status === "failed");
     assert.equal(tampered.snapshot().status, "failed");
     assert.equal(tampered.snapshot().error, "checksum");
     assert.equal(launched, null);
