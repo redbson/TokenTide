@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createApiAccountsReader, createSpendLog, summarizeSpend, azureToken, readAnthropicSpend, readAzureSpend, readOpenAiSpend } from "../server/api-accounts.mjs";
+import { createApiAccountsReader, createSpendLog, lineItemModel, summarizeSpend, azureToken, readAnthropicSpend, readAzureSpend, readOpenAiSpend } from "../server/api-accounts.mjs";
 import { createLocalApi } from "../server/api.mjs";
 import { createEnvCredentials, createKeyResolver, readShellEnv } from "../server/env-credentials.mjs";
 import { publicUsage } from "../server/local-api.mjs";
@@ -31,15 +31,24 @@ function fakeProviders({ openaiLimit = 5000 } = {}) {
       if (init.headers.Authorization !== `Bearer ${OPENAI_ADMIN}`) return new Response("{}", { status: 401 });
       if (!searchParams.get("page")) {
         return Response.json({
-          data: [{ start_time: day(1), end_time: day(2), results: [{ amount: { value: 1.25, currency: "usd" } }] }],
+          data: [{ start_time: day(1), end_time: day(2), results: [{ amount: { value: 1.25, currency: "usd" }, line_item: "gpt-5.1, input" }] }],
           has_more: true,
           next_page: "p2",
         });
       }
       return Response.json({
         data: [
-          { start_time: day(2), end_time: day(3), results: [{ amount: { value: 2 } }, { amount: { value: 0.5 } }] },
-          { start_time: day(3), end_time: day(4), results: [{ amount: { value: 0.75 } }] },
+          { start_time: day(2), end_time: day(3), results: [{ amount: { value: 2 }, line_item: "gpt-5.1, output" }, { amount: { value: 0.5 }, line_item: "gpt-4o-mini-2024-07-18, input" }] },
+          { start_time: day(3), end_time: day(4), results: [{ amount: { value: 0.75 }, line_item: "gpt-5.1, input" }] },
+        ],
+        has_more: false,
+      });
+    }
+    if (url.startsWith("https://api.openai.com/v1/organization/usage/completions")) {
+      return Response.json({
+        data: [
+          { start_time: day(2), end_time: day(3), results: [{ model: "gpt-5.1", num_model_requests: 3, input_tokens: 1000, output_tokens: 200, input_cached_tokens: 400 }] },
+          { start_time: day(3), end_time: day(4), results: [{ model: "gpt-5.1", num_model_requests: 1, input_tokens: 100, output_tokens: 50, input_cached_tokens: 0 }] },
         ],
         has_more: false,
       });
@@ -81,7 +90,14 @@ function fakeProviders({ openaiLimit = 5000 } = {}) {
 test("OpenAI: costs per day across pages, and the monthly spend limit", async () => {
   const { fetchImpl } = fakeProviders();
   const spend = await readOpenAiSpend(OPENAI_ADMIN, { fetchImpl, now: NOW });
-  assert.deepEqual(spend, { currency: "USD", days: { "2026-11-01": 1.25, "2026-11-02": 2.5, "2026-11-03": 0.75 }, limit: { amount: 50, currency: "USD", enforced: true } });
+  assert.deepEqual(spend.days, { "2026-11-01": 1.25, "2026-11-02": 2.5, "2026-11-03": 0.75 });
+  assert.deepEqual(spend.limit, { amount: 50, currency: "USD", enforced: true });
+  // Per model: cost from the line items, requests and tokens from the usage report.
+  assert.deepEqual(spend.usage["2026-11-02"], {
+    "gpt-5.1": { cost: 2, requests: 3, input: 1000, output: 200, cached: 400 },
+    "gpt-4o-mini-2024-07-18": { cost: 0.5, requests: 0, input: 0, output: 0, cached: 0 },
+  });
+  assert.deepEqual(spend.usage["2026-11-01"], { "gpt-5.1": { cost: 1.25, requests: 0, input: 0, output: 0, cached: 0 } });
   assert.deepEqual(summarizeSpend(spend.days, NOW), { today: 0.75, week: 4.5, month: 4.5, calendarMonth: 4.5 });
   await assert.rejects(readOpenAiSpend("sk-admin-wrong", { fetchImpl, now: NOW }), { code: "accountKeyInvalid" });
   assert.equal((await readOpenAiSpend(OPENAI_ADMIN, { fetchImpl: fakeProviders({ openaiLimit: 0 }).fetchImpl, now: NOW })).limit, null);
@@ -206,8 +222,12 @@ test("the spend log keeps every day a provider ever reported, so History outlast
     const log = createSpendLog({ file });
     await log.record("openai-api", "USD", { "2026-08-01": 1, "2026-08-02": 2 });
     // A later read no longer includes August 1, and reports a revised August 2.
-    const entry = await log.record("openai-api", "USD", { "2026-08-02": 2.5, "2026-11-03": 0.75 });
-    assert.deepEqual(entry, { currency: "USD", days: { "2026-08-01": 1, "2026-08-02": 2.5, "2026-11-03": 0.75 } });
+    const entry = await log.record("openai-api", "USD", { "2026-08-02": 2.5, "2026-11-03": 0.75 }, { "2026-11-03": { "gpt-5.1": { cost: 0.75, requests: 1, input: 100, output: 50, cached: 0 } } });
+    assert.deepEqual(entry, {
+      currency: "USD",
+      days: { "2026-08-01": 1, "2026-08-02": 2.5, "2026-11-03": 0.75 },
+      usage: { "2026-11-03": { "gpt-5.1": { cost: 0.75, requests: 1, input: 100, output: 50, cached: 0 } } },
+    });
     assert.deepEqual(await createSpendLog({ file }).get("openai-api"), entry, "kept on disk");
     assert.equal(await log.get("azure-openai"), null);
     // Summaries count only the periods asked for.
@@ -215,4 +235,14 @@ test("the spend log keeps every day a provider ever reported, so History outlast
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("cost line items map to models, whatever their wording", () => {
+  assert.equal(lineItemModel("gpt-5.1, input"), "gpt-5.1");
+  assert.equal(lineItemModel("gpt-4o-mini-2024-07-18, cached input"), "gpt-4o-mini-2024-07-18");
+  assert.equal(lineItemModel("chatgpt-image-latest image, output"), "chatgpt-image-latest");
+  assert.equal(lineItemModel("chatgpt-image-latest text, input"), "chatgpt-image-latest");
+  assert.equal(lineItemModel("gpt-6-luna, cache writes - 12hr"), "gpt-6-luna");
+  assert.equal(lineItemModel("web search tool calls"), "web search tool calls");
+  assert.equal(lineItemModel(null), "other");
 });

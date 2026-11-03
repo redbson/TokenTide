@@ -144,7 +144,7 @@ TokenTide 也可以显示 API 账户的花费：卡片上是今日、近 7 天�
 
 | 账户 | 需要什么 | 显示 |
 |---|---|---|
-| OpenAI API | 组织**管理员 Key**（`sk-admin-…`，由组织所有者创建） | 今日、近 7 天、近 30 天花费；设了每月上限时显示剩余百分比 |
+| OpenAI API | 组织**管理员 Key**（`sk-admin-…`，由组织所有者创建） | 今日、近 7 天、近 30 天花费；设了每月上限时显示剩余百分比。历史页里还有「概览」（请求数、token、缓存命中、花费）和「模型」（按 token 排序并显示花费；在 OpenAI 每日免费额度内的模型显示为免费） |
 | Claude API | 组织**管理员 Key**（`sk-ant-admin…`）；个人账户没有 | 今日、近 7 天、近 30 天花费 |
 | Azure OpenAI | 已登录的 Azure CLI（`az login`）或服务主体；订阅上的「成本管理读者」权限 | Cognitive Services / Azure OpenAI 今日、近 7 天、近 30 天花费。Azure 的花费数据有数小时延迟（按量付费最长 3 天），所以每几小时才查一次 |
 
@@ -235,6 +235,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 - DeepSeek API Key 并入「API 账户」。
 - 花费和余额的大数字样式区分开。
 - API 账户卡片统一显示今日、7 天、30 天，历史页可看每天花费。
+- OpenAI API 的历史页新增「概览」和「模型」。
 
 ### 0.7.2
 - 可查看 OpenAI、Claude、Azure 本月花费。

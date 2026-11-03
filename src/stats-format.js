@@ -322,6 +322,52 @@ export function summarizeSpendDays(byDay, range, today = localDayKey()) {
   };
 }
 
+/**
+ * An API account's per-model usage (`{ day: { model: { cost, requests, input, output, cached } } }`)
+ * over the range: totals, and the models ranked by cost (tokens when no cost is known).
+ */
+export function summarizeAccountUsage(usage, range, today = localDayKey()) {
+  const recordedDays = Object.keys(usage ?? {}).sort();
+  const first = recordedDays[0] ?? today;
+  const count = RANGE_DAYS[range] ?? Math.min(90, daysBetween(first, today) + 1);
+  const from = addDays(today, -(count - 1));
+  const totals = { cost: 0, requests: 0, input: 0, output: 0, cached: 0, activeDays: 0 };
+  const models = {};
+  for (const [day, entries] of Object.entries(usage ?? {})) {
+    if (day < from || day > today) continue;
+    let active = false;
+    for (const [model, entry] of Object.entries(entries)) {
+      const bucket = (models[model] ??= { model, cost: 0, requests: 0, tokens: 0 });
+      bucket.cost += entry.cost ?? 0;
+      bucket.requests += entry.requests ?? 0;
+      bucket.tokens += (entry.input ?? 0) + (entry.output ?? 0);
+      totals.cost += entry.cost ?? 0;
+      totals.requests += entry.requests ?? 0;
+      totals.input += entry.input ?? 0;
+      totals.output += entry.output ?? 0;
+      totals.cached += entry.cached ?? 0;
+      if ((entry.requests ?? 0) > 0 || (entry.cost ?? 0) > 0) active = true;
+    }
+    if (active) totals.activeDays += 1;
+  }
+  totals.cost = Math.round(totals.cost * 100) / 100;
+  // Models rank by tokens, the measure every model has: OpenAI bills many models at $0 under
+  // its daily allowance, so ranking by cost would hide the models used most. Cost-only line
+  // items (web search, image generation) carry no tokens and rank by cost among themselves.
+  const list = Object.values(models)
+    .map((bucket) => ({ ...bucket, cost: Math.round(bucket.cost * 100) / 100 }))
+    .filter((bucket) => bucket.tokens > 0 || bucket.cost > 0)
+    .sort((a, b) => b.tokens - a.tokens || b.cost - a.cost);
+  const measured = list.reduce((sum, bucket) => sum + bucket.tokens, 0);
+  return {
+    ...totals,
+    tokens: totals.input + totals.output,
+    totalDays: count,
+    models: list.map((bucket) => ({ ...bucket, amount: bucket.tokens, share: measured > 0 ? bucket.tokens / measured : 0 })),
+    favoriteModel: list[0]?.model ?? null,
+  };
+}
+
 const CURRENCY_SIGNS = { CNY: "¥", USD: "$" };
 
 /** `¥110.00`; amounts under 0.01 keep up to 4 decimals so a tiny charge doesn't read as zero. */
@@ -410,7 +456,8 @@ export function formatModelName(model) {
   if (!model) return "—";
   const claude = model.match(/^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?$/);
   if (claude) return `${capitalize(claude[1])} ${claude[2]}${claude[3] ? `.${claude[3]}` : ""}`;
-  const gpt = model.match(/^gpt-([\d.]+)(?:-(.+))?$/i);
+  // OpenAI dates its ids ("gpt-5-mini-2025-08-07"); the date says nothing about the model.
+  const gpt = model.replace(/-\d{4}-\d{2}-\d{2}$/, "").match(/^gpt-([\d.]+)(?:-(.+))?$/i);
   if (gpt) return `GPT-${gpt[1]}${gpt[2] ? ` ${gpt[2].split("-").map(capitalize).join(" ")}` : ""}`;
   return model;
 }

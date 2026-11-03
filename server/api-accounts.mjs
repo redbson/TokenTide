@@ -87,20 +87,72 @@ function bucketsByDay(buckets, amountOf, startOf) {
 }
 
 /** OpenAI: daily costs for the last HISTORY_DAYS, and the monthly spend limit if one is set. */
-export async function readOpenAiSpend(key, { fetchImpl = fetch, now = Date.now() } = {}) {
-  const headers = { Authorization: `Bearer ${key}` };
+/** Every daily bucket of an OpenAI organization endpoint for the last HISTORY_DAYS, across pages. */
+async function openAiBuckets(fetchImpl, headers, endpoint, extra, now, pageSize = 180) {
   const start = Date.parse(utcDay(now - (HISTORY_DAYS - 1) * DAY_MS));
   const buckets = [];
   let page = null;
   do {
-    const query = new URLSearchParams({ start_time: String(start / 1000), bucket_width: "1d", limit: "180" });
+    const query = new URLSearchParams({ start_time: String(start / 1000), bucket_width: "1d", limit: String(pageSize), ...extra });
     if (page) query.set("page", page);
-    const body = await getJson(fetchImpl, `https://api.openai.com/v1/organization/costs?${query}`, headers, "OpenAI");
+    const body = await getJson(fetchImpl, `https://api.openai.com/v1/organization/${endpoint}?${query}`, headers, "OpenAI");
     buckets.push(...(body.data ?? []));
     page = body.has_more ? body.next_page : null;
   } while (page && buckets.length < 400);
+  return buckets;
+}
+
+/**
+ * The model behind a cost line item. Seen forms: "gpt-5.1, input", "gpt-6-luna, cache writes
+ * - 12hr", "chatgpt-image-latest image, output" / "chatgpt-image-latest text, input" (one
+ * model, image and text kinds before the comma), and tools such as "web search tool calls".
+ */
+export function lineItemModel(lineItem) {
+  const text = String(lineItem ?? "").trim();
+  if (!text) return "other";
+  return text.split(",")[0].trim().replace(/\s+(image|text|audio)$/i, "");
+}
+
+/**
+ * OpenAI: for the last HISTORY_DAYS, daily costs (also per model, from the cost line items),
+ * daily usage per model (requests and tokens, from the completions usage report), and the
+ * monthly spend limit if one is set. Only models, counts, and amounts are kept; project,
+ * organization, user, and key identifiers in the responses are dropped.
+ */
+export async function readOpenAiSpend(key, { fetchImpl = fetch, now = Date.now() } = {}) {
+  const headers = { Authorization: `Bearer ${key}` };
+  const buckets = await openAiBuckets(fetchImpl, headers, "costs", { "group_by[]": "line_item" }, now);
   const days = bucketsByDay(buckets, (result) => Number(result.amount?.value) || 0, (bucket) => bucket.start_time * 1000);
   const currency = (buckets.flatMap((bucket) => bucket.results ?? [])[0]?.amount?.currency ?? "usd").toUpperCase();
+  const usage = {};
+  for (const bucket of buckets) {
+    const day = (usage[utcDay(bucket.start_time * 1000)] ??= {});
+    for (const result of bucket.results ?? []) {
+      const amount = Number(result.amount?.value) || 0;
+      if (!amount) continue;
+      const entry = (day[lineItemModel(result.line_item)] ??= { cost: 0, requests: 0, input: 0, output: 0, cached: 0 });
+      entry.cost = round(entry.cost + amount);
+    }
+  }
+  // Requests and tokens per model. The usage report is separate from costs and may lag; a
+  // failure here leaves cost-only entries.
+  try {
+    // The usage report allows at most 31 daily buckets per page (costs allows 180).
+    const completions = await openAiBuckets(fetchImpl, headers, "usage/completions", { "group_by[]": "model" }, now, 31);
+    for (const bucket of completions) {
+      const day = (usage[utcDay(bucket.start_time * 1000)] ??= {});
+      for (const result of bucket.results ?? []) {
+        const entry = (day[result.model || "other"] ??= { cost: 0, requests: 0, input: 0, output: 0, cached: 0 });
+        entry.requests += Number(result.num_model_requests) || 0;
+        entry.input += Number(result.input_tokens) || 0;
+        entry.output += Number(result.output_tokens) || 0;
+        entry.cached += Number(result.input_cached_tokens) || 0;
+      }
+    }
+  } catch {
+    // Costs still count without the usage report.
+  }
+  for (const day of Object.keys(usage)) if (!Object.keys(usage[day]).length) delete usage[day];
 
   // The spend limit is optional; an organization without one (or a key without access) has none.
   let limit = null;
@@ -113,7 +165,7 @@ export async function readOpenAiSpend(key, { fetchImpl = fetch, now = Date.now()
   } catch {
     // No limit to show.
   }
-  return { currency, days, limit };
+  return { currency, days, usage, limit };
 }
 
 /** Anthropic: daily costs for the last HISTORY_DAYS from the cost report (amounts are cents). */
@@ -264,12 +316,14 @@ export function createSpendLog({ file = path.join(defaultDataDir(), "spend-histo
   }
 
   return {
-    async record(id, currency, days) {
+    async record(id, currency, days, usage = null) {
       await load();
       const entry = (accounts[id] ??= { currency, days: {} });
       const before = JSON.stringify(entry);
       entry.currency = currency;
       Object.assign(entry.days, days);
+      // Per-model usage per day (OpenAI); a day's later figures replace the earlier ones.
+      if (usage) Object.assign((entry.usage ??= {}), usage);
       if (JSON.stringify(entry) !== before) await persist();
       return entry;
     },
@@ -342,7 +396,7 @@ export function createApiAccountsReader({ keys, envCredentials, fetchImpl = fetc
     try {
       return await cached(`${id}:${key.value.slice(-6)}`, force ? 0 : SPEND_TTL_MS, async () => {
         const spend = await readSpend(key.value, { fetchImpl });
-        const logged = await spendLog?.record(id, spend.currency, spend.days);
+        const logged = await spendLog?.record(id, spend.currency, spend.days, spend.usage);
         return accountProvider(id, { ...spend, days: logged?.days ?? spend.days }, Date.now(), { ...extra, account: "Organization" });
       });
     } catch (error) {

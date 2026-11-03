@@ -224,6 +224,10 @@ test("formats token counts, model names, and book comparisons", () => {
   assert.equal(formatModelName("claude-opus-5"), "Opus 5");
   assert.equal(formatModelName("claude-haiku-4-5-20251001"), "Haiku 4.5");
   assert.equal(formatModelName("gpt-5.2-codex"), "GPT-5.2 Codex");
+  // OpenAI's dated ids lose the date.
+  assert.equal(formatModelName("gpt-5-mini-2025-08-07"), "GPT-5 Mini");
+  assert.equal(formatModelName("gpt-5-search-api-2025-10-14"), "GPT-5 Search Api");
+  assert.equal(formatModelName("gpt-6-luna"), "GPT-6 Luna");
   assert.equal(formatModelName("gpt-5.5"), "GPT-5.5");
   assert.equal(formatModelName("custom-model"), "custom-model");
 

@@ -16,6 +16,7 @@ import {
   formatShare,
   formatTokens,
   localDayKey,
+  summarizeAccountUsage,
   summarizeBalance,
   summarizeCreditDays,
   summarizeSpendDays,
@@ -456,6 +457,51 @@ function BalanceUsage({ balance, days, range, today }) {
   );
 }
 
+// An API account's overview: requests, tokens, and cost over the range, from the usage records.
+function AccountOverview({ usage, currency, range, today }) {
+  const { t } = useI18n();
+  const summary = useMemo(() => summarizeAccountUsage(usage, range, today), [usage, range, today]);
+  if (summary.requests === 0 && summary.cost === 0) return <p className="stats-empty">{t("account.noUsage")}</p>;
+  return (
+    <div className="stat-grid">
+      <StatCard label={t("account.requests")} value={summary.requests.toLocaleString()} />
+      <StatCard label={t("stats.tokens")} value={formatTokens(summary.tokens)} />
+      <StatCard label={t("account.inputTokens")} value={formatTokens(summary.input)} />
+      <StatCard label={t("account.outputTokens")} value={formatTokens(summary.output)} />
+      <StatCard label={t("account.cachedTokens")} value={formatTokens(summary.cached)} />
+      <StatCard label={t("spend.total")} value={formatMoney(summary.cost, currency)} />
+      <StatCard label={t("stats.activeDays")} value={summary.activeDays} detail={`/${summary.totalDays}`} />
+      <StatCard label={t("stats.favoriteModel")} value={formatModelName(summary.favoriteModel)} compact />
+    </div>
+  );
+}
+
+// An API account's models, ranked by cost (by tokens when the cost per model is unknown).
+function AccountModels({ usage, currency, range, today }) {
+  const { t } = useI18n();
+  const summary = useMemo(() => summarizeAccountUsage(usage, range, today), [usage, range, today]);
+  if (summary.models.length === 0) return <p className="stats-empty">{t("stats.noModels")}</p>;
+  return (
+    <ul className="model-list">
+      {summary.models.slice(0, 8).map(({ model, cost, tokens, requests, share }) => (
+        <li key={model}>
+          <div className="model-row">
+            <span className="model-name">{formatModelName(model)}</span>
+            <span className="model-tokens">
+              {tokens > 0 ? `${formatTokens(tokens)} · ${formatShare(share)}` : ""}
+              {requests ? ` · ${t("account.requestsShort", { count: requests.toLocaleString() })}` : ""}
+              {cost > 0 ? ` · ${formatMoney(cost, currency)}` : tokens > 0 ? ` · ${t("account.free")}` : ""}
+            </span>
+          </div>
+          <div className="model-bar">
+            <span style={{ width: `${Math.max(2, share * 100)}%` }} />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 // An API account's spend per day, from the provider's cost records TokenTide has kept.
 function SpendUsage({ spend, range, today, delayed }) {
   const { t } = useI18n();
@@ -531,11 +577,19 @@ export function UsageStats({
   const provider = providerIds.includes(selected) ? selected : providerIds[0];
   // DeepSeek is pay-as-you-go: a Balance view instead of Utilization. API accounts have no local
   // transcripts, only spend.
+  const providerStats = stats?.providers.find((item) => item.id === provider);
   const isAccount = ACCOUNT_PROVIDERS.includes(provider);
-  const views = isAccount ? ["spend"] : provider === "deepseek" ? ["overview", "models", "balance"] : ["overview", "models", "quota"];
+  // Only OpenAI reports usage per model (requests, tokens); Claude and Azure only report cost.
+  const hasAccountUsage = isAccount && Boolean(providerStats?.spend?.usage);
+  const views = isAccount
+    ? hasAccountUsage
+      ? ["overview", "models", "spend"]
+      : ["spend"]
+    : provider === "deepseek"
+      ? ["overview", "models", "balance"]
+      : ["overview", "models", "quota"];
   const activeView = views.includes(view) ? view : views[0];
   const measure = measureOf(provider);
-  const providerStats = stats?.providers.find((item) => item.id === provider);
   const days = useMemo(() => providerStats?.days ?? [], [providerStats]);
   const quotaWeeks = useMemo(() => providerStats?.quotaWeeks ?? [], [providerStats]);
   const summary = useMemo(() => summarizeStats(days, range, today, measure), [days, range, today, measure]);
@@ -545,6 +599,10 @@ export function UsageStats({
     body = <p className="stats-empty">{error}</p>;
   } else if (!stats) {
     body = <p className="stats-empty">{t("stats.loading")}</p>;
+  } else if (isAccount && activeView === "overview") {
+    body = <AccountOverview usage={providerStats.spend.usage} currency={providerStats.spend.currency} range={range} today={today} />;
+  } else if (isAccount && activeView === "models") {
+    body = <AccountModels usage={providerStats.spend.usage} currency={providerStats.spend.currency} range={range} today={today} />;
   } else if (activeView === "spend") {
     body = providerStats?.spend ? (
       <SpendUsage spend={providerStats.spend} range={range} today={today} delayed={provider === "azure-openai"} />

@@ -144,7 +144,7 @@ TokenTide can also show what your API accounts cost: today, the last 7 days, and
 
 | Account | What it needs | Shown |
 |---|---|---|
-| OpenAI API | An organization **admin key** (`sk-admin-…`, created by an organization owner) | Spend today, 7 days, 30 days; % left of the monthly spend limit, if one is set |
+| OpenAI API | An organization **admin key** (`sk-admin-…`, created by an organization owner) | Spend today, 7 days, 30 days; % left of the monthly spend limit, if one is set. In History also an Overview (requests, tokens, cache hits, cost) and Models (by tokens, with cost; models under OpenAI's daily allowance show as free) |
 | Claude API | An organization **admin key** (`sk-ant-admin…`); not available for individual accounts | Spend today, 7 days, 30 days |
 | Azure OpenAI | The Azure CLI signed in (`az login`), or a service principal; the **Cost Management Reader** role on the subscription | Cognitive Services / Azure OpenAI cost today, 7 days, 30 days. Azure's cost data lags by hours (up to 3 days on pay-as-you-go), so it is checked every few hours |
 
@@ -248,6 +248,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 - The DeepSeek API key sits with the other API accounts.
 - Spend headlines look different from balance ones.
 - API account cards show today, 7 and 30 days, and History shows their spend per day.
+- OpenAI API gets Overview and Models in History: requests, tokens, and cost per model.
 
 ### 0.7.2
 - See this month's spend for OpenAI API, Claude API, and Azure OpenAI.

@@ -107,3 +107,22 @@ test("an API account's spend view averages over the whole range, treating quiet 
   // "All" starts at the first recorded day.
   assert.equal(summarizeSpendDays(byDay, "all", "2026-11-03").days[0].date, "2026-10-30");
 });
+
+test("an API account's overview and models come from the per-model usage log", async () => {
+  const { summarizeAccountUsage } = await import("../src/stats-format.js");
+  const usage = {
+    "2026-11-02": { "gpt-5.1": { cost: 2, requests: 3, input: 1000, output: 200, cached: 400 }, "gpt-4o-mini": { cost: 0.5, requests: 0, input: 0, output: 0, cached: 0 } },
+    "2026-11-03": { "gpt-5.1": { cost: 0.75, requests: 1, input: 100, output: 50, cached: 0 } },
+    "2026-09-01": { "gpt-5.1": { cost: 9, requests: 9, input: 9, output: 9, cached: 0 } },
+  };
+  const week = summarizeAccountUsage(usage, "7d", "2026-11-03");
+  assert.deepEqual(
+    { cost: week.cost, requests: week.requests, tokens: week.tokens, cached: week.cached, activeDays: week.activeDays, totalDays: week.totalDays, favoriteModel: week.favoriteModel },
+    { cost: 3.25, requests: 4, tokens: 1350, cached: 400, activeDays: 2, totalDays: 7, favoriteModel: "gpt-5.1" },
+  );
+  // Ranked by tokens (share of tokens); a cost-only line item keeps its cost and comes last.
+  assert.deepEqual(week.models.map((model) => [model.model, model.tokens, model.cost, Math.round(model.share * 100)]), [["gpt-5.1", 1350, 2.75, 100], ["gpt-4o-mini", 0, 0.5, 0]]);
+  // A free model (cost 0) still ranks by its tokens.
+  const free = summarizeAccountUsage({ "2026-11-03": { a: { cost: 0, requests: 1, input: 10, output: 5, cached: 0 }, b: { cost: 1, requests: 1, input: 1, output: 1, cached: 0 } } }, "7d", "2026-11-03");
+  assert.deepEqual(free.models.map((model) => model.model), ["a", "b"]);
+});
