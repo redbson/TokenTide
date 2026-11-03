@@ -1107,7 +1107,3 @@ button:focus-visible {
 .provider-openai-api .progress-value { background: linear-gradient(90deg, #2d7ff0, #74b4ff); }
 .provider-anthropic-api .progress-value { background: linear-gradient(90deg, #e07a4f, #f4b08a); }
 .provider-azure-openai .progress-value { background: linear-gradient(90deg, #1f7ad6, #6fb6f7); }
-
-/* An indented row that belongs to the one above it (OpenAI's balance under its key). */
-.settings-row-indent { display: inline-block; width: 16px; }
-.provider-hint.is-warning { color: var(--amber); }

@@ -73,10 +73,6 @@ export function publicTool(provider, updatedAt) {
       month: number(provider.spend.month),
       limit: provider.spend.limit ? { amount: provider.spend.limit.amount, currency: provider.spend.limit.currency, enforced: Boolean(provider.spend.limit.enforced) } : null,
       readAt: isoMs(provider.spend.readAt),
-      // OpenAI only: the balance worked out from the amount the user entered, minus spend since.
-      balance: provider.spend.balance
-        ? { estimate: provider.spend.balance.estimate, entered: provider.spend.balance.entered, enteredAt: isoMs(provider.spend.balance.enteredAt), estimated: true }
-        : null,
       // Azure's cost data lags by hours.
       delayed: Boolean(provider.delayed),
     };

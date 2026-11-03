@@ -1,7 +1,6 @@
 import { useI18n } from "./i18n-context.js";
 import { LANGUAGE_NAMES } from "./i18n.js";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { formatMoney } from "./stats-format.js";
 import {
   BellIcon,
   ChartIcon,
@@ -316,86 +315,6 @@ function KeyRow({ endpoint, icon, title, offText, placeholder = "sk-…", errorT
 // Error codes from /api/deepseek-key that have their own message.
 const KEY_ERRORS = new Set(["deepseekKeyInvalid", "deepseekKeyMalformed", "deepseekBalanceUnavailable"]);
 
-// OpenAI has no API for the balance: the user writes down what OpenAI's billing page shows, and
-// TokenTide subtracts what was spent after that (server/api-accounts.mjs).
-function OpenAiBalanceRow({ onChanged }) {
-  const { t, language } = useI18n();
-  const [state, setState] = useState(null);
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    sendKeyRequest("/api/openai-balance", "GET").then(setState, () => setState({ set: false }));
-  }, []);
-
-  const run = async (method, body) => {
-    setBusy(true);
-    setError(null);
-    try {
-      setState(await sendKeyRequest("/api/openai-balance", method, body));
-      setEditing(false);
-      setValue("");
-      onChanged();
-    } catch (failure) {
-      setError(failure.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const date = state?.set ? new Date(state.at).toLocaleDateString(language === "zh" ? "zh-CN" : "en-US", { month: "numeric", day: "numeric" }) : "";
-  const showForm = state && (!state.set || editing);
-  return (
-    <>
-      <SettingRow
-        icon={<span className="settings-row-indent" aria-hidden="true" />}
-        title={t("openaiBalance.title")}
-        detail={state?.set ? t("openaiBalance.on", { amount: formatMoney(state.amount, "USD"), date }) : t("openaiBalance.off")}
-        action={
-          showForm ? (
-            <form
-              className="key-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (value.trim()) run("PUT", { amount: Number(value) });
-              }}
-            >
-              <input
-                className="key-input"
-                type="number"
-                min="0"
-                step="0.01"
-                inputMode="decimal"
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                placeholder={t("openaiBalance.placeholder")}
-                aria-label={t("openaiBalance.title")}
-                disabled={busy}
-              />
-              <button className="key-button" type="submit" disabled={busy || !value.trim()}>
-                {t(busy ? "deepseekKey.checking" : "deepseekKey.save")}
-              </button>
-              {editing ? (
-                <button className="link-button" type="button" onClick={() => setEditing(false)} disabled={busy}>
-                  {t("deepseekKey.cancel")}
-                </button>
-              ) : null}
-            </form>
-          ) : state?.set ? (
-            <span className="settings-actions">
-              <button className="link-button" type="button" onClick={() => setEditing(true)}>{t("openaiBalance.update")}</button>
-              <button className="link-button" type="button" onClick={() => run("DELETE")} disabled={busy}>{t("openaiBalance.clear")}</button>
-            </span>
-          ) : null
-        }
-      />
-      {error ? <p className="settings-error settings-row-error">{t(error === "adminKeyMissing" ? "openaiBalance.needKey" : ACCOUNT_ERRORS.has(error) ? `accountError.${error}` : "accountError.failed")}</p> : null}
-    </>
-  );
-}
-
 const ACCOUNT_ERRORS = new Set(["accountKeyInvalid", "adminKeyMalformed", "accountUnreachable", "accountUnavailable"]);
 
 // OpenAI API and Claude API spend need organization admin keys (or OPENAI_ADMIN_KEY /
@@ -424,8 +343,6 @@ function ApiAccounts({ providers, onChanged, deepseekShown = false }) {
           errorText={errorText}
           onChanged={onChanged}
         />
-        {/* Only with an admin key: spend since the entered balance comes from the costs API. */}
-        {providers.find((provider) => provider.id === "openai-api")?.installed ? <OpenAiBalanceRow onChanged={onChanged} /> : null}
         <KeyRow
           endpoint="/api/keys/anthropic-admin"
           icon={<img className="settings-provider-icon" src="/assets/claude.svg" alt="" />}
