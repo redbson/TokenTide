@@ -170,6 +170,8 @@ curl -s http://127.0.0.1:46173/v1/usage
 - DeepSeek has no quota (`remainingPercent: null`): `usage.today|week|month` gives `tokens`, `messages`, and `estimatedCost` (CNY, at DeepSeek's published prices), and `balance` appears once an API key is saved.
 - The schema name changes only if a field is removed or changes meaning; new fields may be added.
 
+**For coding agents**: [`skills/tokentide-usage`](skills/tokentide-usage/SKILL.md) is a skill that teaches Claude Code, Codex, and other agents to check this API before big tasks, pick a tool with quota left, and handle TokenTide being off. Install it by copying the folder into `~/.claude/skills/` (Claude Code) or `~/.codex/skills/` (Codex).
+
 ## Troubleshooting
 
 - **The panel says it couldn't start the local quota service**: make sure Node.js 20 or later is installed and `node` can be found in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, or your login shell's PATH. Details are in `~/Library/Logs/TokenTide.log`.

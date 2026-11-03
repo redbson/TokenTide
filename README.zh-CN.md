@@ -157,6 +157,8 @@ curl -s http://127.0.0.1:46173/v1/usage
 - DeepSeek 没有额度（`remainingPercent: null`）：`usage.today|week|month` 给出 `tokens`、`messages` 和 `estimatedCost`（人民币，按 DeepSeek 公布价格估算）；保存 API Key 后还有 `balance`。
 - 只有删掉字段或改变含义时才会换 schema 名称；新增字段不会。
 
+**给编程 Agent 用**：[`skills/tokentide-usage`](skills/tokentide-usage/SKILL.md) 是一个 skill，教 Claude Code、Codex 等 Agent 在开始大任务前查这个接口、挑还有额度的工具、处理 TokenTide 没开的情况。把这个文件夹复制到 `~/.claude/skills/`（Claude Code）或 `~/.codex/skills/`（Codex）即可安装。
+
 ## 常见问题
 
 - **面板显示「无法启动本机额度服务」**：确认装了 Node.js 20 或更新版本，并且 `node` 能在 `~/.local/bin`、`/opt/homebrew/bin`、`/usr/local/bin` 或登录 shell 的 PATH 里找到。详细原因看 `~/Library/Logs/TokenTide.log`。
