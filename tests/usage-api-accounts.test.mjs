@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createApiAccountsReader, azureToken, readAnthropicSpend, readAzureSpend, readOpenAiSpend } from "../server/api-accounts.mjs";
+import { createApiAccountsReader, createOpenAiBalance, azureToken, readAnthropicSpend, readAzureSpend, readOpenAiSpend } from "../server/api-accounts.mjs";
 import { createLocalApi } from "../server/api.mjs";
 import { createEnvCredentials, createKeyResolver, readShellEnv } from "../server/env-credentials.mjs";
 import { publicUsage } from "../server/local-api.mjs";
@@ -80,7 +80,7 @@ function fakeProviders({ openaiLimit = 5000 } = {}) {
 test("OpenAI: this month's costs across pages, today's share, and the monthly limit", async () => {
   const { fetchImpl } = fakeProviders();
   const spend = await readOpenAiSpend(OPENAI_ADMIN, { fetchImpl, now: NOW });
-  assert.deepEqual(spend, { currency: "USD", month: 4.5, today: 0.75, limit: { amount: 50, currency: "USD", enforced: true } });
+  assert.deepEqual(spend, { currency: "USD", month: 4.5, today: 0.75, limit: { amount: 50, currency: "USD", enforced: true }, balance: null });
   await assert.rejects(readOpenAiSpend("sk-admin-wrong", { fetchImpl, now: NOW }), { code: "accountKeyInvalid" });
   assert.equal((await readOpenAiSpend(OPENAI_ADMIN, { fetchImpl: fakeProviders({ openaiLimit: 0 }).fetchImpl, now: NOW })).limit, null);
 });
@@ -193,5 +193,61 @@ test("/api/keys saves only an admin key the provider accepts, and shows where a 
   } finally {
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("OpenAI balance: the amount written down, minus what was spent after it", async () => {
+  const { fetchImpl } = fakeProviders();
+  // Written down on Nov 2 at noon, when Nov 2 had already cost $1.00 (of its $2.50).
+  const baseline = { amount: 20, at: Date.UTC(2026, 10, 2, 12), dayStart: Date.UTC(2026, 10, 2), daySpent: 1 };
+  const spend = await readOpenAiSpend(OPENAI_ADMIN, { fetchImpl, now: NOW, baseline });
+  // Since then: the rest of Nov 2 ($1.50) and Nov 3 ($0.75).
+  assert.deepEqual(spend.balance, { estimate: 17.75, entered: 20, enteredAt: baseline.at, spentSince: 2.25 });
+  assert.equal(spend.month, 4.5, "the month's spend is unchanged");
+
+  const dir = await mkdtemp(path.join(os.tmpdir(), "tt-openai-balance-"));
+  try {
+    const store = createOpenAiBalance({ file: path.join(dir, "openai-balance.json") });
+    assert.equal(await store.get(), null);
+    const saved = await store.set(12.345, 0.4, NOW);
+    assert.deepEqual(saved, { amount: 12.35, currency: "USD", at: NOW, dayStart: Date.UTC(2026, 10, 3), daySpent: 0.4 });
+    assert.deepEqual(await createOpenAiBalance({ file: path.join(dir, "openai-balance.json") }).get(), saved, "kept on disk");
+    await store.clear();
+    assert.equal(await store.get(), null);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("/api/openai-balance needs an admin key and records today's spend so far", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "tt-openai-balance-api-"));
+  const secrets = memorySecrets();
+  const openaiBalance = createOpenAiBalance({ file: path.join(dir, "b.json") });
+  const api = createLocalApi({
+    usageService: { read: async () => ({ providers: [] }), close() {} },
+    statsService: { read: async () => ({}) },
+    secrets,
+    openaiBalance,
+    fetchImpl: fakeProviders().fetchImpl,
+    envCredentials: createEnvCredentials({ env: {}, readShell: async () => ({}) }),
+  });
+  const server = http.createServer((request, response) => api.handle(request, response));
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${server.address().port}/api/openai-balance`;
+  const put = (amount) => fetch(url, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount }) });
+  try {
+    assert.deepEqual(await (await fetch(url)).json(), { set: false });
+    assert.equal((await put(20)).status, 409, "no admin key yet");
+    secrets.values.set("openai-admin-key", OPENAI_ADMIN);
+    assert.equal((await put(-1)).status, 400);
+    const saved = await (await put(20)).json();
+    assert.equal(saved.set, true);
+    assert.equal(saved.amount, 20);
+    assert.equal(Number.isFinite((await openaiBalance.get()).daySpent), true);
+    assert.deepEqual(await (await fetch(url, { method: "DELETE" })).json(), { set: false });
+  } finally {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+    await rm(dir, { recursive: true, force: true });
   }
 });

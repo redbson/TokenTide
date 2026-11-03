@@ -144,9 +144,11 @@ TokenTide 也可以显示 API 账户本月（按 UTC 自然月）的花费。这
 
 | 账户 | 需要什么 | 显示 |
 |---|---|---|
-| OpenAI API | 组织**管理员 Key**（`sk-admin-…`，由组织所有者创建） | 今日、本月花费；设了每月上限时显示剩余百分比 |
+| OpenAI API | 组织**管理员 Key**（`sk-admin-…`，由组织所有者创建） | 今日、本月花费；设了每月上限时显示剩余百分比；填写余额后显示推算余额（见下） |
 | Claude API | 组织**管理员 Key**（`sk-ant-admin…`）；个人账户没有 | 今日、本月花费 |
 | Azure OpenAI | 已登录的 Azure CLI（`az login`）或服务主体；订阅上的「成本管理读者」权限 | 本月 Cognitive Services / Azure OpenAI 花费。Azure 的花费数据有数小时延迟（按量付费最长 3 天），所以每几小时才查一次 |
+
+**OpenAI 余额**：OpenAI 查询余额的接口只接受网页登录，TokenTide 读不到。在 **API 账户 → 账户余额** 里填写 OpenAI 后台显示的余额，之后 TokenTide 会用花费接口扣减新产生的花费，显示推算余额。充值后请重新填写。
 
 **从环境变量读取 Key**：设置里没有保存 Key 时，TokenTide 会读取这些环境变量：`DEEPSEEK_API_KEY`、`OPENAI_ADMIN_KEY`（或是管理员 Key 的 `OPENAI_API_KEY`）、`ANTHROPIC_ADMIN_KEY`（或是管理员 Key 的 `ANTHROPIC_API_KEY`），Azure 用 `AZURE_SUBSCRIPTION_ID`，服务主体用 `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` + `AZURE_CLIENT_SECRET`。在 macOS 上还会像编辑器一样读取交互式 shell（`~/.zshrc`）里的变量。设置里保存的 Key 优先。管理员 Key 只用来读取花费，除了发给对应的服务商，不会离开这台电脑。
 
@@ -233,6 +235,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 ### 未发布
 - API 账户会自动使用系统代理。
 - DeepSeek API Key 并入「API 账户」。
+- 填一次 OpenAI 余额，之后自动扣减花费。
 
 ### 0.7.2
 - 可查看 OpenAI、Claude、Azure 本月花费。

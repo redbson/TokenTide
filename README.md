@@ -144,9 +144,11 @@ TokenTide can also show what your API accounts cost this month (UTC calendar mon
 
 | Account | What it needs | Shown |
 |---|---|---|
-| OpenAI API | An organization **admin key** (`sk-admin-…`, created by an organization owner) | Spend today and this month; % left of the monthly spend limit, if one is set |
+| OpenAI API | An organization **admin key** (`sk-admin-…`, created by an organization owner) | Spend today and this month; % left of the monthly spend limit, if one is set; and an estimated balance if you enter yours (below) |
 | Claude API | An organization **admin key** (`sk-ant-admin…`); not available for individual accounts | Spend today and this month |
 | Azure OpenAI | The Azure CLI signed in (`az login`), or a service principal; the **Cost Management Reader** role on the subscription | Month-to-date Cognitive Services / Azure OpenAI cost. Azure's cost data lags by hours (up to 3 days on pay-as-you-go), so it is checked every few hours |
+
+**OpenAI balance**: OpenAI's balance endpoints accept only a signed-in browser, so TokenTide can't read it. Enter the balance OpenAI's billing page shows under **API accounts → Account balance**; TokenTide then subtracts what is spent after that (from the costs API) and shows the estimate. Enter it again after a top-up.
 
 **Keys from the environment**: TokenTide picks keys up from environment variables when none is saved in Settings: `DEEPSEEK_API_KEY`, `OPENAI_ADMIN_KEY` (or `OPENAI_API_KEY` if it is an admin key), `ANTHROPIC_ADMIN_KEY` (or `ANTHROPIC_API_KEY` if it is an admin key), and for Azure `AZURE_SUBSCRIPTION_ID`, or `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` + `AZURE_CLIENT_SECRET` for a service principal. On macOS it also looks in your interactive shell (`~/.zshrc`), as editors do. A key saved in Settings wins. Admin keys are only used to read spend, and never leave this computer except to the provider they belong to.
 
@@ -246,6 +248,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 ### Unreleased
 - API accounts work through your system proxy.
 - The DeepSeek API key sits with the other API accounts.
+- Enter your OpenAI balance once and see it go down as you spend.
 
 ### 0.7.2
 - See this month's spend for OpenAI API, Claude API, and Azure OpenAI.

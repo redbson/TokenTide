@@ -1,4 +1,4 @@
-import { createApiAccountsReader, readAnthropicSpend, readOpenAiSpend } from "./api-accounts.mjs";
+import { createApiAccountsReader, createOpenAiBalance, readAnthropicSpend, readOpenAiSpend } from "./api-accounts.mjs";
 import { createBalanceLog, DEEPSEEK_KEY_NAME, fetchDeepseekBalance } from "./deepseek-balance.mjs";
 import { KEY_SOURCES, KEY_VARIABLES, createEnvCredentials, createKeyResolver } from "./env-credentials.mjs";
 import { createDeepseekPriceBook } from "./deepseek-price-book.mjs";
@@ -61,6 +61,8 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
   // Keys saved in Settings win; otherwise they come from the environment (DEEPSEEK_API_KEY …).
   const envCredentials = services.envCredentials ?? createEnvCredentials({ names: KEY_VARIABLES });
   const keys = createKeyResolver({ secrets, envCredentials });
+  // The OpenAI balance the user wrote down (OpenAI has no API for it); spend since is subtracted.
+  const openaiBalance = services.openaiBalance ?? createOpenAiBalance();
   // The DeepSeek reader asks the store for its key; answer with the resolved one.
   const deepseekSecrets = {
     get: async (name) => (name === DEEPSEEK_KEY_NAME ? ((await keys.resolve("deepseek"))?.value ?? null) : secrets.get(name)),
@@ -72,7 +74,7 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
     usageService ??= createUsageService(
       {
         deepseek: createDeepseekReader({ secrets: deepseekSecrets, balanceLog, fetchImpl, priceBook }),
-        apiAccounts: createApiAccountsReader({ keys, envCredentials, fetchImpl }),
+        apiAccounts: createApiAccountsReader({ keys, envCredentials, fetchImpl, openaiBalance }),
       },
       { quotaLog },
     );
@@ -150,6 +152,34 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
       PUT: (request) => changeSkill(request, "install"),
       DELETE: (request) => changeSkill(request, "uninstall"),
       error: "The skill could not be changed.",
+    },
+    // Settings → More → API accounts → OpenAI balance: the amount the user read off OpenAI's
+    // billing page. Saving also records what today had already cost, so it isn't subtracted twice.
+    "/api/openai-balance": {
+      GET: async () => {
+        const baseline = await openaiBalance.get();
+        return baseline ? { set: true, amount: baseline.amount, at: baseline.at } : { set: false };
+      },
+      PUT: async (request) => {
+        const { amount } = await readJsonBody(request);
+        const value = Number(amount);
+        if (!Number.isFinite(value) || value < 0 || value > 1_000_000) throw new HttpError(400, "balanceMalformed");
+        const key = await keys.resolve("openai-admin");
+        if (!key) throw new HttpError(409, "adminKeyMissing");
+        let today;
+        try {
+          today = (await readOpenAiSpend(key.value, { fetchImpl })).today;
+        } catch (error) {
+          throw new HttpError(error.code === "accountKeyInvalid" ? 400 : 502, error.code ?? "accountUnavailable");
+        }
+        const saved = await openaiBalance.set(value, today);
+        return { set: true, amount: saved.amount, at: saved.at };
+      },
+      DELETE: async () => {
+        await openaiBalance.clear();
+        return { set: false };
+      },
+      error: "The balance could not be saved.",
     },
     // Settings → More → API accounts: the OpenAI and Anthropic admin keys.
     "/api/keys/*": {

@@ -170,7 +170,9 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
           <strong>
             {loading
               ? "—"
-              : spend && !spend.limit
+              : spend?.balance
+                ? money(Math.max(0, spend.balance.estimate))
+                : spend && !spend.limit
                 ? money(spend.month)
                 : hasBalance
                 ? formatMoney(balance.total, balance.currency)
@@ -181,7 +183,9 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
           <span>
             {t(
               spend
-                ? spend.limit
+                ? spend.balance
+                  ? "account.balanceEstimate"
+                  : spend.limit
                   ? "account.limitLeft"
                   : "account.monthSpend"
                 : hasBalance
@@ -198,7 +202,7 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
         </div>
       </div>
 
-      {usage || (spend && !spend.limit) ? null : (
+      {usage || (spend && (!spend.limit || spend.balance)) ? null : (
         <div
           className="progress-track"
           role="progressbar"
@@ -229,6 +233,7 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
         <p className="provider-error">{provider.error}</p>
       ) : spend ? (
         // Spend today and this month (UTC calendar month), with the limit or Azure's delay.
+        <>
         <dl className="limit-list">
           <div className="limit-row">
             <dt>{t("usage.today")}</dt>
@@ -247,6 +252,16 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
             </dd>
           </div>
         </dl>
+        {spend.balance ? (
+            // OpenAI's balance, worked out from the amount the user entered in Settings.
+            <p className={`provider-hint ${spend.balance.estimate < 0 ? "is-warning" : ""}`}>
+              {t(spend.balance.estimate < 0 ? "account.balanceNegative" : "account.balanceFrom", {
+                amount: formatMoney(spend.balance.entered, spend.currency),
+                date: formatShortDate(spend.balance.enteredAt, language),
+              })}
+            </p>
+          ) : null}
+        </>
       ) : usage ? (
         // No quota to fill a bar: tokens used today and over the last 7 and 30 days.
         <>

@@ -1,4 +1,7 @@
 import { spawn } from "node:child_process";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { defaultDataDir } from "./secret-store.mjs";
 import { makeLimit } from "./usage-service.mjs";
 import { resolveCommand } from "./commands.mjs";
 
@@ -64,20 +67,42 @@ function sumBuckets(buckets, amountOf, startOf, dayStart) {
   return { month: round(month), today: round(today) };
 }
 
-/** OpenAI: this month's costs, and the monthly spend limit if one is set. */
-export async function readOpenAiSpend(key, { fetchImpl = fetch, now = Date.now() } = {}) {
-  const { monthStart, dayStart } = billingPeriod(now);
-  const headers = { Authorization: `Bearer ${key}` };
+/** OpenAI's daily cost buckets from `startMs` (midnight UTC) on, across pages. */
+async function openAiCostBuckets(fetchImpl, headers, startMs) {
   const buckets = [];
   let page = null;
   do {
-    const query = new URLSearchParams({ start_time: String(monthStart / 1000), bucket_width: "1d", limit: "31" });
+    const query = new URLSearchParams({ start_time: String(startMs / 1000), bucket_width: "1d", limit: "180" });
     if (page) query.set("page", page);
     const body = await getJson(fetchImpl, `https://api.openai.com/v1/organization/costs?${query}`, headers, "OpenAI");
     buckets.push(...(body.data ?? []));
     page = body.has_more ? body.next_page : null;
-  } while (page && buckets.length < 62);
-  const spend = sumBuckets(buckets, (result) => Number(result.amount?.value) || 0, (bucket) => bucket.start_time * 1000, dayStart);
+  } while (page && buckets.length < 400);
+  return buckets;
+}
+
+const openAiAmount = (result) => Number(result.amount?.value) || 0;
+const bucketTotal = (bucket) => (bucket.results ?? []).reduce((sum, result) => sum + openAiAmount(result), 0);
+
+/**
+ * OpenAI: this month's costs, the monthly spend limit if one is set, and, when the user wrote
+ * down their balance (`baseline`, see createOpenAiBalance), the balance worked out from it:
+ * the amount they entered minus everything spent since. OpenAI has no API for the balance
+ * itself (its billing endpoints accept only a browser session).
+ */
+export async function readOpenAiSpend(key, { fetchImpl = fetch, now = Date.now(), baseline = null } = {}) {
+  const { monthStart, dayStart } = billingPeriod(now);
+  const headers = { Authorization: `Bearer ${key}` };
+  const from = baseline ? Math.min(monthStart, baseline.dayStart) : monthStart;
+  const all = await openAiCostBuckets(fetchImpl, headers, from);
+  const buckets = all.filter((bucket) => bucket.start_time * 1000 >= monthStart);
+  const spend = sumBuckets(buckets, openAiAmount, (bucket) => bucket.start_time * 1000, dayStart);
+  let balance = null;
+  if (baseline) {
+    // The day it was written down had already spent `daySpent`; only what came after counts.
+    const since = all.filter((bucket) => bucket.start_time * 1000 >= baseline.dayStart).reduce((sum, bucket) => sum + bucketTotal(bucket), 0) - baseline.daySpent;
+    balance = { estimate: round(baseline.amount - Math.max(0, since)), entered: baseline.amount, enteredAt: baseline.at, spentSince: round(Math.max(0, since)) };
+  }
   const currency = (buckets.flatMap((bucket) => bucket.results ?? [])[0]?.amount?.currency ?? "usd").toUpperCase();
 
   // The spend limit is optional; an organization without one (or a key without access) has none.
@@ -91,7 +116,40 @@ export async function readOpenAiSpend(key, { fetchImpl = fetch, now = Date.now()
   } catch {
     // No limit to show.
   }
-  return { currency, ...spend, limit };
+  return { currency, ...spend, limit, balance };
+}
+
+/**
+ * The OpenAI balance the user wrote down, with what had been spent that UTC day so far, kept in
+ * openai-balance.json in the data folder (an amount, not a secret).
+ */
+export function createOpenAiBalance({ file = path.join(defaultDataDir(), "openai-balance.json") } = {}) {
+  let cached;
+  return {
+    async get() {
+      if (cached === undefined) {
+        try {
+          const value = JSON.parse(await readFile(file, "utf8"));
+          cached = Number.isFinite(value?.amount) && Number.isFinite(value?.dayStart) ? value : null;
+        } catch {
+          cached = null;
+        }
+      }
+      return cached;
+    },
+    /** Saves `amount` (in USD) as of now; `daySpent` is today's spend so far, from the costs API. */
+    async set(amount, daySpent, now = Date.now()) {
+      cached = { amount: round(amount), currency: "USD", at: now, dayStart: billingPeriod(now).dayStart, daySpent: Math.max(0, daySpent) };
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFile(`${file}.tmp`, JSON.stringify(cached), { mode: 0o600 });
+      await rename(`${file}.tmp`, file);
+      return cached;
+    },
+    async clear() {
+      cached = null;
+      await rm(file, { force: true });
+    },
+  };
 }
 
 /** Anthropic: this month's costs from the cost report (amounts are cents, as decimal strings). */
@@ -231,7 +289,7 @@ function accountProvider(id, spend, readAt, extra = {}) {
     account: extra.account ?? "API account",
     source: extra.source ?? null,
     limits,
-    spend: { currency: spend.currency, today: spend.today, month: spend.month, limit: spend.limit, readAt },
+    spend: { currency: spend.currency, today: spend.today, month: spend.month, limit: spend.limit, balance: spend.balance ?? null, readAt },
     ...extra,
   };
 }
@@ -240,7 +298,7 @@ function accountProvider(id, spend, readAt, extra = {}) {
  * Reads every configured API account. Unconfigured ones come back `installed: false`, so the
  * panel hides them. Readings are cached (SPEND_TTL_MS; Azure AZURE_TTL_MS) unless forced.
  */
-export function createApiAccountsReader({ keys, envCredentials, fetchImpl = fetch, az = runAz } = {}) {
+export function createApiAccountsReader({ keys, envCredentials, fetchImpl = fetch, az = runAz, openaiBalance = null } = {}) {
   const cache = new Map();
 
   async function cached(id, ttlMs, read) {
@@ -295,7 +353,7 @@ export function createApiAccountsReader({ keys, envCredentials, fetchImpl = fetc
 
   return async function readApiAccounts({ force = false } = {}) {
     return Promise.all([
-      keyAccount("openai-api", readOpenAiSpend, force),
+      keyAccount("openai-api", async (key, options) => readOpenAiSpend(key, { ...options, baseline: await openaiBalance?.get() }), force),
       keyAccount("anthropic-api", readAnthropicSpend, force),
       azureAccount(force),
     ]);
