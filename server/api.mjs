@@ -1,7 +1,7 @@
 import { createBalanceLog, DEEPSEEK_KEY_NAME, fetchDeepseekBalance } from "./deepseek-balance.mjs";
 import { createDeepseekPriceBook } from "./deepseek-price-book.mjs";
 import { createDeepseekReader } from "./deepseek-usage.mjs";
-import { SCHEMA, createLocalApiConfig, currentReading, publicUsage } from "./local-api.mjs";
+import { SCHEMA, createEventHub, createLocalApiConfig, currentReading, publicUsage } from "./local-api.mjs";
 import { createQuotaLog } from "./quota-weeks.mjs";
 import { createSecretStore, isStorableSecret, maskSecret } from "./secret-store.mjs";
 import { createUsageService } from "./usage-service.mjs";
@@ -78,7 +78,9 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
     return payload;
   }
 
-  // For other apps (server/local-api.mjs): the latest reading, unless Settings turned it off.
+  // For other apps (server/local-api.mjs): the latest reading, unless Settings turned it off,
+  // and the same readings pushed on /v1/events.
+  const events = createEventHub({ usageService, config: localApi });
   const readPublic = async (request) => {
     if (!(await localApi.enabled())) throw new HttpError(403, "disabled");
     return publicUsage(await currentReading(usageService, { maxAgeMs: maxAgeOf(request) }));
@@ -94,7 +96,7 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
   // Each route: a handler per method, and the message for an unexpected failure.
   const routes = {
     "/v1": {
-      GET: async () => ({ schema: SCHEMA, endpoints: ["/v1/usage", "/v1/usage/{codex|claude|qoder|deepseek}"] }),
+      GET: async () => ({ schema: SCHEMA, endpoints: ["/v1/usage", "/v1/usage/{codex|claude|qoder|deepseek}", "/v1/events"] }),
       error: "Unavailable.",
     },
     "/v1/usage": { GET: readPublic, error: "Usage could not be read." },
@@ -105,7 +107,9 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
       PUT: async (request) => {
         const { enabled } = await readJsonBody(request);
         if (typeof enabled !== "boolean") throw new HttpError(400, "badRequest");
-        return { enabled: await localApi.setEnabled(enabled) };
+        const saved = await localApi.setEnabled(enabled);
+        if (!saved) events.disable();
+        return { enabled: saved };
       },
       error: "The setting could not be saved.",
     },
@@ -151,13 +155,25 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
     /** Answers API requests; resolves `false` for any other path so the caller can serve it. */
     async handle(request, response) {
       const { pathname } = new URL(request.url ?? "/", "http://localhost");
-      const route = routes[pathname] ?? (pathname.startsWith("/v1/usage/") ? routes["/v1/usage/*"] : undefined);
+      const route =
+        routes[pathname] ?? (pathname.startsWith("/v1/usage/") ? routes["/v1/usage/*"] : pathname === "/v1/events" ? {} : undefined);
       if (!route) return false;
 
       const origin = request.headers.origin;
       if (origin && origin !== `http://${request.headers.host}`) {
         response.statusCode = 403;
         response.end();
+        return true;
+      }
+      // A long-lived event stream, not a JSON answer.
+      if (pathname === "/v1/events") {
+        if (request.method !== "GET") {
+          response.statusCode = 405;
+          response.setHeader("Allow", "GET");
+          response.end();
+          return true;
+        }
+        await events.handle(request, response);
         return true;
       }
       const methods = Object.keys(route).filter((key) => key !== "error");
@@ -188,6 +204,7 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
     },
 
     close() {
+      events.close();
       usageService.close?.();
     },
   };

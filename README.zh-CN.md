@@ -157,6 +157,12 @@ curl -s http://127.0.0.1:46173/v1/usage
 - DeepSeek 没有额度（`remainingPercent: null`）：`usage.today|week|month` 给出 `tokens`、`messages` 和 `estimatedCost`（人民币，按 DeepSeek 公布价格估算）；保存 API Key 后还有 `balance`。
 - 只有删掉字段或改变含义时才会换 schema 名称；新增字段不会。
 
+**推送，不用轮询**：`GET /v1/events` 是一个 [Server-Sent Events](https://html.spec.whatwg.org/multipage/server-sent-events.html) 连接。连上后立即推一次当前读数，之后每有新读数就推一条 `usage` 事件（内容和 `/v1/usage` 相同），每 25 秒发一次 `: ping` 心跳；本机接口被关闭时会先推 `disabled` 事件再断开。有应用在监听时，即使关了自动刷新，读数也不会超过 5 分钟。最多同时 32 个连接。
+
+```bash
+curl -N http://127.0.0.1:46173/v1/events
+```
+
 **给编程 Agent 用**：[`skills/tokentide-usage`](skills/tokentide-usage/SKILL.md) 是一个 skill，教 Claude Code、Codex 等 Agent 在开始大任务前查这个接口、挑还有额度的工具、处理 TokenTide 没开的情况。把这个文件夹复制到 `~/.claude/skills/`（Claude Code）或 `~/.codex/skills/`（Codex）即可安装。
 
 ## 常见问题
@@ -209,6 +215,9 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 | `tests/` | `node --test` 测试 |
 
 ## 更新日志
+
+### 未发布
+- 其他应用可以订阅用量变化，不用轮询。
 
 ### 0.7.0
 - 新增本机接口，其他应用和 Agent 可读取用量。

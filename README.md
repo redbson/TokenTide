@@ -170,6 +170,12 @@ curl -s http://127.0.0.1:46173/v1/usage
 - DeepSeek has no quota (`remainingPercent: null`): `usage.today|week|month` gives `tokens`, `messages`, and `estimatedCost` (CNY, at DeepSeek's published prices), and `balance` appears once an API key is saved.
 - The schema name changes only if a field is removed or changes meaning; new fields may be added.
 
+**Push instead of polling**: `GET /v1/events` is a [Server-Sent Events](https://html.spec.whatwg.org/multipage/server-sent-events.html) stream. It sends the current reading at once and then a `usage` event (the same JSON as `/v1/usage`) after every new reading, a `: ping` comment every 25 seconds, and a `disabled` event before it closes if the local API is turned off. While anything listens, TokenTide keeps the reading no older than 5 minutes even with auto-refresh off. Up to 32 streams at a time.
+
+```bash
+curl -N http://127.0.0.1:46173/v1/events
+```
+
 **For coding agents**: [`skills/tokentide-usage`](skills/tokentide-usage/SKILL.md) is a skill that teaches Claude Code, Codex, and other agents to check this API before big tasks, pick a tool with quota left, and handle TokenTide being off. Install it by copying the folder into `~/.claude/skills/` (Claude Code) or `~/.codex/skills/` (Codex).
 
 ## Troubleshooting
@@ -222,6 +228,9 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 | `tests/` | `node --test` tests |
 
 ## Changelog
+
+### Unreleased
+- Other apps can get usage pushed to them as it changes.
 
 ### 0.7.0
 - Other apps and coding agents can read your usage from a local API.

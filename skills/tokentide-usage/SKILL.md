@@ -56,7 +56,8 @@ Never invent a number when the API can't tell you. Say it is unknown.
 ## Writing code against it
 
 - Read `/v1/usage` and check `schema === "tokentide.usage.v1"`. New fields may appear; existing ones keep their meaning under this schema name.
-- Poll once a minute at most. The data only changes when TokenTide refreshes (every minute while its panel is open, every 1–10 minutes otherwise, as the user set it), so faster polling just returns the same reading. `?maxAge=<seconds>` asks for a fresher reading, but never fresher than a minute.
+- To follow usage over time, subscribe to `GET /v1/events` (Server-Sent Events) instead of polling: it sends the current reading at once, then a `usage` event with the same JSON after every new reading, `: ping` comments every 25 s, and a `disabled` event before closing if the user turns the API off. Reconnect after a drop (the stream asks for 10 s).
+- If you do poll, once a minute at most. The data only changes when TokenTide refreshes (every minute while its panel is open, every 1–10 minutes otherwise, as the user set it), so faster polling just returns the same reading. `?maxAge=<seconds>` asks for a fresher reading, but never fresher than a minute.
 - It answers only on `127.0.0.1`, and it refuses requests that carry a browser `Origin` header, so call it from a script, a native app, or a server process, not from a web page's JavaScript.
 - It's read-only. Don't try to drive the coding tools' own CLIs to read quota yourself; that is exactly the work TokenTide already does without spending tokens.
 
@@ -65,6 +66,21 @@ Never invent a number when the API can't tell you. Say it is unknown.
 const usage = await fetch("http://127.0.0.1:46173/v1/usage").then((r) => r.json());
 const claude = usage.tools.find((t) => t.id === "claude");
 const tightest = Math.min(...claude.limits.map((l) => l.remainingPercent));
+```
+
+```js
+// Pushed updates (Node 18+): one JSON reading per `usage` event.
+const res = await fetch("http://127.0.0.1:46173/v1/events");
+let buffer = "";
+for await (const chunk of res.body.pipeThrough(new TextDecoderStream())) {
+  buffer += chunk;
+  for (let end; (end = buffer.indexOf("\n\n")) >= 0; buffer = buffer.slice(end + 2)) {
+    const block = buffer.slice(0, end);
+    if (!block.includes("event: usage")) continue;
+    const usage = JSON.parse(block.split("\n").find((line) => line.startsWith("data: ")).slice(6));
+    // react to usage.tools …
+  }
+}
 ```
 
 ```python

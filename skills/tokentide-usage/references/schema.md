@@ -77,6 +77,19 @@
 }
 ```
 
+## Events (`GET /v1/events`)
+
+Server-Sent Events (`text/event-stream`):
+
+| Event | Data | When |
+|---|---|---|
+| `usage` | the same object as `GET /v1/usage`; the event `id` is the reading time in ms | at once on connecting, then after every new reading |
+| `disabled` | `{"reason":"disabled"}` | the user turned the local API off; the stream then closes |
+| `closing` | `{"reason":"closing"}` | TokenTide is quitting |
+| `: ping` (comment) | — | every 25 s |
+
+`retry: 10000` asks clients to reconnect after 10 s. 403 `{"error":"disabled"}` if the API is off, 503 `{"error":"tooManyStreams"}` past 32 streams.
+
 ## Errors
 
 | HTTP | Body | Meaning |

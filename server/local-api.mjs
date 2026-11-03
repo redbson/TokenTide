@@ -119,3 +119,111 @@ export async function currentReading(usageService, { maxAgeMs = MAX_AGE_MS, now 
   if (latest && now - latest.updatedAt < age) return latest;
   return usageService.read();
 }
+
+// /v1/events: the same readings pushed as Server-Sent Events, so other apps need not poll.
+// Each connection gets the current reading at once, then an `usage` event after every new read.
+// While anyone listens, a reading is kept no older than MAX_AGE_MS even if the panel's own
+// refreshes are off. Comments keep idle connections from being dropped.
+const HEARTBEAT_MS = 25_000;
+const KEEP_FRESH_CHECK_MS = 60_000;
+export const MAX_EVENT_STREAMS = 32;
+
+/** One Server-Sent Event. Data is single-line JSON. */
+export const sseEvent = (event, data, id) => `${id === undefined ? "" : `id: ${id}\n`}event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+
+export function createEventHub({
+  usageService,
+  config,
+  heartbeatMs = HEARTBEAT_MS,
+  keepFreshMs = KEEP_FRESH_CHECK_MS,
+  maxStreams = MAX_EVENT_STREAMS,
+}) {
+  const streams = new Set();
+  let unsubscribe = null;
+  let heartbeat = null;
+  let keepFresh = null;
+
+  const send = (response, chunk) => {
+    try {
+      response.write(chunk);
+    } catch {
+      streams.delete(response);
+    }
+  };
+  const broadcast = (chunk) => {
+    for (const response of streams) send(response, chunk);
+  };
+  const usageEvent = (payload) => sseEvent("usage", publicUsage(payload), payload?.updatedAt);
+
+  function start() {
+    unsubscribe = usageService.subscribe?.(async (payload) => {
+      if (!(await config.enabled())) return endAll("disabled");
+      broadcast(usageEvent(payload));
+    });
+    heartbeat = setInterval(() => broadcast(": ping\n\n"), heartbeatMs);
+    heartbeat.unref?.();
+    // Listeners get a reading at least every MAX_AGE_MS, whatever the panel's refresh setting.
+    keepFresh = setInterval(() => {
+      const latest = usageService.latest?.();
+      if (!latest || Date.now() - latest.updatedAt >= MAX_AGE_MS) usageService.read().catch(() => {});
+    }, keepFreshMs);
+    keepFresh.unref?.();
+  }
+
+  function stop() {
+    unsubscribe?.();
+    clearInterval(heartbeat);
+    clearInterval(keepFresh);
+    unsubscribe = heartbeat = keepFresh = null;
+  }
+
+  function endAll(reason) {
+    for (const response of streams) {
+      send(response, sseEvent(reason, { reason }));
+      response.end();
+    }
+    streams.clear();
+    stop();
+  }
+
+  return {
+    get size() {
+      return streams.size;
+    },
+
+    /** Answers GET /v1/events. The caller has already checked the Host and Origin. */
+    async handle(request, response) {
+      if (!(await config.enabled())) return json(response, 403, { error: "disabled" });
+      if (streams.size >= maxStreams) return json(response, 503, { error: "tooManyStreams" });
+
+      response.writeHead(200, {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-store",
+        Connection: "keep-alive",
+        // Tells proxies such as nginx not to buffer the stream.
+        "X-Accel-Buffering": "no",
+      });
+      response.write("retry: 10000\n\n");
+      streams.add(response);
+      if (streams.size === 1) start();
+      request.on("close", () => {
+        streams.delete(response);
+        if (streams.size === 0) stop();
+      });
+
+      const payload = await currentReading(usageService).catch(() => null);
+      if (payload && streams.has(response)) send(response, usageEvent(payload));
+    },
+
+    /** Tells every listener the local API was turned off, and ends their streams. */
+    disable: () => endAll("disabled"),
+    close: () => endAll("closing"),
+  };
+}
+
+function json(response, status, body) {
+  response.statusCode = status;
+  response.setHeader("Content-Type", "application/json; charset=utf-8");
+  response.setHeader("Cache-Control", "no-store");
+  response.end(JSON.stringify(body));
+}

@@ -683,6 +683,7 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
   const lastReadings = new Map();
   let inFlight = null;
   let latest = null;
+  const listeners = new Set();
 
   async function readClaude() {
     try {
@@ -767,6 +768,13 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
       inFlight ??= readAll(force)
         .then((result) => {
           latest = result;
+          for (const listener of listeners) {
+            try {
+              listener(result);
+            } catch {
+              // A failing listener (a closed event stream) must not break the read.
+            }
+          }
           return result;
         })
         .finally(() => {
@@ -778,6 +786,12 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
     /** The last completed reading (`updatedAt` says when), or null before the first one. */
     latest() {
       return latest;
+    },
+
+    /** Calls `listener(result)` after every completed read; returns the unsubscribe function. */
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
     },
 
     close() {
