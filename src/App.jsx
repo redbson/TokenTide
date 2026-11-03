@@ -164,14 +164,15 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
           )}
         </div>
         <div
-          className={`primary-usage ${low || balance?.available === false ? "is-low" : ""} ${loading ? "is-loading" : ""}`}
+          // "Spent" headlines (OpenAI, Claude, Azure spend) read differently from "left" ones.
+          className={`primary-usage ${spend && !spend.limit ? "is-spent" : ""} ${low || balance?.available === false ? "is-low" : ""} ${loading ? "is-loading" : ""}`}
           title={hasBalance && balance.error ? t(`balanceError.${balance.error}`) : undefined}
         >
           <strong>
             {loading
               ? "—"
               : spend && !spend.limit
-                ? money(spend.month)
+                ? `−${money(spend.month)}`
                 : hasBalance
                 ? formatMoney(balance.total, balance.currency)
                 : usage
@@ -232,12 +233,12 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
         <dl className="limit-list">
           <div className="limit-row">
             <dt>{t("usage.today")}</dt>
-            <dd className="limit-value">{money(spend.today)}</dd>
+            <dd className="limit-value is-spent">{money(spend.today)}</dd>
             <dd className="limit-reset">{t("account.readAgo", { count: Math.max(0, Math.floor((now - spend.readAt) / 60000)) })}</dd>
           </div>
           <div className="limit-row">
             <dt>{t("account.thisMonth")}</dt>
-            <dd className="limit-value">{money(spend.month)}</dd>
+            <dd className="limit-value is-spent">{money(spend.month)}</dd>
             <dd className="limit-reset">
               {spend.limit
                 ? t("account.limitOf", { amount: formatMoney(spend.limit.amount, spend.limit.currency) })

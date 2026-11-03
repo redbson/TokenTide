@@ -258,6 +258,9 @@ button:focus-visible {
 }
 
 .primary-usage.is-low strong { color: var(--amber); }
+/* Money already spent, not money left: lighter weight, secondary colour, and a leading minus. */
+.primary-usage.is-spent strong { color: var(--text-secondary); font-weight: 500; }
+.limit-value.is-spent { color: var(--text-secondary); font-weight: 500; }
 .primary-usage.is-loading strong { color: var(--faint); }
 
 .progress-track {

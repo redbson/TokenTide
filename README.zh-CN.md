@@ -233,6 +233,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 ### 未发布
 - API 账户会自动使用系统代理。
 - DeepSeek API Key 并入「API 账户」。
+- 花费和余额的大数字样式区分开。
 
 ### 0.7.2
 - 可查看 OpenAI、Claude、Azure 本月花费。

@@ -246,6 +246,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 ### Unreleased
 - API accounts work through your system proxy.
 - The DeepSeek API key sits with the other API accounts.
+- Spend headlines look different from balance ones.
 
 ### 0.7.2
 - See this month's spend for OpenAI API, Claude API, and Azure OpenAI.
