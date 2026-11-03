@@ -81,6 +81,13 @@ const PROVIDER_ERRORS = {
   claudeSignedOut: { command: "claude auth login", signIn: true },
   claudeNoPlan: {},
   claudeTemporary: {},
+  // API accounts (server/api-accounts.mjs).
+  accountKeyInvalid: {},
+  accountUnreachable: {},
+  accountUnavailable: {},
+  azureNoAccess: {},
+  azureNoSubscription: {},
+  azureThrottled: {},
 };
 
 /** A saved interval in minutes, if it is one of `choices`; otherwise the default. */
@@ -123,6 +130,9 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
   const hasBalance = Number.isFinite(balance?.total);
   // What Harness's replies cost at DeepSeek's published prices (an estimate; the bill decides).
   const cost = (span) => (usage?.[span]?.cost > 0 ? formatMoney(usage[span].cost, "CNY") : null);
+  // API accounts: this month's spend, and what is left of a monthly limit when one is set.
+  const spend = provider.connected ? provider.spend : null;
+  const money = (value) => formatMoney(value, spend?.currency ?? "USD");
   const pricesChecked = formatShortDate(provider.prices?.checkedAt, language);
   const costHint = pricesChecked ? t("usage.costHintChecked", { date: pricesChecked }) : t("usage.costHint");
 
@@ -160,7 +170,9 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
           <strong>
             {loading
               ? "—"
-              : hasBalance
+              : spend && !spend.limit
+                ? money(spend.month)
+                : hasBalance
                 ? formatMoney(balance.total, balance.currency)
                 : usage
                   ? formatTokens(usage.today.tokens)
@@ -168,7 +180,11 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
           </strong>
           <span>
             {t(
-              hasBalance
+              spend
+                ? spend.limit
+                  ? "account.limitLeft"
+                  : "account.monthSpend"
+                : hasBalance
                 ? balance.error
                   ? "usage.balanceStale"
                   : "usage.balance"
@@ -182,7 +198,7 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
         </div>
       </div>
 
-      {usage ? null : (
+      {usage || (spend && !spend.limit) ? null : (
         <div
           className="progress-track"
           role="progressbar"
@@ -211,6 +227,26 @@ function ProviderBlock({ provider, loading, now, onSignIn }) {
         </div>
       ) : provider.error ? (
         <p className="provider-error">{provider.error}</p>
+      ) : spend ? (
+        // Spend today and this month (UTC calendar month), with the limit or Azure's delay.
+        <dl className="limit-list">
+          <div className="limit-row">
+            <dt>{t("usage.today")}</dt>
+            <dd className="limit-value">{money(spend.today)}</dd>
+            <dd className="limit-reset">{t("account.readAgo", { count: Math.max(0, Math.floor((now - spend.readAt) / 60000)) })}</dd>
+          </div>
+          <div className="limit-row">
+            <dt>{t("account.thisMonth")}</dt>
+            <dd className="limit-value">{money(spend.month)}</dd>
+            <dd className="limit-reset">
+              {spend.limit
+                ? t("account.limitOf", { amount: formatMoney(spend.limit.amount, spend.limit.currency) })
+                : provider.delayed
+                  ? t("account.delayed")
+                  : t("account.noLimit")}
+            </dd>
+          </div>
+        </dl>
       ) : usage ? (
         // No quota to fill a bar: tokens used today and over the last 7 and 30 days.
         <>

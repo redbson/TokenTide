@@ -1,10 +1,11 @@
 import { useI18n } from "./i18n-context.js";
 import { LANGUAGE_NAMES } from "./i18n.js";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BellIcon,
   ChartIcon,
   ClockIcon,
+  CloseIcon,
   DownloadIcon,
   GlobeIcon,
   KeyIcon,
@@ -21,6 +22,7 @@ import {
   QUOTA_INTERVALS,
   STATS_INTERVALS,
   STATS_PROVIDERS,
+  ACCOUNT_PROVIDERS,
   formatAccount,
   isVisibleProvider,
 } from "./usage-format.js";
@@ -177,14 +179,16 @@ function ShownTools({ providers, hiddenProviders, onChange }) {
   const { t, language } = useI18n();
   const byId = Object.fromEntries(providers.map((provider) => [provider.id, provider]));
   // At least one installed tool stays on, so the panel and the menu bar never go blank.
-  const shownInstalled = STATS_PROVIDERS.filter((id) => !hiddenProviders.includes(id) && isVisibleProvider(byId[id]));
+  // API accounts join the list once they are set up.
+  const ids = [...STATS_PROVIDERS, ...ACCOUNT_PROVIDERS.filter((id) => isVisibleProvider(byId[id] ?? { installed: false }))];
+  const shownInstalled = ids.filter((id) => !hiddenProviders.includes(id) && isVisibleProvider(byId[id]));
   const toggle = (id) => (shown) =>
     onChange(shown ? hiddenProviders.filter((item) => item !== id) : [...hiddenProviders, id]);
   return (
     <section className="settings-group" aria-labelledby="settings-tools">
       <h3 id="settings-tools">{t("settings.tools")}</h3>
       <div className="settings-list">
-        {STATS_PROVIDERS.map((id) => {
+        {ids.map((id) => {
           const shown = !hiddenProviders.includes(id);
           return (
             <SettingRow
@@ -204,11 +208,8 @@ function ShownTools({ providers, hiddenProviders, onChange }) {
   );
 }
 
-// Error codes from /api/deepseek-key that have their own message.
-const KEY_ERRORS = new Set(["deepseekKeyInvalid", "deepseekKeyMalformed", "deepseekBalanceUnavailable"]);
-
-async function sendKeyRequest(method, body) {
-  const response = await fetch("/api/deepseek-key", {
+async function sendKeyRequest(endpoint, method, body) {
+  const response = await fetch(endpoint, {
     method,
     cache: "no-store",
     headers: body ? { "Content-Type": "application/json" } : undefined,
@@ -219,9 +220,11 @@ async function sendKeyRequest(method, body) {
   return payload;
 }
 
-// The DeepSeek API key for the balance. The service checks it with DeepSeek before saving it in
-// the Keychain (Windows: DPAPI) and only ever hands back a masked hint.
-function DeepseekKey({ onChanged }) {
+/**
+ * One API key: saved in Settings (checked with the provider first, kept in the Keychain or with
+ * DPAPI) or picked up from an environment variable. Only a masked hint ever comes back.
+ */
+function KeyRow({ endpoint, icon, title, offText, placeholder = "sk-…", errorText, onChanged = () => {} }) {
   const { t } = useI18n();
   const [state, setState] = useState(null);
   const [editing, setEditing] = useState(false);
@@ -230,14 +233,14 @@ function DeepseekKey({ onChanged }) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    sendKeyRequest("GET").then(setState, () => setState({ configured: false, hint: null }));
-  }, []);
+    sendKeyRequest(endpoint, "GET").then(setState, () => setState({ configured: false, hint: null }));
+  }, [endpoint]);
 
   const run = async (method, body) => {
     setBusy(true);
     setError(null);
     try {
-      setState(await sendKeyRequest(method, body));
+      setState(await sendKeyRequest(endpoint, method, body));
       setEditing(false);
       setValue("");
       onChanged();
@@ -248,57 +251,131 @@ function DeepseekKey({ onChanged }) {
     }
   };
 
+  const fromEnv = state?.source === "env";
+  const detail = !state?.configured
+    ? offText
+    : fromEnv
+      ? t("key.fromEnv", { variable: state.variable, hint: state.hint })
+      : t("deepseekKey.on", { hint: state.hint });
   const showForm = state && (!state.configured || editing);
+  return (
+    <>
+      <SettingRow
+        icon={icon}
+        title={title}
+        detail={detail}
+        action={
+          showForm ? (
+            <form
+              className="key-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (value.trim()) run("PUT", { key: value.trim() });
+              }}
+            >
+              <input
+                className="key-input"
+                type="password"
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                placeholder={placeholder}
+                aria-label={title}
+                autoComplete="off"
+                spellCheck={false}
+                disabled={busy}
+              />
+              <button className="key-button" type="submit" disabled={busy || !value.trim()}>
+                {t(busy ? "deepseekKey.checking" : "deepseekKey.save")}
+              </button>
+              {editing ? (
+                <button className="link-button" type="button" onClick={() => setEditing(false)} disabled={busy}>
+                  {t("deepseekKey.cancel")}
+                </button>
+              ) : null}
+            </form>
+          ) : state?.configured ? (
+            <span className="settings-actions">
+              <button className="link-button" type="button" onClick={() => setEditing(true)}>
+                {t(fromEnv ? "key.useOther" : "deepseekKey.replace")}
+              </button>
+              {fromEnv ? null : (
+                <button className="link-button" type="button" onClick={() => run("DELETE")} disabled={busy}>
+                  {t("deepseekKey.remove")}
+                </button>
+              )}
+            </span>
+          ) : null
+        }
+      />
+      {error ? <p className="settings-error settings-row-error">{errorText(error)}</p> : null}
+    </>
+  );
+}
+
+// Error codes from /api/deepseek-key that have their own message.
+const KEY_ERRORS = new Set(["deepseekKeyInvalid", "deepseekKeyMalformed", "deepseekBalanceUnavailable"]);
+
+// The DeepSeek API key for the balance (or DEEPSEEK_API_KEY).
+function DeepseekKey({ onChanged }) {
+  const { t } = useI18n();
   return (
     <section className="settings-group" aria-labelledby="settings-deepseek">
       <h3 id="settings-deepseek">{t("settings.deepseek")}</h3>
       <div className="settings-list">
-        <SettingRow
+        <KeyRow
+          endpoint="/api/deepseek-key"
           icon={<KeyIcon />}
           title={t("deepseekKey.title")}
-          detail={state?.configured ? t("deepseekKey.on", { hint: state.hint }) : t("deepseekKey.off")}
-          action={
-            showForm ? (
-              <form
-                className="key-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (value.trim()) run("PUT", { key: value.trim() });
-                }}
-              >
-                <input
-                  className="key-input"
-                  type="password"
-                  value={value}
-                  onChange={(event) => setValue(event.target.value)}
-                  placeholder="sk-…"
-                  aria-label={t("deepseekKey.title")}
-                  autoComplete="off"
-                  spellCheck={false}
-                  disabled={busy}
-                />
-                <button className="key-button" type="submit" disabled={busy || !value.trim()}>
-                  {t(busy ? "deepseekKey.checking" : "deepseekKey.save")}
-                </button>
-                {editing ? (
-                  <button className="link-button" type="button" onClick={() => setEditing(false)} disabled={busy}>
-                    {t("deepseekKey.cancel")}
-                  </button>
-                ) : null}
-              </form>
-            ) : state?.configured ? (
-              <span className="settings-actions">
-                <button className="link-button" type="button" onClick={() => setEditing(true)}>{t("deepseekKey.replace")}</button>
-                <button className="link-button" type="button" onClick={() => run("DELETE")} disabled={busy}>
-                  {t("deepseekKey.remove")}
-                </button>
-              </span>
-            ) : null
-          }
+          offText={t("deepseekKey.off")}
+          errorText={(code) => t(KEY_ERRORS.has(code) ? `balanceError.${code}` : "balanceError.failed")}
+          onChanged={onChanged}
         />
       </div>
-      {error ? <p className="settings-error">{t(KEY_ERRORS.has(error) ? `balanceError.${error}` : "balanceError.failed")}</p> : null}
       <p className="settings-note" title={t("deepseekKey.note")}>{t("deepseekKey.note")}</p>
+    </section>
+  );
+}
+
+const ACCOUNT_ERRORS = new Set(["accountKeyInvalid", "adminKeyMalformed", "accountUnreachable", "accountUnavailable"]);
+
+// OpenAI API and Claude API spend need organization admin keys (or OPENAI_ADMIN_KEY /
+// ANTHROPIC_ADMIN_KEY); Azure OpenAI uses the signed-in Azure CLI (server/api-accounts.mjs).
+function ApiAccounts({ providers, onChanged }) {
+  const { t } = useI18n();
+  const azure = providers.find((provider) => provider.id === "azure-openai");
+  const errorText = (code) => t(ACCOUNT_ERRORS.has(code) ? `accountError.${code}` : "accountError.failed");
+  const azureDetail = !azure
+    ? t("provider.checking")
+    : azure.installed === false
+      ? t("account.azureOff")
+      : azure.connected
+        ? t("account.azureOn", { via: azure.account === "Azure CLI" ? "Azure CLI" : t("account.servicePrincipal") })
+        : t(`accountError.${ACCOUNT_ERRORS.has(azure.errorCode) || /^azure/.test(azure.errorCode ?? "") ? azure.errorCode : "failed"}`);
+  return (
+    <section className="settings-group" aria-labelledby="settings-accounts">
+      <h3 id="settings-accounts">{t("settings.accounts")}</h3>
+      <div className="settings-list">
+        <KeyRow
+          endpoint="/api/keys/openai-admin"
+          icon={<img className="settings-provider-icon" src="/assets/openai.svg" alt="" />}
+          title={t("account.openai")}
+          offText={t("account.openaiOff")}
+          placeholder="sk-admin-…"
+          errorText={errorText}
+          onChanged={onChanged}
+        />
+        <KeyRow
+          endpoint="/api/keys/anthropic-admin"
+          icon={<img className="settings-provider-icon" src="/assets/claude.svg" alt="" />}
+          title={t("account.anthropic")}
+          offText={t("account.anthropicOff")}
+          placeholder="sk-ant-admin…"
+          errorText={errorText}
+          onChanged={onChanged}
+        />
+        <SettingRow icon={<img className="settings-provider-icon" src="/assets/azure.svg" alt="" />} title="Azure OpenAI" detail={azureDetail} />
+      </div>
+      <p className="settings-note" title={t("account.note")}>{t("account.note")}</p>
     </section>
   );
 }
@@ -431,64 +508,85 @@ const ChevronIcon = () => (
   </svg>
 );
 
-// Less-used settings, one tap away from the main page.
-function MoreSettings({ settings, providers, onSettingChange, onDeepseekKeyChange, onBack }) {
+// Less-used settings, in a dialog over the main page. Escape, the close button, or a click
+// outside closes it (Escape here never reaches the panel's own Escape, which hides the panel).
+function MoreSettings({ settings, providers, onSettingChange, onDeepseekKeyChange, onClose }) {
   const { t } = useI18n();
+  const dialogRef = useRef(null);
   const deepseekShown =
     isVisibleProvider(providers.find((provider) => provider.id === "deepseek") ?? { installed: false }) &&
     !settings.hiddenProviders.includes("deepseek");
+
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey, true);
+    dialogRef.current?.focus();
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+
   return (
-    <div className="settings settings-more">
-      <div className="settings-subpage-heading">
-        <button className="link-button" type="button" onClick={onBack}>‹ {t("settings.back")}</button>
-        <h3>{t("settings.more")}</h3>
-      </div>
-
-      <section className="settings-group" aria-labelledby="settings-quota">
-        <h3 id="settings-quota">{t("settings.quota")}</h3>
-        <div className="settings-list">
-          <SettingRow
-            icon={<ClockIcon />}
-            title={t("settings.autoRefresh")}
-            detail={
-              settings.autoRefresh
-                ? t("settings.autoRefreshDetail", { minutes: pick(settings.quotaInterval, QUOTA_INTERVALS, 2) })
-                : t("settings.autoRefreshOff")
-            }
-            checked={settings.autoRefresh}
-            onChange={(value) => onSettingChange("autoRefresh", value)}
-            action={
-              settings.autoRefresh ? (
-                <IntervalPicker
-                  label={t("settings.quotaInterval")}
-                  choices={QUOTA_INTERVALS}
-                  value={pick(settings.quotaInterval, QUOTA_INTERVALS, 2)}
-                  onChange={(value) => onSettingChange("quotaInterval", value)}
-                />
-              ) : null
-            }
-          />
-          <SettingRow
-            icon={<ChartIcon />}
-            title={t("settings.statsInterval")}
-            detail={t("settings.statsIntervalDetail", { minutes: pick(settings.statsInterval, STATS_INTERVALS, 30) })}
-            action={
-              <IntervalPicker
-                label={t("settings.statsInterval")}
-                choices={STATS_INTERVALS}
-                value={pick(settings.statsInterval, STATS_INTERVALS, 30)}
-                onChange={(value) => onSettingChange("statsInterval", value)}
-              />
-            }
-          />
+    <div className="settings-dialog-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <div className="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-more-title" tabIndex={-1} ref={dialogRef}>
+        <div className="settings-dialog-heading">
+          <h3 id="settings-more-title">{t("settings.more")}</h3>
+          <button className="icon-button settings-dialog-close" type="button" onClick={onClose} aria-label={t("settings.close")} title={t("settings.close")}>
+            <CloseIcon />
+          </button>
         </div>
-      </section>
+        <div className="settings settings-dialog-body">
+          <section className="settings-group" aria-labelledby="settings-quota">
+            <h3 id="settings-quota">{t("settings.quota")}</h3>
+            <div className="settings-list">
+              <SettingRow
+                icon={<ClockIcon />}
+                title={t("settings.autoRefresh")}
+                detail={
+                  settings.autoRefresh
+                    ? t("settings.autoRefreshDetail", { minutes: pick(settings.quotaInterval, QUOTA_INTERVALS, 2) })
+                    : t("settings.autoRefreshOff")
+                }
+                checked={settings.autoRefresh}
+                onChange={(value) => onSettingChange("autoRefresh", value)}
+                action={
+                  settings.autoRefresh ? (
+                    <IntervalPicker
+                      label={t("settings.quotaInterval")}
+                      choices={QUOTA_INTERVALS}
+                      value={pick(settings.quotaInterval, QUOTA_INTERVALS, 2)}
+                      onChange={(value) => onSettingChange("quotaInterval", value)}
+                    />
+                  ) : null
+                }
+              />
+              <SettingRow
+                icon={<ChartIcon />}
+                title={t("settings.statsInterval")}
+                detail={t("settings.statsIntervalDetail", { minutes: pick(settings.statsInterval, STATS_INTERVALS, 30) })}
+                action={
+                  <IntervalPicker
+                    label={t("settings.statsInterval")}
+                    choices={STATS_INTERVALS}
+                    value={pick(settings.statsInterval, STATS_INTERVALS, 30)}
+                    onChange={(value) => onSettingChange("statsInterval", value)}
+                  />
+                }
+              />
+            </div>
+          </section>
 
-      {deepseekShown ? <DeepseekKey onChanged={onDeepseekKeyChange} /> : null}
+          <ApiAccounts providers={providers} onChanged={onDeepseekKeyChange} />
 
-      <LocalApi />
+          {deepseekShown ? <DeepseekKey onChanged={onDeepseekKeyChange} /> : null}
 
-      <AgentSkill />
+          <LocalApi />
+
+          <AgentSkill />
+        </div>
+      </div>
     </div>
   );
 }
@@ -507,24 +605,8 @@ export function SettingsView({
   onDeepseekKeyChange = () => {},
 }) {
   const { t } = useI18n();
-  const [page, setPage] = useState("main");
-  const open = (next) => {
-    setPage(next);
-    // The panel scrolls as a whole; a subpage starts at its top.
-    window.scrollTo?.(0, 0);
-    document.querySelector(".panel-body")?.scrollTo?.(0, 0);
-  };
-  if (page === "more") {
-    return (
-      <MoreSettings
-        settings={settings}
-        providers={providers}
-        onSettingChange={onSettingChange}
-        onDeepseekKeyChange={onDeepseekKeyChange}
-        onBack={() => open("main")}
-      />
-    );
-  }
+  const [moreOpen, setMoreOpen] = useState(false);
+  const closeMore = useCallback(() => setMoreOpen(false), []);
 
   const loginEnabled = loginItem.status === "enabled" || loginItem.status === "requiresApproval";
   return (
@@ -615,7 +697,7 @@ export function SettingsView({
       </section>
 
       <div className="settings-list settings-more-link">
-        <button className="settings-row settings-row-button" type="button" onClick={() => open("more")}>
+        <button className="settings-row settings-row-button" type="button" onClick={() => setMoreOpen(true)} aria-haspopup="dialog">
           <span className="settings-icon"><MoreIcon /></span>
           <span className="settings-text">
             <span className="settings-title">{t("settings.more")}</span>
@@ -624,6 +706,16 @@ export function SettingsView({
           <ChevronIcon />
         </button>
       </div>
+
+      {moreOpen ? (
+        <MoreSettings
+          settings={settings}
+          providers={providers}
+          onSettingChange={onSettingChange}
+          onDeepseekKeyChange={onDeepseekKeyChange}
+          onClose={closeMore}
+        />
+      ) : null}
 
       <footer className="settings-about">
         {/* HETERONTO's minimal mark and wordmark in single white ink, kept quiet. */}

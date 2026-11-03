@@ -15,6 +15,7 @@ import {
   summarizeSpending,
 } from "../server/deepseek-balance.mjs";
 import { createDeepseekReader } from "../server/deepseek-usage.mjs";
+import { createEnvCredentials } from "../server/env-credentials.mjs";
 import { createSecretStore, maskSecret } from "../server/secret-store.mjs";
 import { summarizeBalance, formatMoney } from "../src/stats-format.js";
 
@@ -145,6 +146,8 @@ test("/api/deepseek-key saves only a key DeepSeek accepts and never returns it",
     secrets,
     balanceLog,
     fetchImpl: fakeDeepseek().fetchImpl,
+    // No DEEPSEEK_API_KEY from this machine's environment.
+    envCredentials: createEnvCredentials({ env: {}, readShell: async () => ({}) }),
   });
   const server = http.createServer((request, response) => api.handle(request, response));
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -152,7 +155,7 @@ test("/api/deepseek-key saves only a key DeepSeek accepts and never returns it",
   const send = (method, key, headers = { "Content-Type": "application/json" }) =>
     fetch(base, { method, headers, body: key === undefined ? undefined : JSON.stringify({ key }) });
   try {
-    assert.deepEqual(await (await fetch(base)).json(), { configured: false, hint: null });
+    assert.deepEqual(await (await fetch(base)).json(), { configured: false, hint: null, source: null, variable: null });
 
     const rejected = await send("PUT", "sk-wrong-key-000000");
     assert.equal(rejected.status, 400);
@@ -166,11 +169,11 @@ test("/api/deepseek-key saves only a key DeepSeek accepts and never returns it",
     assert.equal(saved.status, 200);
     const body = await saved.text();
     assert.equal(body.includes(GOOD_KEY), false, "the key never comes back");
-    assert.deepEqual(JSON.parse(body), { configured: true, hint: maskSecret(GOOD_KEY) });
+    assert.deepEqual(JSON.parse(body), { configured: true, hint: maskSecret(GOOD_KEY), source: "saved", variable: null });
     assert.equal(secrets.values.get("deepseek-api-key"), GOOD_KEY);
     assert.equal((await balanceLog.history()).total, 110.25);
 
-    assert.deepEqual(await (await send("DELETE")).json(), { configured: false, hint: null });
+    assert.deepEqual(await (await send("DELETE")).json(), { configured: false, hint: null, source: null, variable: null });
     assert.equal(secrets.values.size, 0);
     assert.equal(await balanceLog.history(), null);
     assert.equal((await send("POST", GOOD_KEY)).status, 405);

@@ -10,13 +10,19 @@ export const PROVIDER_META = {
   claude: { name: "Claude Code", short: "CC", icon: "/assets/claude.svg", iconAlt: "Claude" },
   qoder: { name: "Qoder", short: "QD", icon: "/assets/qoder.png", iconAlt: "Qoder" },
   deepseek: { name: "DeepSeek", short: "DS", icon: "/assets/deepseek.png", iconAlt: "DeepSeek" },
+  // API accounts (server/api-accounts.mjs): shown only once configured.
+  "openai-api": { name: "OpenAI API", short: "OA", icon: "/assets/openai.svg", iconAlt: "OpenAI" },
+  "anthropic-api": { name: "Claude API", short: "CA", icon: "/assets/claude.svg", iconAlt: "Claude" },
+  "azure-openai": { name: "Azure OpenAI", short: "AZ", icon: "/assets/azure.svg", iconAlt: "Azure" },
 };
+export const ACCOUNT_PROVIDERS = ["openai-api", "anthropic-api", "azure-openai"];
 
 // Providers with local transcripts for the History tab (Qoder is measured in credits).
 export const STATS_PROVIDERS = ["codex", "claude", "qoder", "deepseek"];
 // Pay-as-you-go tools with no quota: their card shows tokens used, not a percentage left.
-export const isUsageOnly = (provider) => Boolean(provider?.usage);
-const LIMIT_IDS = ["window", "weekly", "total", "plan", "org", "addon"];
+// API accounts are billed too: they show spend (and, with a monthly limit, what is left of it).
+export const isUsageOnly = (provider) => Boolean(provider?.usage || provider?.spend);
+const LIMIT_IDS = ["window", "weekly", "total", "plan", "org", "addon", "monthly"];
 
 const pad = (value) => String(value).padStart(2, "0");
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -49,6 +55,8 @@ export function formatAccount(account, language = "en") {
   if (!account) return null;
   if (/^usage view fallback$/i.test(account)) return translate(language, "account.fallback");
   if (/^local account$/i.test(account)) return translate(language, "account.local");
+  if (/^organization$/i.test(account)) return translate(language, "account.organization");
+  if (/^service principal$/i.test(account)) return translate(language, "account.servicePrincipal");
   const plan = account.match(/^(.+?)\s+plan$/i);
   if (plan) return translate(language, "account.plan", { plan: plan[1].replace(/\b\w/g, (letter) => letter.toUpperCase()) });
   return account;

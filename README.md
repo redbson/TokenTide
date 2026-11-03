@@ -138,6 +138,18 @@ Files TokenTide writes on your Mac:
 | `~/Library/Application Support/TokenTide/quota-weeks.json` | Weekly quota records (the only source of Claude Code utilization history) |
 | `~/Library/Application Support/TokenTide/deepseek-prices.json` | DeepSeek's prices from its pricing page, and when they were last checked |
 
+## API accounts
+
+TokenTide can also show what your API accounts cost this month (UTC calendar month). None of these providers offers a way to read a prepaid balance, so the cards show spend; with an OpenAI monthly spend limit they also show how much of it is left. Set them up in **Settings → More settings → API accounts**:
+
+| Account | What it needs | Shown |
+|---|---|---|
+| OpenAI API | An organization **admin key** (`sk-admin-…`, created by an organization owner) | Spend today and this month; % left of the monthly spend limit, if one is set |
+| Claude API | An organization **admin key** (`sk-ant-admin…`); not available for individual accounts | Spend today and this month |
+| Azure OpenAI | The Azure CLI signed in (`az login`), or a service principal; the **Cost Management Reader** role on the subscription | Month-to-date Cognitive Services / Azure OpenAI cost. Azure's cost data lags by hours (up to 3 days on pay-as-you-go), so it is checked every few hours |
+
+**Keys from the environment**: TokenTide picks keys up from environment variables when none is saved in Settings: `DEEPSEEK_API_KEY`, `OPENAI_ADMIN_KEY` (or `OPENAI_API_KEY` if it is an admin key), `ANTHROPIC_ADMIN_KEY` (or `ANTHROPIC_API_KEY` if it is an admin key), and for Azure `AZURE_SUBSCRIPTION_ID`, or `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` + `AZURE_CLIENT_SECRET` for a service principal. On macOS it also looks in your interactive shell (`~/.zshrc`), as editors do. A key saved in Settings wins. Admin keys are only used to read spend, and never leave this computer except to the provider they belong to.
+
 ## Local API
 
 Other apps on this computer can read the current usage as JSON from TokenTide's local service. It is on by default; turn it off in **Settings → More settings → Local API → Let other apps read usage**.
@@ -228,6 +240,11 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 | `tests/` | `node --test` tests |
 
 ## Changelog
+
+### Unreleased
+- See this month's spend for OpenAI API, Claude API, and Azure OpenAI.
+- API keys are picked up from environment variables.
+- More settings opens as a dialog.
 
 ### 0.7.1
 - Other apps can get usage pushed to them as it changes.

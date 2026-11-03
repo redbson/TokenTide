@@ -666,6 +666,8 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
   const readCodex = readers.codex ?? readCodexUsage;
   const readQoder = readers.qoder ?? (() => readQoderUsage());
   const readDeepseek = readers.deepseek ?? createDeepseekReader();
+  // API accounts (server/api-accounts.mjs): OpenAI API, Claude API, Azure OpenAI spend.
+  const readApiAccounts = readers.apiAccounts ?? (async () => []);
   const readClaudeDirectUsage = readers.claudeDirect ?? (() => readClaudeUsageDirect());
   const readPlanName = readers.claudePlanName ?? (() => readClaudePlanName());
   // Claude's own plan name ("Ultra") when its config has one; get_usage only knows "max".
@@ -719,11 +721,12 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
   }
 
   async function readAll(force) {
-    const [codex, claude, qoder, deepseek] = await Promise.allSettled([
+    const [codex, claude, qoder, deepseek, accounts] = await Promise.allSettled([
       retryOnce(readCodex, readRetryDelayMs),
       readClaude(),
       retryOnce(readQoder, readRetryDelayMs),
       readDeepseek(Date.now(), { force }),
+      readApiAccounts({ force }),
     ]);
     const updatedAt = Date.now();
     const providers = [
@@ -741,6 +744,7 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
       deepseek.status === "fulfilled"
         ? deepseek.value
         : { ...unavailableProvider("deepseek", "DeepSeek", deepseek.reason), installed: true },
+      ...(accounts.status === "fulfilled" ? accounts.value : []),
     ];
     for (const provider of providers) {
       if (provider.connected) lastReadings.set(provider.id, { provider, readAt: updatedAt });

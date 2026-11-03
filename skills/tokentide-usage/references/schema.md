@@ -33,6 +33,18 @@
 | `resetsAt` | ISO time \| null | |
 | `remainingAmount`, `totalAmount`, `unit` | number, number, string | Credit pools only (Qoder), e.g. `2118`, `3000`, `"credits"` |
 
+## API account extras (`openai-api`, `anthropic-api`, `azure-openai`)
+
+```json
+"spend": {
+  "currency": "USD", "today": 0.75, "month": 4.5,
+  "limit": { "amount": 50, "currency": "USD", "enforced": true },
+  "readAt": "2026-11-03T15:00:00.000Z", "delayed": false
+}
+```
+
+`month` is this UTC calendar month. `limit` is OpenAI's monthly spend limit (null elsewhere); with one, `remainingPercent` / `headline: "monthly"` give what is left of it. `delayed: true` for Azure, whose cost data lags by hours. Error codes: `accountKeyInvalid`, `accountUnreachable`, `accountUnavailable`, `azureNoAccess`, `azureNoSubscription`, `azureThrottled`.
+
 ## DeepSeek extras
 
 ```json

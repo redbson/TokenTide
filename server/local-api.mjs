@@ -65,6 +65,18 @@ export function publicTool(provider, updatedAt) {
       })),
     };
   }
+  // API accounts: spend for the billing month (UTC calendar month), and the monthly limit if set.
+  if (provider.spend && provider.connected) {
+    tool.spend = {
+      currency: provider.spend.currency,
+      today: number(provider.spend.today),
+      month: number(provider.spend.month),
+      limit: provider.spend.limit ? { amount: provider.spend.limit.amount, currency: provider.spend.limit.currency, enforced: Boolean(provider.spend.limit.enforced) } : null,
+      readAt: isoMs(provider.spend.readAt),
+      // Azure's cost data lags by hours.
+      delayed: Boolean(provider.delayed),
+    };
+  }
   const balance = provider.balance;
   if (balance && Number.isFinite(balance.total)) {
     tool.balance = {

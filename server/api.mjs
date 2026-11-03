@@ -1,4 +1,6 @@
+import { createApiAccountsReader, readAnthropicSpend, readOpenAiSpend } from "./api-accounts.mjs";
 import { createBalanceLog, DEEPSEEK_KEY_NAME, fetchDeepseekBalance } from "./deepseek-balance.mjs";
+import { KEY_SOURCES, KEY_VARIABLES, createEnvCredentials, createKeyResolver } from "./env-credentials.mjs";
 import { createDeepseekPriceBook } from "./deepseek-price-book.mjs";
 import { createDeepseekReader } from "./deepseek-usage.mjs";
 import { SCHEMA, createEventHub, createLocalApiConfig, currentReading, publicUsage } from "./local-api.mjs";
@@ -54,17 +56,44 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
   const priceBook = services.priceBook ?? createDeepseekPriceBook({ fetchImpl });
   const localApi = services.localApi ?? createLocalApiConfig();
   const skills = services.skills ?? createSkillInstaller();
+  // Keys saved in Settings win; otherwise they come from the environment (DEEPSEEK_API_KEY …).
+  const envCredentials = services.envCredentials ?? createEnvCredentials({ names: KEY_VARIABLES });
+  const keys = createKeyResolver({ secrets, envCredentials });
+  // The DeepSeek reader asks the store for its key; answer with the resolved one.
+  const deepseekSecrets = {
+    get: async (name) => (name === DEEPSEEK_KEY_NAME ? ((await keys.resolve("deepseek"))?.value ?? null) : secrets.get(name)),
+  };
   let usageService = services.usageService;
   let statsService = services.statsService;
   if (!usageService || !statsService) {
     const quotaLog = createQuotaLog();
-    usageService ??= createUsageService({ deepseek: createDeepseekReader({ secrets, balanceLog, fetchImpl, priceBook }) }, { quotaLog });
+    usageService ??= createUsageService(
+      {
+        deepseek: createDeepseekReader({ secrets: deepseekSecrets, balanceLog, fetchImpl, priceBook }),
+        apiAccounts: createApiAccountsReader({ keys, envCredentials, fetchImpl }),
+      },
+      { quotaLog },
+    );
     statsService ??= createStatsService({ quotaLog, balanceLog, priceBook });
   }
 
-  const keyState = async () => {
-    const key = await secrets.get(DEEPSEEK_KEY_NAME);
-    return { configured: Boolean(key), hint: maskSecret(key) };
+  // What Settings shows about a key: whether there is one, a masked hint, and where it came from
+  // ("saved" in Settings, or "env" with the variable's name). The key itself never goes back.
+  const stateOf = async (id) => {
+    const key = await keys.resolve(id);
+    return { configured: Boolean(key), hint: maskSecret(key?.value), source: key?.source ?? null, variable: key?.variable ?? null };
+  };
+  const keyState = () => stateOf("deepseek");
+
+  // Admin keys for the API accounts: checked with the provider before they are saved.
+  const ADMIN_KEYS = {
+    "openai-admin": { check: (key) => readOpenAiSpend(key, { fetchImpl }), prefix: "sk-admin-" },
+    "anthropic-admin": { check: (key) => readAnthropicSpend(key, { fetchImpl }), prefix: "sk-ant-admin" },
+  };
+  const adminKeyId = (request) => {
+    const id = decodeURIComponent(new URL(request.url ?? "/", "http://localhost").pathname.slice("/api/keys/".length));
+    if (!ADMIN_KEYS[id]) throw new HttpError(404, "unknownKey");
+    return id;
   };
 
   // The panel names the tools hidden in Settings (`?hidden=deepseek,qoder`). While DeepSeek is
@@ -119,6 +148,29 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
       PUT: (request) => changeSkill(request, "install"),
       DELETE: (request) => changeSkill(request, "uninstall"),
       error: "The skill could not be changed.",
+    },
+    // Settings → More → API accounts: the OpenAI and Anthropic admin keys.
+    "/api/keys/*": {
+      GET: (request) => stateOf(adminKeyId(request)),
+      PUT: async (request) => {
+        const id = adminKeyId(request);
+        const { key } = await readJsonBody(request);
+        const value = typeof key === "string" ? key.trim() : "";
+        if (!isStorableSecret(value) || !value.startsWith(ADMIN_KEYS[id].prefix)) throw new HttpError(400, "adminKeyMalformed");
+        try {
+          await ADMIN_KEYS[id].check(value);
+        } catch (error) {
+          throw new HttpError(error.code === "accountKeyInvalid" ? 400 : 502, error.code ?? "accountUnavailable");
+        }
+        await secrets.set(KEY_SOURCES[id].secret, value);
+        return stateOf(id);
+      },
+      DELETE: async (request) => {
+        const id = adminKeyId(request);
+        await secrets.delete(KEY_SOURCES[id].secret);
+        return stateOf(id);
+      },
+      error: "The key could not be changed.",
     },
     // Settings → More settings → Local API.
     "/api/local-api": {
@@ -180,6 +232,8 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
           ? routes["/v1/usage/*"]
           : pathname.startsWith("/api/skills/")
             ? routes["/api/skills/*"]
+            : pathname.startsWith("/api/keys/")
+              ? routes["/api/keys/*"]
             : pathname === "/v1/events"
               ? {}
               : undefined);
