@@ -4,6 +4,7 @@ import { KEY_SOURCES, KEY_VARIABLES, createEnvCredentials, createKeyResolver } f
 import { createDeepseekPriceBook } from "./deepseek-price-book.mjs";
 import { createDeepseekReader } from "./deepseek-usage.mjs";
 import { SCHEMA, createEventHub, createLocalApiConfig, currentReading, publicUsage } from "./local-api.mjs";
+import { createProxyFetch } from "./proxy-fetch.mjs";
 import { createQuotaLog } from "./quota-weeks.mjs";
 import { createSecretStore, isStorableSecret, maskSecret } from "./secret-store.mjs";
 import { createSkillInstaller } from "./skill-install.mjs";
@@ -52,7 +53,8 @@ function maxAgeOf(request) {
 export function createLocalApi(services = {}, { migration = null } = {}) {
   const secrets = services.secrets ?? createSecretStore();
   const balanceLog = services.balanceLog ?? createBalanceLog();
-  const fetchImpl = services.fetchImpl ?? fetch;
+  // Outbound requests use the user's proxy (environment, else the system's): server/proxy-fetch.mjs.
+  const fetchImpl = services.fetchImpl ?? createProxyFetch();
   const priceBook = services.priceBook ?? createDeepseekPriceBook({ fetchImpl });
   const localApi = services.localApi ?? createLocalApiConfig();
   const skills = services.skills ?? createSkillInstaller();

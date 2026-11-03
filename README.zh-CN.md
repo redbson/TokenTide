@@ -150,6 +150,8 @@ TokenTide 也可以显示 API 账户本月（按 UTC 自然月）的花费。这
 
 **从环境变量读取 Key**：设置里没有保存 Key 时，TokenTide 会读取这些环境变量：`DEEPSEEK_API_KEY`、`OPENAI_ADMIN_KEY`（或是管理员 Key 的 `OPENAI_API_KEY`）、`ANTHROPIC_ADMIN_KEY`（或是管理员 Key 的 `ANTHROPIC_API_KEY`），Azure 用 `AZURE_SUBSCRIPTION_ID`，服务主体用 `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` + `AZURE_CLIENT_SECRET`。在 macOS 上还会像编辑器一样读取交互式 shell（`~/.zshrc`）里的变量。设置里保存的 Key 优先。管理员 Key 只用来读取花费，除了发给对应的服务商，不会离开这台电脑。
 
+**代理**：TokenTide 自己发出的请求（DeepSeek、OpenAI、Anthropic、Azure）会使用 `HTTPS_PROXY` / `ALL_PROXY`，没有设置时使用系统代理（macOS 网络设置、Windows 的 Internet 设置），和浏览器一样。支持 Clash、Surge 等提供的 HTTP 代理；只有 SOCKS 或 PAC 的配置暂不支持。
+
 ## 本机接口
 
 本机的其他应用可以从 TokenTide 的本地服务读取当前用量（JSON）。默认开启，可在 **设置 → 更多设置 → 本机接口 → 允许其他应用读取用量** 里关闭。
@@ -227,6 +229,10 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 | `tests/` | `node --test` 测试 |
 
 ## 更新日志
+
+### 未发布
+- API 账户会自动使用系统代理。
+- DeepSeek API Key 并入「API 账户」。
 
 ### 0.7.2
 - 可查看 OpenAI、Claude、Azure 本月花费。

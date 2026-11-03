@@ -256,7 +256,7 @@ function KeyRow({ endpoint, icon, title, offText, placeholder = "sk-…", errorT
     ? offText
     : fromEnv
       ? t("key.fromEnv", { variable: state.variable, hint: state.hint })
-      : t("deepseekKey.on", { hint: state.hint });
+      : t("key.saved", { hint: state.hint });
   const showForm = state && (!state.configured || editing);
   return (
     <>
@@ -315,32 +315,11 @@ function KeyRow({ endpoint, icon, title, offText, placeholder = "sk-…", errorT
 // Error codes from /api/deepseek-key that have their own message.
 const KEY_ERRORS = new Set(["deepseekKeyInvalid", "deepseekKeyMalformed", "deepseekBalanceUnavailable"]);
 
-// The DeepSeek API key for the balance (or DEEPSEEK_API_KEY).
-function DeepseekKey({ onChanged }) {
-  const { t } = useI18n();
-  return (
-    <section className="settings-group" aria-labelledby="settings-deepseek">
-      <h3 id="settings-deepseek">{t("settings.deepseek")}</h3>
-      <div className="settings-list">
-        <KeyRow
-          endpoint="/api/deepseek-key"
-          icon={<KeyIcon />}
-          title={t("deepseekKey.title")}
-          offText={t("deepseekKey.off")}
-          errorText={(code) => t(KEY_ERRORS.has(code) ? `balanceError.${code}` : "balanceError.failed")}
-          onChanged={onChanged}
-        />
-      </div>
-      <p className="settings-note" title={t("deepseekKey.note")}>{t("deepseekKey.note")}</p>
-    </section>
-  );
-}
-
 const ACCOUNT_ERRORS = new Set(["accountKeyInvalid", "adminKeyMalformed", "accountUnreachable", "accountUnavailable"]);
 
 // OpenAI API and Claude API spend need organization admin keys (or OPENAI_ADMIN_KEY /
 // ANTHROPIC_ADMIN_KEY); Azure OpenAI uses the signed-in Azure CLI (server/api-accounts.mjs).
-function ApiAccounts({ providers, onChanged }) {
+function ApiAccounts({ providers, onChanged, deepseekShown = false }) {
   const { t } = useI18n();
   const azure = providers.find((provider) => provider.id === "azure-openai");
   const errorText = (code) => t(ACCOUNT_ERRORS.has(code) ? `accountError.${code}` : "accountError.failed");
@@ -373,6 +352,17 @@ function ApiAccounts({ providers, onChanged }) {
           errorText={errorText}
           onChanged={onChanged}
         />
+        {/* DeepSeek's API key gives the balance on the DeepSeek Harness card. */}
+        {deepseekShown ? (
+          <KeyRow
+            endpoint="/api/deepseek-key"
+            icon={<img className="settings-provider-icon" src="/assets/deepseek.png" alt="" />}
+            title={t("account.deepseek")}
+            offText={t("deepseekKey.off")}
+            errorText={(code) => t(KEY_ERRORS.has(code) ? `balanceError.${code}` : "balanceError.failed")}
+            onChanged={onChanged}
+          />
+        ) : null}
         <SettingRow icon={<img className="settings-provider-icon" src="/assets/azure.svg" alt="" />} title="Azure OpenAI" detail={azureDetail} />
       </div>
       <p className="settings-note" title={t("account.note")}>{t("account.note")}</p>
@@ -578,9 +568,7 @@ function MoreSettings({ settings, providers, onSettingChange, onDeepseekKeyChang
             </div>
           </section>
 
-          <ApiAccounts providers={providers} onChanged={onDeepseekKeyChange} />
-
-          {deepseekShown ? <DeepseekKey onChanged={onDeepseekKeyChange} /> : null}
+          <ApiAccounts providers={providers} onChanged={onDeepseekKeyChange} deepseekShown={deepseekShown} />
 
           <LocalApi />
 

@@ -150,6 +150,8 @@ TokenTide can also show what your API accounts cost this month (UTC calendar mon
 
 **Keys from the environment**: TokenTide picks keys up from environment variables when none is saved in Settings: `DEEPSEEK_API_KEY`, `OPENAI_ADMIN_KEY` (or `OPENAI_API_KEY` if it is an admin key), `ANTHROPIC_ADMIN_KEY` (or `ANTHROPIC_API_KEY` if it is an admin key), and for Azure `AZURE_SUBSCRIPTION_ID`, or `AZURE_TENANT_ID` + `AZURE_CLIENT_ID` + `AZURE_CLIENT_SECRET` for a service principal. On macOS it also looks in your interactive shell (`~/.zshrc`), as editors do. A key saved in Settings wins. Admin keys are only used to read spend, and never leave this computer except to the provider they belong to.
 
+**Proxies**: TokenTide's own requests (DeepSeek, OpenAI, Anthropic, Azure) use `HTTPS_PROXY` / `ALL_PROXY` if set, otherwise the system proxy (macOS network settings, Windows Internet Settings), as a browser does. HTTP proxies such as Clash's or Surge's work; SOCKS-only and PAC setups don't.
+
 ## Local API
 
 Other apps on this computer can read the current usage as JSON from TokenTide's local service. It is on by default; turn it off in **Settings → More settings → Local API → Let other apps read usage**.
@@ -240,6 +242,10 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 | `tests/` | `node --test` tests |
 
 ## Changelog
+
+### Unreleased
+- API accounts work through your system proxy.
+- The DeepSeek API key sits with the other API accounts.
 
 ### 0.7.2
 - See this month's spend for OpenAI API, Claude API, and Azure OpenAI.
