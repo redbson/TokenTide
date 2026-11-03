@@ -637,6 +637,7 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
   // The last successful reading per tool: { provider, readAt }.
   const lastReadings = new Map();
   let inFlight = null;
+  let latest = null;
 
   async function readClaude() {
     try {
@@ -718,10 +719,20 @@ export function createUsageService(readers = {}, { quotaLog = null } = {}) {
     // Concurrent callers share one read so each refresh spawns at most one Codex process.
     // `force` (the refresh button) also rereads what is cached between refreshes.
     read({ force = false } = {}) {
-      inFlight ??= readAll(force).finally(() => {
-        inFlight = null;
-      });
+      inFlight ??= readAll(force)
+        .then((result) => {
+          latest = result;
+          return result;
+        })
+        .finally(() => {
+          inFlight = null;
+        });
       return inFlight;
+    },
+
+    /** The last completed reading (`updatedAt` says when), or null before the first one. */
+    latest() {
+      return latest;
     },
 
     close() {

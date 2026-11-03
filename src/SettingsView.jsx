@@ -1,7 +1,19 @@
 import { useI18n } from "./i18n-context.js";
 import { LANGUAGE_NAMES } from "./i18n.js";
 import { useEffect, useState } from "react";
-import { BellIcon, ChartIcon, ClockIcon, DownloadIcon, GlobeIcon, KeyIcon, LockIcon, LoginIcon, MenuBarIcon, NotesIcon } from "./icons.jsx";
+import {
+  BellIcon,
+  ChartIcon,
+  ClockIcon,
+  DownloadIcon,
+  GlobeIcon,
+  KeyIcon,
+  LockIcon,
+  LoginIcon,
+  MenuBarIcon,
+  NotesIcon,
+  PlugIcon,
+} from "./icons.jsx";
 import {
   LOW_USAGE_THRESHOLD,
   PROVIDER_META,
@@ -290,6 +302,54 @@ function DeepseekKey({ onChanged }) {
   );
 }
 
+// Settings → Local API: whether other apps may read usage at /v1/usage (server/local-api.mjs).
+function LocalApi() {
+  const { t } = useI18n();
+  const [enabled, setEnabled] = useState(null);
+  const [error, setError] = useState(false);
+  const address = `${window.location.origin}/v1/usage`;
+
+  useEffect(() => {
+    fetch("/api/local-api", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((state) => setEnabled(state.enabled !== false), () => setEnabled(null));
+  }, []);
+
+  const change = async (value) => {
+    setError(false);
+    try {
+      const response = await fetch("/api/local-api", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: value }),
+      });
+      if (!response.ok) throw new Error("failed");
+      setEnabled((await response.json()).enabled);
+    } catch {
+      setError(true);
+    }
+  };
+
+  return (
+    <section className="settings-group" aria-labelledby="settings-local-api">
+      <h3 id="settings-local-api">{t("settings.localApi")}</h3>
+      <div className="settings-list">
+        <SettingRow
+          icon={<PlugIcon />}
+          title={t("localApi.title")}
+          detail={enabled === false ? t("localApi.off") : t("localApi.on")}
+          checked={enabled !== false}
+          disabled={enabled === null}
+          onChange={change}
+          action={enabled ? <code className="local-api-address">{address}</code> : null}
+        />
+      </div>
+      {error ? <p className="settings-error">{t("localApi.failed")}</p> : null}
+      <p className="settings-note" title={t("localApi.note")}>{t("localApi.note")}</p>
+    </section>
+  );
+}
+
 export function SettingsView({
   settings,
   providers,
@@ -390,6 +450,8 @@ export function SettingsView({
           />
         </div>
       </section>
+
+      <LocalApi />
 
       <section className="settings-group" aria-labelledby="settings-quota">
         <h3 id="settings-quota">{t("settings.quota")}</h3>

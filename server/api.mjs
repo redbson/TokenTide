@@ -1,6 +1,7 @@
 import { createBalanceLog, DEEPSEEK_KEY_NAME, fetchDeepseekBalance } from "./deepseek-balance.mjs";
 import { createDeepseekPriceBook } from "./deepseek-price-book.mjs";
 import { createDeepseekReader } from "./deepseek-usage.mjs";
+import { SCHEMA, createLocalApiConfig, currentReading, publicUsage } from "./local-api.mjs";
 import { createQuotaLog } from "./quota-weeks.mjs";
 import { createSecretStore, isStorableSecret, maskSecret } from "./secret-store.mjs";
 import { createUsageService } from "./usage-service.mjs";
@@ -50,6 +51,7 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
   const balanceLog = services.balanceLog ?? createBalanceLog();
   const fetchImpl = services.fetchImpl ?? fetch;
   const priceBook = services.priceBook ?? createDeepseekPriceBook({ fetchImpl });
+  const localApi = services.localApi ?? createLocalApiConfig();
   let usageService = services.usageService;
   let statsService = services.statsService;
   if (!usageService || !statsService) {
@@ -76,8 +78,37 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
     return payload;
   }
 
+  // For other apps (server/local-api.mjs): the latest reading, unless Settings turned it off.
+  const readPublic = async (request) => {
+    if (!(await localApi.enabled())) throw new HttpError(403, "disabled");
+    return publicUsage(await currentReading(usageService, { maxAgeMs: maxAgeOf(request) }));
+  };
+  const readPublicTool = async (request) => {
+    const id = decodeURIComponent(new URL(request.url ?? "/", "http://localhost").pathname.slice("/v1/usage/".length));
+    const usage = await readPublic(request);
+    const tool = usage.tools.find((item) => item.id === id);
+    if (!tool) throw new HttpError(404, "unknownTool");
+    return { schema: usage.schema, updatedAt: usage.updatedAt, tool };
+  };
+
   // Each route: a handler per method, and the message for an unexpected failure.
   const routes = {
+    "/v1": {
+      GET: async () => ({ schema: SCHEMA, endpoints: ["/v1/usage", "/v1/usage/{codex|claude|qoder|deepseek}"] }),
+      error: "Unavailable.",
+    },
+    "/v1/usage": { GET: readPublic, error: "Usage could not be read." },
+    "/v1/usage/*": { GET: readPublicTool, error: "Usage could not be read." },
+    // Settings → Local API.
+    "/api/local-api": {
+      GET: async () => ({ enabled: await localApi.enabled() }),
+      PUT: async (request) => {
+        const { enabled } = await readJsonBody(request);
+        if (typeof enabled !== "boolean") throw new HttpError(400, "badRequest");
+        return { enabled: await localApi.setEnabled(enabled) };
+      },
+      error: "The setting could not be saved.",
+    },
     "/api/usage": { GET: readUsage, error: "Local usage could not be read." },
     // `?maxAge=<seconds>`: how old a cached history may be (the panel's History interval); 0 rescans.
     "/api/stats": { GET: (request) => statsService.read({ maxAgeMs: maxAgeOf(request) }), error: "Local history could not be read." },
@@ -120,7 +151,7 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
     /** Answers API requests; resolves `false` for any other path so the caller can serve it. */
     async handle(request, response) {
       const { pathname } = new URL(request.url ?? "/", "http://localhost");
-      const route = routes[pathname];
+      const route = routes[pathname] ?? (pathname.startsWith("/v1/usage/") ? routes["/v1/usage/*"] : undefined);
       if (!route) return false;
 
       const origin = request.headers.origin;

@@ -138,6 +138,38 @@ Files TokenTide writes on your Mac:
 | `~/Library/Application Support/TokenTide/quota-weeks.json` | Weekly quota records (the only source of Claude Code utilization history) |
 | `~/Library/Application Support/TokenTide/deepseek-prices.json` | DeepSeek's prices from its pricing page, and when they were last checked |
 
+## Local API
+
+Other apps on this computer can read the current usage as JSON from TokenTide's local service. It is on by default; turn it off in **Settings → Local API → Let other apps read usage**.
+
+```bash
+curl -s http://127.0.0.1:46173/v1/usage
+```
+
+- `GET /v1/usage`: every installed tool. `GET /v1/usage/{codex|claude|qoder|deepseek}`: one tool.
+- The answer is the latest reading the panel keeps current. TokenTide reads again only when it is more than 5 minutes old (`?maxAge=<seconds>` asks for fresher, but never under a minute), so polling it does not start the command-line tools more often.
+- It is read-only, listens on `127.0.0.1` only, and refuses requests from web pages (a browser's `Origin` header). It contains no keys, tokens, account IDs, or error messages; errors are codes.
+
+```json
+{
+  "schema": "tokentide.usage.v1",
+  "updatedAt": "2026-11-03T04:00:00.000Z",
+  "tools": [
+    {
+      "id": "claude", "name": "Claude Code", "status": "ok", "plan": "max",
+      "remainingPercent": 22, "headline": "weekly",
+      "limits": [{ "id": "weekly", "usedPercent": 78, "remainingPercent": 22, "resetsAt": "2026-11-03T08:00:00.000Z" }],
+      "readAt": "2026-11-03T04:00:00.000Z", "error": null
+    }
+  ]
+}
+```
+
+- `status`: `ok`, `stale` (the last reading, shown because a refresh failed), or `unavailable` (`error` says why, e.g. `claudeSignedOut`, `qoderCliMissing`).
+- `remainingPercent` is the headline the panel shows: the current window, Qoder's total credits, or the weekly quota when there is no window (`headline` names it). Limit ids: `window`, `weekly`, `total`, `plan`, `addon`, `org`; credit pools add `remainingAmount`, `totalAmount`, `unit`.
+- DeepSeek has no quota (`remainingPercent: null`): `usage.today|week|month` gives `tokens`, `messages`, and `estimatedCost` (CNY, at DeepSeek's published prices), and `balance` appears once an API key is saved.
+- The schema name changes only if a field is removed or changes meaning; new fields may be added.
+
 ## Troubleshooting
 
 - **The panel says it couldn't start the local quota service**: make sure Node.js 20 or later is installed and `node` can be found in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, or your login shell's PATH. Details are in `~/Library/Logs/TokenTide.log`.
@@ -188,6 +220,9 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 | `tests/` | `node --test` tests |
 
 ## Changelog
+
+### Unreleased
+- Other apps can read your usage from a local API.
 
 ### 0.6.9
 - Claude Code shows its weekly quota for accounts with no 5-hour window.

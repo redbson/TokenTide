@@ -138,6 +138,25 @@ TokenTide 在本机写入的文件：
 | `~/Library/Application Support/TokenTide/quota-weeks.json` | 每周额度记录（Claude Code 的使用率历史全靠它） |
 | `~/Library/Application Support/TokenTide/deepseek-prices.json` | 从 DeepSeek 价格页读到的价格和检查时间 |
 
+## 本机接口
+
+本机的其他应用可以从 TokenTide 的本地服务读取当前用量（JSON）。默认开启，可在 **设置 → 本机接口 → 允许其他应用读取用量** 里关闭。
+
+```bash
+curl -s http://127.0.0.1:46173/v1/usage
+```
+
+- `GET /v1/usage`：所有已安装的工具；`GET /v1/usage/{codex|claude|qoder|deepseek}`：单个工具。
+- 返回的是面板保持更新的最近一次读数；超过 5 分钟才会重新读取（`?maxAge=<秒>` 可以要求更新的数据，但最短 1 分钟），所以其他应用频繁请求也不会更频繁地启动命令行工具。
+- 只读，只监听 `127.0.0.1`，拒绝来自网页的请求（浏览器的 `Origin` 头）。不含任何 Key、Token、账号 ID 或错误原文，错误只给代码。
+
+字段说明（示例见英文 README）：
+
+- `status`：`ok`；`stale`（刷新失败时沿用的上次读数）；`unavailable`（`error` 给出原因代码，如 `claudeSignedOut`、`qoderCliMissing`）。
+- `remainingPercent` 是面板上的大数字：当前窗口、Qoder 的总积分，没有窗口时是每周额度（`headline` 说明是哪一项）。额度 id：`window`、`weekly`、`total`、`plan`、`addon`、`org`；积分类额度另有 `remainingAmount`、`totalAmount`、`unit`。
+- DeepSeek 没有额度（`remainingPercent: null`）：`usage.today|week|month` 给出 `tokens`、`messages` 和 `estimatedCost`（人民币，按 DeepSeek 公布价格估算）；保存 API Key 后还有 `balance`。
+- 只有删掉字段或改变含义时才会换 schema 名称；新增字段不会。
+
 ## 常见问题
 
 - **面板显示「无法启动本机额度服务」**：确认装了 Node.js 20 或更新版本，并且 `node` 能在 `~/.local/bin`、`/opt/homebrew/bin`、`/usr/local/bin` 或登录 shell 的 PATH 里找到。详细原因看 `~/Library/Logs/TokenTide.log`。
@@ -188,6 +207,9 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 | `tests/` | `node --test` 测试 |
 
 ## 更新日志
+
+### 未发布
+- 新增本机接口，其他应用可以读取当前用量。
 
 ### 0.6.9
 - 没有 5 小时窗口的 Claude 账号也能显示每周额度。
