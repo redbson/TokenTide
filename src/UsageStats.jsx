@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "./i18n-context.js";
 import { ACCOUNT_PROVIDERS, PROVIDER_META, STATS_PROVIDERS, formatPercent } from "./usage-format.js";
 import {
@@ -550,6 +550,30 @@ function StatsFreshness({ generatedAt, now, every, onReload }) {
   );
 }
 
+/**
+ * Holds History at the tallest height it has shown this session. The native panel sizes itself
+ * to the page, so without this, switching tools (Codex 559px, DeepSeek 488px, OpenAI 736px)
+ * made the window jump by up to 250px every time. Now it only ever grows, once per new height.
+ * The hold sits on the whole section: a view's inner margins count toward its height too.
+ */
+function useSteadyHeight() {
+  const ref = useRef(null);
+  const [minHeight, setMinHeight] = useState(0);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+    const measure = () => {
+      const height = Math.ceil(node.scrollHeight);
+      setMinHeight((current) => (height > current ? height : current));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, minHeight];
+}
+
 export function UsageStats({
   stats,
   error,
@@ -564,6 +588,7 @@ export function UsageStats({
 }) {
   const { t, language } = useI18n();
   const today = localDayKey();
+  const [bodyRef, steadyHeight] = useSteadyHeight();
   // Tools turned off in Settings are left out; Qoder and DeepSeek get a tab only when this Mac
   // has their transcripts, unless one is the only tool shown.
   // API accounts join once they have spend records.
@@ -656,7 +681,12 @@ export function UsageStats({
   }
 
   return (
-    <section className={`usage-stats stats-${provider}`} aria-label={t("stats.label")}>
+    <section
+      className={`usage-stats stats-${provider}`}
+      aria-label={t("stats.label")}
+      ref={bodyRef}
+      style={steadyHeight ? { minHeight: steadyHeight } : undefined}
+    >
       <div
         className={`stats-providers ${providerIds.length > 3 ? "is-crowded" : ""} ${providerIds.length > 4 ? "is-wrapping" : ""}`}
         // Four tools: columns follow their names so "Claude Code" keeps its space.

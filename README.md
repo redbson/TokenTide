@@ -249,6 +249,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 - Spend headlines look different from balance ones.
 - API account cards show today, 7 and 30 days, and History shows their spend per day.
 - OpenAI API gets Overview and Models in History: requests, tokens, and cost per model.
+- The panel no longer jumps in height when you switch tools in History.
 
 ### 0.7.2
 - See this month's spend for OpenAI API, Claude API, and Azure OpenAI.

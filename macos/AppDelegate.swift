@@ -304,7 +304,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         var x = buttonFrame.midX - panelWidth / 2
         x = min(max(x, visible.minX + 8), visible.maxX - panelWidth - 8)
         let y = buttonFrame.minY - panelGap - height
-        panel.setFrame(NSRect(x: x, y: y, width: panelWidth, height: height), display: true)
+        let frame = NSRect(x: x, y: y, width: panelWidth, height: height)
+        // A content change while the panel is open glides to its new size instead of snapping.
+        if panel.isVisible && panel.frame.width == panelWidth && abs(panel.frame.height - height) > 1 {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.18
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                panel.animator().setFrame(frame, display: true)
+            }
+        } else {
+            panel.setFrame(frame, display: true)
+        }
     }
 
     func windowDidResignKey(_ notification: Notification) {

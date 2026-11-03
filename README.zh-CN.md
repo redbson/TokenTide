@@ -236,6 +236,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 - 花费和余额的大数字样式区分开。
 - API 账户卡片统一显示今日、7 天、30 天，历史页可看每天花费。
 - OpenAI API 的历史页新增「概览」和「模型」。
+- 历史页切换工具时窗口不再忽大忽小。
 
 ### 0.7.2
 - 可查看 OpenAI、Claude、Azure 本月花费。

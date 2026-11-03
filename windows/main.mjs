@@ -250,7 +250,9 @@ function positionPanel() {
   }
   x = clamp(x, work.x + PANEL_GAP, work.x + work.width - PANEL_WIDTH - PANEL_GAP);
   y = clamp(y, work.y + PANEL_GAP, work.y + work.height - height - PANEL_GAP);
-  panel.setBounds({ x: Math.round(x), y: Math.round(y), width: PANEL_WIDTH, height });
+  // A content change while the panel is open glides to its new size instead of snapping.
+  const animate = panel.isVisible() && Math.abs(panel.getBounds().height - height) > 1;
+  panel.setBounds({ x: Math.round(x), y: Math.round(y), width: PANEL_WIDTH, height }, animate);
 }
 
 function showLoading(message, detail = null) {
