@@ -224,7 +224,7 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 2. Publish a GitHub release tagged `vX.Y.Z`, or run:
 
    ```bash
-   gh release create v0.7.3 --generate-notes
+   gh release create v0.7.4 --generate-notes
    ```
 
 3. The [release workflow](.github/workflows/release.yml) runs the tests, builds the universal Mac app and the Windows installer, and attaches `TokenTide-X.Y.Z.zip` and `TokenTide-Setup-X.Y.Z.exe`, their `.sha256` checksums, and unversioned `TokenTide.zip` / `TokenTide-Setup.exe` copies (used by the download links). Installed copies update themselves at their next check.
@@ -243,13 +243,11 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 
 ## Changelog
 
-### Unreleased
-- API accounts work through your system proxy.
-- The DeepSeek API key sits with the other API accounts.
-- Spend headlines look different from balance ones.
-- API account cards show today, 7 and 30 days, and History shows their spend per day.
-- OpenAI API gets Overview and Models in History: requests, tokens, and cost per model.
-- The panel no longer jumps in height when you switch tools in History.
+### 0.7.3
+- API accounts use your system proxy, and the DeepSeek API key joins them.
+- API cards show today, 7 and 30 days, and History shows spend per day.
+- OpenAI API gets Overview and Models in History, with cost per model.
+- Spend looks different from balance, and History no longer jumps in height.
 
 ### 0.7.2
 - See this month's spend for OpenAI API, Claude API, and Azure OpenAI.

@@ -211,7 +211,7 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 2. 在 GitHub 上发布一个标签为 `vX.Y.Z` 的 Release，或者运行：
 
    ```bash
-   gh release create v0.7.3 --generate-notes
+   gh release create v0.7.4 --generate-notes
    ```
 
 3. [Release 工作流](.github/workflows/release.yml) 会自动跑测试、打包通用版 Mac app 和 Windows 安装包，并把 `TokenTide-X.Y.Z.zip`、`TokenTide-Setup-X.Y.Z.exe`、它们的 `.sha256` 校验文件，以及不带版本号的 `TokenTide.zip` / `TokenTide-Setup.exe`（供下载链接使用）附加到这个 Release 上。已安装的 TokenTide 会在下次检查时自动更新。
@@ -230,13 +230,11 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 
 ## 更新日志
 
-### 未发布
-- API 账户会自动使用系统代理。
-- DeepSeek API Key 并入「API 账户」。
-- 花费和余额的大数字样式区分开。
-- API 账户卡片统一显示今日、7 天、30 天，历史页可看每天花费。
-- OpenAI API 的历史页新增「概览」和「模型」。
-- 历史页切换工具时窗口不再忽大忽小。
+### 0.7.3
+- API 账户走系统代理，DeepSeek Key 并入其中。
+- API 卡片显示今日、7 天和 30 天，历史可看每日花费。
+- OpenAI API 历史页新增「概览」和「模型」。
+- 花费与余额样式区分，历史页切换不再伸缩。
 
 ### 0.7.2
 - 可查看 OpenAI、Claude、Azure 本月花费。
