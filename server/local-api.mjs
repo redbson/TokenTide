@@ -7,7 +7,7 @@ import { defaultDataDir } from "./secret-store.mjs";
 // own refreshes keep current, and reads again only when that is older than MAX_AGE_MS, so other
 // apps polling it never start the command-line tools more often than that. It carries no keys,
 // tokens, account identifiers, or error text (which can hold file paths): status and error codes
-// only. On by default; Settings → Local API turns it off (local-api.json in the data folder).
+// only. On by default; Settings → More settings → Local API turns it off (local-api.json in the data folder).
 
 export const SCHEMA = "tokentide.usage.v1";
 const MAX_AGE_MS = 5 * 60_000;
@@ -138,7 +138,8 @@ export function createEventHub({
   keepFreshMs = KEEP_FRESH_CHECK_MS,
   maxStreams = MAX_EVENT_STREAMS,
 }) {
-  const streams = new Set();
+  // Each open stream, with the id (reading time) of the last reading it was sent.
+  const streams = new Map();
   let unsubscribe = null;
   let heartbeat = null;
   let keepFresh = null;
@@ -151,14 +152,20 @@ export function createEventHub({
     }
   };
   const broadcast = (chunk) => {
-    for (const response of streams) send(response, chunk);
+    for (const response of streams.keys()) send(response, chunk);
   };
   const usageEvent = (payload) => sseEvent("usage", publicUsage(payload), payload?.updatedAt);
+  // Sends a reading to one stream unless it already has it (a read can finish while it connects).
+  const sendReading = (response, payload) => {
+    if (!streams.has(response) || streams.get(response) === payload.updatedAt) return;
+    streams.set(response, payload.updatedAt);
+    send(response, usageEvent(payload));
+  };
 
   function start() {
     unsubscribe = usageService.subscribe?.(async (payload) => {
       if (!(await config.enabled())) return endAll("disabled");
-      broadcast(usageEvent(payload));
+      for (const response of [...streams.keys()]) sendReading(response, payload);
     });
     heartbeat = setInterval(() => broadcast(": ping\n\n"), heartbeatMs);
     heartbeat.unref?.();
@@ -178,7 +185,7 @@ export function createEventHub({
   }
 
   function endAll(reason) {
-    for (const response of streams) {
+    for (const response of [...streams.keys()]) {
       send(response, sseEvent(reason, { reason }));
       response.end();
     }
@@ -204,7 +211,7 @@ export function createEventHub({
         "X-Accel-Buffering": "no",
       });
       response.write("retry: 10000\n\n");
-      streams.add(response);
+      streams.set(response, null);
       if (streams.size === 1) start();
       request.on("close", () => {
         streams.delete(response);
@@ -212,7 +219,7 @@ export function createEventHub({
       });
 
       const payload = await currentReading(usageService).catch(() => null);
-      if (payload && streams.has(response)) send(response, usageEvent(payload));
+      if (payload) sendReading(response, payload);
     },
 
     /** Tells every listener the local API was turned off, and ends their streams. */

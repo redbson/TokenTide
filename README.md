@@ -140,7 +140,7 @@ Files TokenTide writes on your Mac:
 
 ## Local API
 
-Other apps on this computer can read the current usage as JSON from TokenTide's local service. It is on by default; turn it off in **Settings → Local API → Let other apps read usage**.
+Other apps on this computer can read the current usage as JSON from TokenTide's local service. It is on by default; turn it off in **Settings → More settings → Local API → Let other apps read usage**.
 
 ```bash
 curl -s http://127.0.0.1:46173/v1/usage
@@ -176,7 +176,7 @@ curl -s http://127.0.0.1:46173/v1/usage
 curl -N http://127.0.0.1:46173/v1/events
 ```
 
-**For coding agents**: [`skills/tokentide-usage`](skills/tokentide-usage/SKILL.md) is a skill that teaches Claude Code, Codex, and other agents to check this API before big tasks, pick a tool with quota left, and handle TokenTide being off. Install it by copying the folder into `~/.claude/skills/` (Claude Code) or `~/.codex/skills/` (Codex).
+**For coding agents**: [`skills/tokentide-usage`](skills/tokentide-usage/SKILL.md) is a skill that teaches Claude Code, Codex, and other agents to check this API before big tasks, pick a tool with quota left, and handle TokenTide being off. Install it from **Settings → More settings → Agent skill** (one click for Claude Code or Codex, and it shows when an update is available), or copy the folder into `~/.claude/skills/` or `~/.codex/skills/` yourself.
 
 ## Troubleshooting
 
@@ -231,6 +231,8 @@ The Vite dev server uses port 5173, so it doesn't collide with an installed Toke
 
 ### Unreleased
 - Other apps can get usage pushed to them as it changes.
+- Settings keeps the everyday options; the rest moved to More settings.
+- Install the agent skill for Claude Code or Codex from Settings.
 
 ### 0.7.0
 - Other apps and coding agents can read your usage from a local API.

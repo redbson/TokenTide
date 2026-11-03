@@ -80,6 +80,8 @@ test("/v1/events pushes the current reading, then every new one, and ends when t
     assert.equal(first.data.tools[0].remainingPercent, 90);
     assert.equal(first.data.tools[0].plan, "Ultra");
 
+    // The same reading again (a read that finished while connecting) is not sent twice.
+    usageService.publish(usageService.latest());
     usageService.publish(reading(40));
     const second = await next();
     assert.equal(second.data.tools[0].remainingPercent, 60);

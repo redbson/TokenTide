@@ -43,7 +43,7 @@ Field-by-field details and an example are in `references/schema.md`; read it whe
 | What you see | What it means | What to do |
 |---|---|---|
 | Connection refused (exit 1) | TokenTide is not running | Tell the user. Don't guess the quota. |
-| `403 {"error":"disabled"}` (exit 2) | The user turned the local API off | They can turn it on in TokenTide → Settings → Local API. |
+| `403 {"error":"disabled"}` (exit 2) | The user turned the local API off | They can turn it on in TokenTide → Settings → More settings → Local API. |
 | `status: "stale"` | The last refresh failed | Use the numbers, say how old they are (`readAt`). |
 | `error: "claudeSignedOut"` | Claude Code is signed out | The user runs `claude auth login`. |
 | `error: "claudeNoPlan"` | Claude Code uses an API key, so there is no plan quota | Nothing to read; say so. |

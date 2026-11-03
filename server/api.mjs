@@ -4,6 +4,7 @@ import { createDeepseekReader } from "./deepseek-usage.mjs";
 import { SCHEMA, createEventHub, createLocalApiConfig, currentReading, publicUsage } from "./local-api.mjs";
 import { createQuotaLog } from "./quota-weeks.mjs";
 import { createSecretStore, isStorableSecret, maskSecret } from "./secret-store.mjs";
+import { createSkillInstaller } from "./skill-install.mjs";
 import { createUsageService } from "./usage-service.mjs";
 import { createStatsService } from "./usage-stats.mjs";
 
@@ -52,6 +53,7 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
   const fetchImpl = services.fetchImpl ?? fetch;
   const priceBook = services.priceBook ?? createDeepseekPriceBook({ fetchImpl });
   const localApi = services.localApi ?? createLocalApiConfig();
+  const skills = services.skills ?? createSkillInstaller();
   let usageService = services.usageService;
   let statsService = services.statsService;
   if (!usageService || !statsService) {
@@ -93,6 +95,16 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
     return { schema: usage.schema, updatedAt: usage.updatedAt, tool };
   };
 
+  async function changeSkill(request, action) {
+    const agent = decodeURIComponent(new URL(request.url ?? "/", "http://localhost").pathname.slice("/api/skills/".length));
+    try {
+      return await skills[action](agent);
+    } catch (error) {
+      if (error.code) throw new HttpError(error.code === "unknownAgent" ? 404 : 409, error.code);
+      throw error;
+    }
+  }
+
   // Each route: a handler per method, and the message for an unexpected failure.
   const routes = {
     "/v1": {
@@ -101,7 +113,14 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
     },
     "/v1/usage": { GET: readPublic, error: "Usage could not be read." },
     "/v1/usage/*": { GET: readPublicTool, error: "Usage could not be read." },
-    // Settings → Local API.
+    // Settings → More → Agent skill: the tokentide-usage skill in Claude Code's and Codex's folders.
+    "/api/skills": { GET: () => skills.status(), error: "Skills could not be read." },
+    "/api/skills/*": {
+      PUT: (request) => changeSkill(request, "install"),
+      DELETE: (request) => changeSkill(request, "uninstall"),
+      error: "The skill could not be changed.",
+    },
+    // Settings → More settings → Local API.
     "/api/local-api": {
       GET: async () => ({ enabled: await localApi.enabled() }),
       PUT: async (request) => {
@@ -156,7 +175,14 @@ export function createLocalApi(services = {}, { migration = null } = {}) {
     async handle(request, response) {
       const { pathname } = new URL(request.url ?? "/", "http://localhost");
       const route =
-        routes[pathname] ?? (pathname.startsWith("/v1/usage/") ? routes["/v1/usage/*"] : pathname === "/v1/events" ? {} : undefined);
+        routes[pathname] ??
+        (pathname.startsWith("/v1/usage/")
+          ? routes["/v1/usage/*"]
+          : pathname.startsWith("/api/skills/")
+            ? routes["/api/skills/*"]
+            : pathname === "/v1/events"
+              ? {}
+              : undefined);
       if (!route) return false;
 
       const origin = request.headers.origin;

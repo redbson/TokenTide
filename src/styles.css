@@ -1050,3 +1050,19 @@ button:focus-visible {
   user-select: all;
   -webkit-user-select: all;
 }
+
+/* Settings → More: a row that opens the subpage, and the subpage's heading. */
+.settings-more-link { margin-top: 14px; }
+.settings-row-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.settings-row-button:hover { background: rgba(255, 255, 255, 0.03); }
+.settings-chevron { flex: 0 0 auto; width: 16px; height: 16px; color: var(--faint); }
+.settings-subpage-heading { display: flex; align-items: center; gap: 10px; margin: 2px 0 4px; }
+.settings-subpage-heading h3 { margin: 0; color: var(--text); font-size: 13px; font-weight: 600; }

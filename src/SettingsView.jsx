@@ -11,6 +11,7 @@ import {
   LockIcon,
   LoginIcon,
   MenuBarIcon,
+  MoreIcon,
   NotesIcon,
   PlugIcon,
 } from "./icons.jsx";
@@ -350,6 +351,148 @@ function LocalApi() {
   );
 }
 
+// Settings → More → Agent skill: installs the tokentide-usage skill into Claude Code and Codex
+// (server/skill-install.mjs), so they read the local API before big tasks.
+const SKILL_AGENT_ICONS = { claude: "/assets/claude.svg", codex: "/assets/openai.svg" };
+const SKILL_ERRORS = new Set(["agentMissing", "skillConflict", "skillMissing"]);
+
+function AgentSkill() {
+  const { t } = useI18n();
+  const [state, setState] = useState(null);
+  const [busy, setBusy] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/skills", { cache: "no-store" })
+      .then((response) => response.json())
+      .then(setState, () => setState(null));
+  }, []);
+
+  const change = async (agent, method) => {
+    setBusy(agent);
+    setError(null);
+    try {
+      const response = await fetch(`/api/skills/${agent}`, { method, cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "failed");
+      setState(payload);
+    } catch (failure) {
+      setError(SKILL_ERRORS.has(failure.message) ? failure.message : "failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const detail = (agent) => {
+    if (!agent.present) return t("skill.agentMissing", { name: agent.name });
+    if (!agent.installed) return t("skill.notInstalled");
+    return agent.upToDate ? t("skill.installed", { location: agent.location }) : t("skill.outdated");
+  };
+
+  return (
+    <section className="settings-group" aria-labelledby="settings-skill">
+      <h3 id="settings-skill">{t("settings.skill")}</h3>
+      <div className="settings-list">
+        {(state?.agents ?? []).map((agent) => (
+          <SettingRow
+            key={agent.id}
+            icon={<img className="settings-provider-icon" src={SKILL_AGENT_ICONS[agent.id]} alt="" />}
+            title={agent.name}
+            detail={detail(agent)}
+            action={
+              agent.present && state.bundled ? (
+                <span className="settings-actions">
+                  {!agent.installed || !agent.upToDate ? (
+                    <button className="link-button" type="button" disabled={busy !== null} onClick={() => change(agent.id, "PUT")}>
+                      {t(busy === agent.id ? "skill.working" : agent.installed ? "skill.update" : "skill.install")}
+                    </button>
+                  ) : null}
+                  {agent.installed ? (
+                    <button className="link-button" type="button" disabled={busy !== null} onClick={() => change(agent.id, "DELETE")}>
+                      {t("skill.remove")}
+                    </button>
+                  ) : null}
+                </span>
+              ) : null
+            }
+          />
+        ))}
+        {state && !state.agents.length ? <div className="settings-row">{t("skill.none")}</div> : null}
+      </div>
+      {error ? <p className="settings-error">{t(`skill.error.${error}`)}</p> : null}
+      <p className="settings-note" title={t("skill.note")}>{t("skill.note")}</p>
+    </section>
+  );
+}
+
+const ChevronIcon = () => (
+  <svg className="icon settings-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="m9.5 6 6 6-6 6" />
+  </svg>
+);
+
+// Less-used settings, one tap away from the main page.
+function MoreSettings({ settings, providers, onSettingChange, onDeepseekKeyChange, onBack }) {
+  const { t } = useI18n();
+  const deepseekShown =
+    isVisibleProvider(providers.find((provider) => provider.id === "deepseek") ?? { installed: false }) &&
+    !settings.hiddenProviders.includes("deepseek");
+  return (
+    <div className="settings settings-more">
+      <div className="settings-subpage-heading">
+        <button className="link-button" type="button" onClick={onBack}>‹ {t("settings.back")}</button>
+        <h3>{t("settings.more")}</h3>
+      </div>
+
+      <section className="settings-group" aria-labelledby="settings-quota">
+        <h3 id="settings-quota">{t("settings.quota")}</h3>
+        <div className="settings-list">
+          <SettingRow
+            icon={<ClockIcon />}
+            title={t("settings.autoRefresh")}
+            detail={
+              settings.autoRefresh
+                ? t("settings.autoRefreshDetail", { minutes: pick(settings.quotaInterval, QUOTA_INTERVALS, 2) })
+                : t("settings.autoRefreshOff")
+            }
+            checked={settings.autoRefresh}
+            onChange={(value) => onSettingChange("autoRefresh", value)}
+            action={
+              settings.autoRefresh ? (
+                <IntervalPicker
+                  label={t("settings.quotaInterval")}
+                  choices={QUOTA_INTERVALS}
+                  value={pick(settings.quotaInterval, QUOTA_INTERVALS, 2)}
+                  onChange={(value) => onSettingChange("quotaInterval", value)}
+                />
+              ) : null
+            }
+          />
+          <SettingRow
+            icon={<ChartIcon />}
+            title={t("settings.statsInterval")}
+            detail={t("settings.statsIntervalDetail", { minutes: pick(settings.statsInterval, STATS_INTERVALS, 30) })}
+            action={
+              <IntervalPicker
+                label={t("settings.statsInterval")}
+                choices={STATS_INTERVALS}
+                value={pick(settings.statsInterval, STATS_INTERVALS, 30)}
+                onChange={(value) => onSettingChange("statsInterval", value)}
+              />
+            }
+          />
+        </div>
+      </section>
+
+      {deepseekShown ? <DeepseekKey onChanged={onDeepseekKeyChange} /> : null}
+
+      <LocalApi />
+
+      <AgentSkill />
+    </div>
+  );
+}
+
 export function SettingsView({
   settings,
   providers,
@@ -364,6 +507,25 @@ export function SettingsView({
   onDeepseekKeyChange = () => {},
 }) {
   const { t } = useI18n();
+  const [page, setPage] = useState("main");
+  const open = (next) => {
+    setPage(next);
+    // The panel scrolls as a whole; a subpage starts at its top.
+    window.scrollTo?.(0, 0);
+    document.querySelector(".panel-body")?.scrollTo?.(0, 0);
+  };
+  if (page === "more") {
+    return (
+      <MoreSettings
+        settings={settings}
+        providers={providers}
+        onSettingChange={onSettingChange}
+        onDeepseekKeyChange={onDeepseekKeyChange}
+        onBack={() => open("main")}
+      />
+    );
+  }
+
   const loginEnabled = loginItem.status === "enabled" || loginItem.status === "requiresApproval";
   return (
     <div className="settings">
@@ -404,6 +566,13 @@ export function SettingsView({
               ) : null
             }
           />
+          <SettingRow
+            icon={<BellIcon />}
+            title={t("settings.lowAlert")}
+            detail={t("settings.lowAlertDetail", { percent: LOW_USAGE_THRESHOLD })}
+            checked={settings.lowUsageAlert}
+            onChange={(value) => onSettingChange("lowUsageAlert", value)}
+          />
         </div>
       </section>
 
@@ -412,12 +581,6 @@ export function SettingsView({
         hiddenProviders={settings.hiddenProviders}
         onChange={(value) => onSettingChange("hiddenProviders", value)}
       />
-
-      {/* Only with DeepSeek Harness installed and shown. */}
-      {isVisibleProvider(providers.find((provider) => provider.id === "deepseek") ?? { installed: false }) &&
-      !settings.hiddenProviders.includes("deepseek") ? (
-        <DeepseekKey onChanged={onDeepseekKeyChange} />
-      ) : null}
 
       <section className="settings-group" aria-labelledby="settings-update">
         <h3 id="settings-update">{t("settings.update")}</h3>
@@ -451,54 +614,16 @@ export function SettingsView({
         </div>
       </section>
 
-      <LocalApi />
-
-      <section className="settings-group" aria-labelledby="settings-quota">
-        <h3 id="settings-quota">{t("settings.quota")}</h3>
-        <div className="settings-list">
-          <SettingRow
-            icon={<ClockIcon />}
-            title={t("settings.autoRefresh")}
-            detail={
-              settings.autoRefresh
-                ? t("settings.autoRefreshDetail", { minutes: pick(settings.quotaInterval, QUOTA_INTERVALS, 2) })
-                : t("settings.autoRefreshOff")
-            }
-            checked={settings.autoRefresh}
-            onChange={(value) => onSettingChange("autoRefresh", value)}
-            action={
-              settings.autoRefresh ? (
-                <IntervalPicker
-                  label={t("settings.quotaInterval")}
-                  choices={QUOTA_INTERVALS}
-                  value={pick(settings.quotaInterval, QUOTA_INTERVALS, 2)}
-                  onChange={(value) => onSettingChange("quotaInterval", value)}
-                />
-              ) : null
-            }
-          />
-          <SettingRow
-            icon={<ChartIcon />}
-            title={t("settings.statsInterval")}
-            detail={t("settings.statsIntervalDetail", { minutes: pick(settings.statsInterval, STATS_INTERVALS, 30) })}
-            action={
-              <IntervalPicker
-                label={t("settings.statsInterval")}
-                choices={STATS_INTERVALS}
-                value={pick(settings.statsInterval, STATS_INTERVALS, 30)}
-                onChange={(value) => onSettingChange("statsInterval", value)}
-              />
-            }
-          />
-          <SettingRow
-            icon={<BellIcon />}
-            title={t("settings.lowAlert")}
-            detail={t("settings.lowAlertDetail", { percent: LOW_USAGE_THRESHOLD })}
-            checked={settings.lowUsageAlert}
-            onChange={(value) => onSettingChange("lowUsageAlert", value)}
-          />
-        </div>
-      </section>
+      <div className="settings-list settings-more-link">
+        <button className="settings-row settings-row-button" type="button" onClick={() => open("more")}>
+          <span className="settings-icon"><MoreIcon /></span>
+          <span className="settings-text">
+            <span className="settings-title">{t("settings.more")}</span>
+            <span className="settings-detail">{t("settings.moreDetail")}</span>
+          </span>
+          <ChevronIcon />
+        </button>
+      </div>
 
       <footer className="settings-about">
         {/* HETERONTO's minimal mark and wordmark in single white ink, kept quiet. */}

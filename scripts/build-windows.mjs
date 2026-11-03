@@ -35,6 +35,8 @@ for (const file of await readdir(path.join(root, "server"))) {
   if (file.endsWith(".mjs")) await cp(path.join(root, "server", file), path.join(stage, "server", file));
 }
 await cp(path.join(root, "dist", "client"), path.join(stage, "client"), { recursive: true });
+// The agent skill Settings → More → Agent skill installs (server/skill-install.mjs).
+await cp(path.join(root, "skills"), path.join(stage, "skills"), { recursive: true });
 
 const artifactName = "TokenTide-Setup-${version}.exe";
 await writeFile(

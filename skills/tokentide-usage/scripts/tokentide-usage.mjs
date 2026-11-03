@@ -28,7 +28,7 @@ try {
 }
 const body = await response.json().catch(() => ({}));
 if (response.status === 403 && body.error === "disabled") {
-  console.error("TokenTide's local API is off. The user can turn it on in TokenTide → Settings → Local API.");
+  console.error("TokenTide's local API is off. The user can turn it on in TokenTide → Settings → More settings → Local API.");
   process.exit(2);
 }
 if (response.status === 404) {

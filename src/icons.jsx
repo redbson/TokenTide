@@ -46,3 +46,6 @@ export const ChartIcon = () => (
 export const PlugIcon = () => (
   <Icon><path d="M9 3.5v4M15 3.5v4" /><path d="M6.5 7.5h11V11a5.5 5.5 0 0 1-11 0z" /><path d="M12 16.5v4" /></Icon>
 );
+export const MoreIcon = () => (
+  <Icon><path d="M4.5 7h15M4.5 12h15M4.5 17h9" /><circle cx="18" cy="17" r="1.6" /></Icon>
+);

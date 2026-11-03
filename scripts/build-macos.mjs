@@ -30,6 +30,8 @@ for (const file of await readdir(path.join(root, "server"))) {
   }
 }
 await cp(path.join(root, "dist/client"), path.join(app, "client"), { recursive: true });
+// The agent skill Settings → More → Agent skill installs (server/skill-install.mjs).
+await cp(path.join(root, "skills"), path.join(app, "skills"), { recursive: true });
 
 // The bundle identifier predates the TokenTide name. WebKit keys the panel's local storage
 // (quota trend, settings) by bundle identifier, so changing it would reset that data.

@@ -140,7 +140,7 @@ TokenTide 在本机写入的文件：
 
 ## 本机接口
 
-本机的其他应用可以从 TokenTide 的本地服务读取当前用量（JSON）。默认开启，可在 **设置 → 本机接口 → 允许其他应用读取用量** 里关闭。
+本机的其他应用可以从 TokenTide 的本地服务读取当前用量（JSON）。默认开启，可在 **设置 → 更多设置 → 本机接口 → 允许其他应用读取用量** 里关闭。
 
 ```bash
 curl -s http://127.0.0.1:46173/v1/usage
@@ -163,7 +163,7 @@ curl -s http://127.0.0.1:46173/v1/usage
 curl -N http://127.0.0.1:46173/v1/events
 ```
 
-**给编程 Agent 用**：[`skills/tokentide-usage`](skills/tokentide-usage/SKILL.md) 是一个 skill，教 Claude Code、Codex 等 Agent 在开始大任务前查这个接口、挑还有额度的工具、处理 TokenTide 没开的情况。把这个文件夹复制到 `~/.claude/skills/`（Claude Code）或 `~/.codex/skills/`（Codex）即可安装。
+**给编程 Agent 用**：[`skills/tokentide-usage`](skills/tokentide-usage/SKILL.md) 是一个 skill，教 Claude Code、Codex 等 Agent 在开始大任务前查这个接口、挑还有额度的工具、处理 TokenTide 没开的情况。在 **设置 → 更多设置 → Agent Skill** 里一键安装到 Claude Code 或 Codex（有新版本时会提示更新），也可以自己把这个文件夹复制到 `~/.claude/skills/` 或 `~/.codex/skills/`。
 
 ## 常见问题
 
@@ -218,6 +218,8 @@ node scripts/build-windows.mjs       # 打包 release/windows/TokenTide-Setup-X.
 
 ### 未发布
 - 其他应用可以订阅用量变化，不用轮询。
+- 设置页只留常用项，其余移到「更多设置」。
+- 可在设置里为 Claude Code、Codex 安装 Agent Skill。
 
 ### 0.7.0
 - 新增本机接口，其他应用和 Agent 可读取用量。

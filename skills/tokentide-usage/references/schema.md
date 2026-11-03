@@ -94,7 +94,7 @@ Server-Sent Events (`text/event-stream`):
 
 | HTTP | Body | Meaning |
 |---|---|---|
-| 403 | `{"error":"disabled"}` | Local API turned off in TokenTide → Settings → Local API |
+| 403 | `{"error":"disabled"}` | Local API turned off in TokenTide → Settings → More settings → Local API |
 | 403 | empty | The request carried a browser `Origin` (web pages are refused) |
 | 404 | `{"error":"unknownTool"}` | No such installed tool |
 | 405 | empty | Only `GET` is accepted |
