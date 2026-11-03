@@ -118,7 +118,8 @@ test("updater: downloads, verifies, and launches the installer while the panel i
     panelOpen = false;
     updater.panelDidHide();
     // The download runs in the background; a slow CI machine can take longer than a fixed pause.
-    await waitFor(() => updater.snapshot().status !== "downloading" && updater.snapshot().status !== "available");
+    // "installing" is set just before the installer starts, so wait for the launch itself too.
+    await waitFor(() => launched !== null || updater.snapshot().status === "failed");
     assert.equal(updater.snapshot().status, "installing");
     assert.deepEqual(launched, installer);
 
